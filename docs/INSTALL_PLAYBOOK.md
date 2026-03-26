@@ -22,6 +22,11 @@ python3 install.py doctor \
 
 如果你不用飞书，`feishu=ou_xxx` 只是示例；把它换成任何 `OpenClaw` 能发消息的渠道即可。
 
+说明：
+
+- 仓库路径就是这个包本身的路径
+- `web_base_url` 最好由 AI 在本机自动探测局域网 IPv4 后生成，只有探测失败时再来问用户
+
 通过后，再执行完整安装：
 
 ```bash
@@ -36,6 +41,24 @@ python3 install.py full \
   --load-services
 ```
 
+如果不是 `Claude Code`，而是别的 AI 编程工具，推荐改成：
+
+```bash
+cd /path/to/relay-hub
+python3 install.py full \
+  --web-base-url http://YOUR_LAN_IP:4317 \
+  --delivery-channel feishu=ou_xxx \
+  --worker-agent <your-agent-id> \
+  --worker-backend manual \
+  --load-services
+```
+
+这表示：
+
+- OpenClaw 和网页入口照常安装
+- 但仓库不为该对象提供现成自动 worker
+- 该对象后续应按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 手动接入
+
 如果你只想先装 OpenClaw 侧：
 
 ```bash
@@ -47,7 +70,7 @@ python3 install.py install-openclaw \
 
 ## 2. 应该跟 Claude Code 说什么
 
-下面这段可以直接发给 `Claude Code`：
+下面这段可以直接发给 `Claude Code`。如果是别的对象，把其中的 `claude-code` 换成对应 `agent_id`，并把安装命令里的 `--worker-backend claude-code` 改成 `--worker-backend manual`：
 
 ```text
 这是一个 Relay Hub 仓库。请先阅读：

@@ -79,8 +79,8 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--worker-backend",
         default="claude-code",
-        choices=["claude-code"],
-        help="Bundled background worker backend. Currently only claude-code is packaged.",
+        choices=["claude-code", "manual"],
+        help="Bundled background worker backend. Use claude-code for the packaged Claude worker, or manual for non-bundled agents.",
     )
     parser.add_argument("--worker-workdir", help="Worker working directory. Defaults to repo parent.")
     parser.add_argument("--worker-poll-seconds", type=float, default=2.0)
@@ -448,25 +448,34 @@ def install_launchd(args: argparse.Namespace, runtime_root: Path, openclaw_works
     web_plist = launchagents_dir / "com.relayhub.web.plist"
     worker_plist = launchagents_dir / f"com.relayhub.worker.{args.worker_agent}.plist"
     web_plist.write_bytes(build_web_plist(app_root, runtime_root, logs_dir, args.web_host, args.web_port))
-    worker_label, worker_bytes = build_worker_plist(
-        app_root=app_root,
-        runtime_root=runtime_root,
-        logs_dir=logs_dir,
-        agent=args.worker_agent,
-        backend=args.worker_backend,
-        workdir=resolve_path(args.worker_workdir, REPO_ROOT.parent),
-        config_path=openclaw_config_path(openclaw_workspace),
-        poll_seconds=args.worker_poll_seconds,
-    )
-    worker_plist.write_bytes(worker_bytes)
+    worker_label = f"com.relayhub.worker.{args.worker_agent}"
+    worker_written = False
+    if args.worker_backend == "claude-code":
+        worker_label, worker_bytes = build_worker_plist(
+            app_root=app_root,
+            runtime_root=runtime_root,
+            logs_dir=logs_dir,
+            agent=args.worker_agent,
+            backend=args.worker_backend,
+            workdir=resolve_path(args.worker_workdir, REPO_ROOT.parent),
+            config_path=openclaw_config_path(openclaw_workspace),
+            poll_seconds=args.worker_poll_seconds,
+        )
+        worker_plist.write_bytes(worker_bytes)
+        worker_written = True
+    elif worker_plist.exists():
+        worker_plist.unlink()
     if args.load_services:
         launchctl_bootstrap(web_plist, "com.relayhub.web")
-        launchctl_bootstrap(worker_plist, worker_label)
+        if worker_written:
+            launchctl_bootstrap(worker_plist, worker_label)
     return {
         "app_bundle": app_bundle,
         "launchagents_dir": str(launchagents_dir),
         "web_plist": str(web_plist),
-        "worker_plist": str(worker_plist),
+        "worker_plist": str(worker_plist) if worker_written else None,
+        "worker_backend": args.worker_backend,
+        "worker_installed": worker_written,
         "loaded": bool(args.load_services),
     }
 
@@ -512,6 +521,8 @@ def install_status(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
 def backend_command(backend: str) -> str | None:
     if backend == "claude-code":
         return "claude"
+    if backend == "manual":
+        return None
     return None
 
 
@@ -551,6 +562,8 @@ def install_doctor(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
         if backend_cli == "claude" and backend_path:
             auth = claude_auth_ready()
             add_check("claude_auth", auth["ok"], auth["detail"])
+    else:
+        add_check("worker_backend", True, f"{args.worker_backend} backend selected; no bundled worker CLI required")
 
     add_check("openclaw_workspace", openclaw_workspace.exists(), str(openclaw_workspace))
     add_check("launchagents_dir_parent", launchagents_dir.parent.exists(), str(launchagents_dir.parent))
@@ -576,7 +589,10 @@ def install_doctor(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
     web_label = "com.relayhub.web"
     worker_label = f"com.relayhub.worker.{args.worker_agent}"
     add_check("launchd_web_loaded", launchd_loaded(web_label), web_label)
-    add_check("launchd_worker_loaded", launchd_loaded(worker_label), worker_label)
+    if args.worker_backend == "manual":
+        add_check("launchd_worker_loaded", True, "manual backend selected; no worker launchd service expected")
+    else:
+        add_check("launchd_worker_loaded", launchd_loaded(worker_label), worker_label)
 
     ok = all(check["ok"] for check in checks if check["name"] not in {"launchd_web_loaded", "launchd_worker_loaded"})
     return {
