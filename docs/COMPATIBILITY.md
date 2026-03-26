@@ -31,13 +31,14 @@
 - `scripts/agent_relay.py`
 - `scripts/relayctl.py`
 
-### 仓库是否附带后台 worker
+### 默认安装会不会替 AI 自动接单
 
 当前不完全通用。
 
 当前仓库的产品边界是：
 
-- 不内置任何特定 AI 的后台 worker
+- 默认安装只把 Relay Hub 本体装好
+- 外部 AI 后续按协议自己接入
 
 所以结论是：
 
@@ -47,7 +48,7 @@
 这不代表它们不能接入，只代表：
 
 - 可以通过 `scripts/agent_relay.py` 手动参与
-- 或者各自再实现一层很薄的专属适配 worker
+- 或者各自在自己的环境里做一层很薄的自动化封装
 
 ## 2. 消息渠道通用性
 
@@ -59,20 +60,9 @@
 
 - 只要该渠道是 `OpenClaw` 已支持、并且能通过 `openclaw message send` 发出的消息渠道，就可以接
 
-也就是说，协议层不是写死某两个渠道。  
-文档里偶尔出现的特定渠道名，只是历史示例或快捷参数例子。
+也就是说，协议层不是写死某几个渠道。
 
-### 为什么 README 里还会出现少量特定渠道名
-
-因为安装器里仍然保留了几个针对特定渠道插件的快捷参数：
-
-- `--feishu-target`
-- `--weixin-target`
-- `--weixin-account-id`
-
-但这只是快捷写法，不是能力边界，也不是推荐的默认入口。
-
-真正通用的写法是：
+真正通用的安装写法是：
 
 - `--delivery-channel channel=target`
 - `--delivery-account channel=accountId`
@@ -158,11 +148,10 @@ Relay Hub 现在是：
 - 对 AI 协议层通用
 - 对 OpenClaw 渠道层通用
 - 对 macOS 安装与托管友好
-- 不对任何特定 AI 内置后台 worker
 
 Relay Hub 现在还不是：
 
-- 对所有 AI CLI 都内置各自现成的后台 worker
+- 对所有 AI CLI 都自带现成自动接单进程
 - 对所有操作系统都内置现成服务托管
 - 对所有消息网关都通用
 

@@ -47,6 +47,12 @@ def write_json(path: Path, payload: Any) -> None:
     write_text(path, json.dumps(payload, ensure_ascii=False, indent=2) + "\n")
 
 
+def load_json(path: Path, default: Any = None) -> Any:
+    if not path.exists():
+        return default
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def resolve_path(raw: str | None, default: Path) -> Path:
     return Path(raw).expanduser().resolve() if raw else default
 
@@ -86,9 +92,6 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--web-port", type=int, default=DEFAULT_WEB_PORT)
     parser.add_argument("--web-base-url", help="Public base URL for Relay web.")
     parser.add_argument("--queue-ack-timeout", type=int, default=15)
-    parser.add_argument("--feishu-target")
-    parser.add_argument("--weixin-target")
-    parser.add_argument("--weixin-account-id")
     parser.add_argument(
         "--delivery-channel",
         action="append",
@@ -140,13 +143,6 @@ def delivery_channels(args: argparse.Namespace) -> dict[str, Any]:
         return payload
 
     channels: dict[str, Any] = {}
-    if args.feishu_target:
-        channels["feishu"] = {"target": args.feishu_target}
-    if args.weixin_target:
-        entry: dict[str, Any] = {"target": args.weixin_target}
-        if args.weixin_account_id:
-            entry["accountId"] = args.weixin_account_id
-        channels["openclaw-weixin"] = entry
     generic_targets = parse_pairs(getattr(args, "delivery_channel", None), "--delivery-channel")
     generic_accounts = parse_pairs(getattr(args, "delivery_account", None), "--delivery-account")
     for channel, target in generic_targets.items():
@@ -177,6 +173,11 @@ def openclaw_config_path(openclaw_workspace: Path) -> Path:
     return openclaw_workspace / "data" / "relay_hub_openclaw.json"
 
 
+def existing_delivery_channels(openclaw_workspace: Path) -> dict[str, Any]:
+    existing = load_json(openclaw_config_path(openclaw_workspace), {}) or {}
+    return ((existing.get("delivery") or {}).get("channels") or {})
+
+
 def alias_map_path(openclaw_workspace: Path) -> Path:
     return openclaw_workspace / "data" / "relay_hub_channel_aliases.json"
 
@@ -193,11 +194,10 @@ def stage_app_bundle(app_root: Path) -> dict[str, Any]:
     ensure_dir(app_root)
     scripts_root = app_root / "scripts"
     ensure_dir(scripts_root)
-    stale_worker = scripts_root / "relay_agent_worker.py"
-    stale_worker.unlink(missing_ok=True)
+    stale_script = scripts_root / "relay_agent_worker.py"
+    stale_script.unlink(missing_ok=True)
     scripts = [
         "agent_relay.py",
-        "codex_relay.py",
         "openclaw_relay.py",
         "relay_openclaw_bridge.py",
         "relay_web.py",
@@ -219,7 +219,7 @@ def stage_app_bundle(app_root: Path) -> dict[str, Any]:
 
 
 def build_openclaw_config(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, app_root: Path) -> dict[str, Any]:
-    channels = delivery_channels(args)
+    channels = delivery_channels(args) or existing_delivery_channels(openclaw_workspace)
     base_url = resolved_web_base_url(args)
     return {
         "version": 1,
@@ -411,7 +411,7 @@ def build_web_plist(app_root: Path, runtime_root: Path, logs_dir: Path, host: st
     return plistlib.dumps(payload)
 
 
-def remove_worker_plists(launchagents_dir: Path) -> list[str]:
+def remove_legacy_agent_plists(launchagents_dir: Path) -> list[str]:
     removed: list[str] = []
     for plist in launchagents_dir.glob("com.relayhub.worker.*.plist"):
         subprocess.run(["launchctl", "bootout", launchctl_domain(), str(plist)], capture_output=True, text=True)  # noqa: S603
@@ -427,14 +427,14 @@ def install_launchd(args: argparse.Namespace, runtime_root: Path, launchagents_d
     ensure_dir(logs_dir)
     web_plist = launchagents_dir / "com.relayhub.web.plist"
     web_plist.write_bytes(build_web_plist(app_root, runtime_root, logs_dir, args.web_host, args.web_port))
-    removed_workers = remove_worker_plists(launchagents_dir)
+    removed_legacy_agent_plists = remove_legacy_agent_plists(launchagents_dir)
     if args.load_services:
         launchctl_bootstrap(web_plist, "com.relayhub.web")
     return {
         "app_bundle": app_bundle,
         "launchagents_dir": str(launchagents_dir),
         "web_plist": str(web_plist),
-        "removed_worker_plists": removed_workers,
+        "removed_legacy_agent_plists": removed_legacy_agent_plists,
         "loaded": bool(args.load_services),
     }
 
@@ -470,7 +470,7 @@ def install_status(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
         "heartbeat_installed": heartbeat_path(openclaw_workspace).exists(),
         "launchagents_dir": str(launchagents_dir),
         "web_plist_installed": (launchagents_dir / "com.relayhub.web.plist").exists(),
-        "worker_plists_installed": sorted(str(path) for path in launchagents_dir.glob("com.relayhub.worker.*.plist")),
+        "legacy_agent_plists_installed": sorted(str(path) for path in launchagents_dir.glob("com.relayhub.worker.*.plist")),
     }
     if bridge_config.exists():
         payload["bridge_config"] = json.loads(bridge_config.read_text(encoding="utf-8"))
@@ -493,13 +493,21 @@ def install_doctor(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
     openclaw_cli = shutil.which("openclaw")
     add_check("openclaw_cli", bool(openclaw_cli), openclaw_cli or "openclaw not found in PATH")
 
-    add_check("openclaw_workspace", openclaw_workspace.exists(), str(openclaw_workspace))
+    add_check(
+        "openclaw_workspace",
+        True,
+        f"{openclaw_workspace} (will be created if missing)",
+    )
     add_check("launchagents_dir_parent", launchagents_dir.parent.exists(), str(launchagents_dir.parent))
     add_check("app_root_parent", app_root.parent.exists(), str(app_root.parent))
     add_check("repo_runtime_parent", runtime_root.parent.exists(), str(runtime_root.parent))
 
     status = install_status(args, runtime_root, openclaw_workspace, launchagents_dir, app_root)
-    add_check("git_repo", status["repo_is_git"], "git initialized" if status["repo_is_git"] else "run `git init -b main` in relay-hub")
+    add_check(
+        "git_repo",
+        True,
+        "git initialized" if status["repo_is_git"] else "git metadata not present; package install mode is still supported",
+    )
     add_check(
         "web_base_url",
         True,

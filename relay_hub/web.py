@@ -158,7 +158,10 @@ def create_handler(root: Path):
             token = unquote(path.removeprefix("/s/"))
             if not token:
                 return None
-            return session_key_from_public_token(token)
+            try:
+                return session_key_from_public_token(token)
+            except Exception:
+                return None
         if path.startswith("/session/"):
             return unquote(path.removeprefix("/session/"))
         return None

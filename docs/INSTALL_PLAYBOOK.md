@@ -1,16 +1,20 @@
 # Relay Hub 安装章程
 
-这份文件回答 3 件事：
+这份文件只讲安装，不讲协议细节。
+
+它回答 3 件事：
 
 1. 仓库下载后，应该先执行什么安装命令
 2. 应该跟 AI 编程工具说什么
 3. 应该跟 `OpenClaw` 说什么
 
-这不是协议文档；协议本体仍然是仓库根的 `RELAY_PROTOCOL.md`。
+协议本体仍然是仓库根的 `RELAY_PROTOCOL.md`。
 
 ## 1. 人类先做的事
 
-先把仓库放到本机，然后执行一次自检：
+先把仓库放到本机。仓库路径就是这个包本身的路径。
+
+建议先执行一次自检：
 
 ```bash
 cd /path/to/relay-hub
@@ -19,7 +23,6 @@ python3 install.py doctor
 
 说明：
 
-- 仓库路径就是这个包本身的路径
 - `web_base_url` 默认会由安装器自动探测局域网 IPv4 后生成，只有探测失败时才回落到 `127.0.0.1`
 
 通过后，再执行完整安装：
@@ -31,9 +34,10 @@ python3 install.py full --load-services
 
 这表示：
 
-- OpenClaw 和网页入口照常安装
+- Relay Hub 本身会先装好
+- OpenClaw 桥接和网页入口会一起装好
 - 默认回包走原始触发渠道，不要求先配置额外渠道
-- 这一步先把 Relay Hub 本身装好
+- 如果机器上已经配过额外回传渠道，重装时不显式传参也会保留原配置
 - 外部对象后续再按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 接入
 
 如果你后面明确要“除原始触发渠道外，还要额外镜像到别的渠道”，再单独执行：
@@ -54,7 +58,7 @@ python3 install.py install-openclaw
 
 ## 2. 应该跟 AI 编程工具说什么
 
-下面这段可以直接发给 AI 编程工具。把其中的 `<your-agent-id>` 换成对应对象名：
+下面这段可以直接发给 AI 编程工具。把其中的 `<your-agent-id>` 换成它自己的标准名字：
 
 ```text
 这是一个 Relay Hub 仓库。请先阅读：
@@ -133,6 +137,6 @@ python3 install.py install-openclaw
 - 不要让外部 AI 直接读原始消息渠道
 - 不要让 OpenClaw 自己翻 Relay Hub 的底层文件
 - 不要把网页 branch 当成第二条主聊天
-- 不要假设本仓库已经对任何 AI CLI 都内置了后台 worker
+- 不要假设仓库会替外部 AI 自动接手处理；外部 AI 仍需按协议接入
 
 更详细的通用性边界，见 `docs/COMPATIBILITY.md`。

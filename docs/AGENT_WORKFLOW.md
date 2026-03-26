@@ -15,7 +15,7 @@
 
 - 下文里的 `agent_demo / channel_a / target_demo` 只是示例
 - 协议本身并不要求必须是某个特定对象，也不要求必须是某个特定渠道
-- 当前仓库不附带任何特定对象的后台 worker；外部对象需要按本文件自行接入
+- 仓库默认只安装 Relay Hub 本体；外部对象需要按本文件自行接入
 
 ## 核心心智模型
 
@@ -188,4 +188,4 @@ python3 scripts/agent_relay.py merge-back --session channel_a__target_demo --mar
 - OpenClaw 只管 branch 入口、`已录入`、渠道发送、退出
 - main chat 和 branch 不是并列双主线
 - branch 只是主线的外部分支工作区
-- 如果仓库里同时存在专用壳，例如 `scripts/codex_relay.py`，它只是兼容入口；通用入口仍然是 `scripts/agent_relay.py`
+- 以 `scripts/agent_relay.py` 作为通用入口，不要依赖私有壳脚本

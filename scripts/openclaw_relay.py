@@ -57,20 +57,17 @@ def resolve_session_arg(args: argparse.Namespace) -> str:
 
 
 def build_open_message(branch: dict[str, Any], agent_status: str) -> str:
-    session_key = branch["session_key"]
     web_url = branch["meta"]["web_url"]
     raw_channels = list((branch["meta"].get("default_delivery") or {}).get("channels") or [])
     channels = ", ".join(raw_channels) if raw_channels else "原始触发渠道"
     if agent_status == "ready":
         return (
             f"{branch['meta']['agent']} branch 已就绪。\n"
-            f"session: {session_key}\n"
             f"网页入口：{web_url}\n"
             f"默认回传渠道：{channels}"
         )
     return (
         f"{branch['meta']['agent']} branch 入口已打开，但对象当前状态是 {agent_status}。\n"
-        f"session: {session_key}\n"
         f"网页入口：{web_url}\n"
         f"默认回传渠道：{channels}"
     )
@@ -79,11 +76,24 @@ def build_open_message(branch: dict[str, Any], agent_status: str) -> str:
 def build_status_message(session: dict[str, Any]) -> str:
     meta = session["meta"]
     state = session["state"]
+    status = state.get("status") or "unknown"
+    if status == "queued":
+        status_text = "已排队，等待对象接手。"
+    elif status == "processing":
+        status_text = "对象正在处理中。"
+    elif status == "awaiting_user":
+        status_text = "当前等待你的下一步输入。"
+    elif status == "input_open":
+        status_text = "网页入口已打开，等待录入。"
+    elif status == "error":
+        status_text = "最近一次处理出错。"
+    else:
+        status_text = f"当前状态：{status}"
     return (
-        f"agent={meta.get('agent')} status={state.get('status')} mode={state.get('mode')}\n"
-        f"session: {meta.get('session_key')}\n"
-        f"最近用户消息: {state.get('last_committed_user_message_id')}\n"
-        f"最近对象消息: {state.get('last_agent_message_id')}\n"
+        f"当前对象：{meta.get('agent')}\n"
+        f"{status_text}\n"
+        f"最近录入消息：{state.get('last_committed_user_message_id') or '暂无'}\n"
+        f"最近对象回复：{state.get('last_agent_message_id') or '暂无'}\n"
         f"网页入口：{meta.get('web_url')}"
     )
 
@@ -224,7 +234,7 @@ def main() -> None:
             {
                 "ok": True,
                 **payload,
-                "user_message": f"{session_key} 已退出 relay，恢复 OpenClaw 正常模式。",
+                "user_message": "已退出 Relay Hub，恢复 OpenClaw 正常模式。",
             }
         )
         return
