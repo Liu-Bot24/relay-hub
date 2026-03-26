@@ -1,0 +1,12 @@
+runtime/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
