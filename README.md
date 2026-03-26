@@ -213,7 +213,7 @@ python3 install.py install-launchd \
 - Relay Hub 的网页 branch 不是主对话本身，而是主线分支
 - 当前主对话窗口仍然是主线
 - OpenClaw 不负责主线快照和 merge-back
-- 外部对象不应直接读取飞书 / 微信原始渠道
+- 外部对象不应直接读取原始消息渠道
 - OpenClaw 也不应自己翻 `routes.json`、`messages/*.md`
 
 所有渠道读写都应该通过固定桥接 CLI 完成。
