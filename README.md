@@ -45,7 +45,8 @@ python3 install.py full --load-services
 - install.py 会自动探测本机局域网 IPv4，并生成 web_base_url；只有探测失败时，才回头问我
 - 默认不要求你先配置额外渠道目标；如果安装时没有显式配置额外渠道，回包就默认走原始触发渠道
 - 如果用户后面明确要求“除原始触发渠道外，还要额外镜像到别的渠道”，那时再执行 install.py install-openclaw --delivery-channel channel=target --delivery-account channel=accountId
-- 仓库默认只安装通用层：OpenClaw 桥接、网页入口、协议文件、Web 服务；不为任何特定 AI 内置后台 worker
+- 这一步先把 Relay Hub 的通用部分装好：OpenClaw 桥接、网页入口、协议文件、Web 服务
+- 安装完成后，再按上面的说明把你要用的 AI 编程工具接进来
 
 安装完成后，再执行：
 1. python3 install.py doctor
@@ -196,7 +197,7 @@ python3 install.py full --load-services
 - `install.py` 会优先自动探测局域网可访问地址，作为网页入口地址
 - `--load-services` 会把当前安装里需要的服务直接装进 `launchd`
 - 基线安装默认不要求你先填渠道目标；回包默认走原始触发渠道
-- 基线安装不会替任何特定 AI 安装后台 worker；外部对象后续按协议自行接入
+- 基线安装只负责把 Relay Hub 本身装好；外部 AI 之后再按协议接入
 - 如果你暂时只想装 OpenClaw 侧，不启服务，可以去掉 `--load-services`
 
 如果你后面明确要加“额外镜像渠道”，再执行：
@@ -295,7 +296,7 @@ python3 install.py install-launchd --load-services
 
 ## 边界说明
 
-- Relay Hub 的协议层是通用的，但仓库当前不内置任何特定 AI 的常驻 worker
+- Relay Hub 的协议层是通用的，但外部 AI 需要在安装后按协议自己接入
 - Relay Hub 的渠道层不是只支持某几个预设渠道；凡是 `OpenClaw` 能通过 `openclaw message send` 发出的渠道都可以接
 - 某些特定渠道参数只是安装器里的快捷写法，不是协议限制
 - 当前仓库的现成后台服务托管是 `macOS + launchd`

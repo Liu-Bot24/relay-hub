@@ -33,8 +33,8 @@ python3 install.py full --load-services
 
 - OpenClaw 和网页入口照常安装
 - 默认回包走原始触发渠道，不要求先配置额外渠道
-- 仓库不为任何特定对象默认附带现成后台 worker
-- 外部对象后续应按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 自行接入
+- 这一步先把 Relay Hub 本身装好
+- 外部对象后续再按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 接入
 
 如果你后面明确要“除原始触发渠道外，还要额外镜像到别的渠道”，再单独执行：
 
