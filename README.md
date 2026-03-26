@@ -59,6 +59,9 @@ python3 install.py full --load-services
 - 不要直接读取原始消息渠道或 OpenClaw 插件内部实现
 - 不要自行做业务对话测试，除非我明确要求
 - 如果安装失败，就原样贴出失败点并停止，不要自创旁路方案
+- 当我直接对你说“接入 Relay Hub”时，你应把自己标记为 ready
+- 当我直接对你说“Relay Hub 状态”时，你应告诉我你当前是否 ready，以及是否有待处理 branch
+- 当我直接对你说“退出 Relay Hub”时，你应把自己标记为 offline
 ```
 
 发给 OpenClaw 的话：
@@ -86,6 +89,15 @@ python3 install.py full --load-services
 
 ## 用户实际会说的话
 
+对 AI 编程工具侧会话：
+
+- 让它进入可接单状态：
+  `接入 Relay Hub`
+- 查询它当前是否已接入：
+  `Relay Hub 状态`
+- 让它退出可接单状态：
+  `退出 Relay Hub`
+
 对 OpenClaw / 用户侧会话：
 
 - 开启某个对象的 relay 分支：
@@ -95,7 +107,7 @@ python3 install.py full --load-services
 - 关闭当前 relay 分支并恢复 OpenClaw 正常模式：
   `退出`
 
-AI 侧如何上线、下线、接单，见 `docs/AGENT_WORKFLOW.md`。
+AI 侧内部实际怎么执行这些动作，见 `docs/AGENT_WORKFLOW.md`。
 
 ## 这套机制的工作方式
 

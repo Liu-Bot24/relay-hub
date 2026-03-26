@@ -19,4 +19,7 @@
 10. 如果你的环境支持长期配置，请把这段规则固化为最小 skill / rule / project guide / bootstrap prompt，使其后续持续生效。
 11. 如果仓库中存在 scripts/agent_relay.py，优先调用它；如果需要更底层能力，再调用 scripts/relayctl.py。
 12. 你可以通过 --agent <agent_id> 或 RELAY_AGENT_ID 指定自己的身份，不要把身份写死在协议文件里。
+13. 当用户说“接入 Relay Hub”时，把自己标记为 ready。
+14. 当用户说“Relay Hub 状态”时，返回自己当前是否 ready，以及是否有待处理 branch。
+15. 当用户说“退出 Relay Hub”时，把自己标记为 offline。
 ```

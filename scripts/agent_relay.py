@@ -48,6 +48,30 @@ def last_branch_message_id(merge_back: dict[str, Any]) -> str | None:
     return messages[-1].get("id")
 
 
+def build_agent_status(hub: RelayHub, agent: str) -> dict[str, Any]:
+    presence = hub.get_agent(agent)
+    sessions = [session for session in hub.list_sessions() if session.get("agent") == agent]
+    queued = [session for session in sessions if session.get("status") == "queued"]
+    processing = [session for session in sessions if session.get("status") == "processing"]
+    awaiting_user = [session for session in sessions if session.get("status") == "awaiting_user"]
+    input_open = [session for session in sessions if session.get("status") == "input_open"]
+    error = [session for session in sessions if session.get("status") == "error"]
+    return {
+        "agent": presence,
+        "summary": {
+            "ready": presence.get("status") == "ready",
+            "session_count": len(sessions),
+            "queued_count": len(queued),
+            "processing_count": len(processing),
+            "awaiting_user_count": len(awaiting_user),
+            "input_open_count": len(input_open),
+            "error_count": len(error),
+            "has_pending_branch": bool(queued or processing),
+        },
+        "sessions": sessions,
+    }
+
+
 def build_parser(label: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=f"{label}-facing Relay Hub helper")
     parser.add_argument("--root", help="Relay root directory. Defaults to relay-hub/runtime.")
@@ -59,6 +83,11 @@ def build_parser(label: str) -> argparse.ArgumentParser:
         help="Create or update this agent's presence record",
     )
     presence_parser.add_argument("--status", default="ready")
+
+    subparsers.add_parser(
+        "agent-status",
+        help="Show this agent's current ready/offline state and branch summary",
+    )
 
     start_parser = subparsers.add_parser(
         "start-branch",
@@ -139,6 +168,11 @@ def main(default_agent: str | None = None, label: str = "Agent") -> None:
     if args.command == "set-presence":
         agent = resolve_agent(args.agent, default_agent)
         output({"ok": True, "agent": hub.set_agent(agent, args.status)})
+        return
+
+    if args.command == "agent-status":
+        agent = resolve_agent(args.agent, default_agent)
+        output({"ok": True, "status": build_agent_status(hub, agent)})
         return
 
     if args.command == "start-branch":

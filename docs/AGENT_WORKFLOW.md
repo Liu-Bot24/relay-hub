@@ -50,11 +50,28 @@ export RELAY_AGENT_ID=claude-code
 python3 /path/to/relay-hub/scripts/agent_relay.py --agent agent_demo ...
 ```
 
+## 用户对 AI 说什么
+
+用户不需要手写命令行，直接对 AI 说这几句就够：
+
+- `接入 Relay Hub`
+- `Relay Hub 状态`
+- `退出 Relay Hub`
+
+AI 自己应把它们映射成下面的内部动作。
+
 ## 1. 标记在线
 
 ```bash
 cd /path/to/relay-hub
 python3 scripts/agent_relay.py --agent agent_demo set-presence --status ready
+```
+
+查询当前接入状态：
+
+```bash
+cd /path/to/relay-hub
+python3 scripts/agent_relay.py --agent agent_demo agent-status
 ```
 
 如果你要临时关闭接单：

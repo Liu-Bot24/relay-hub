@@ -72,6 +72,9 @@ python3 install.py install-openclaw
 - 只通过 scripts/agent_relay.py、scripts/relayctl.py 和仓库文档工作。
 - 当前 AI 对话窗口是主线，网页 / md 是 branch。
 - 如果用户要求你参与 Relay Hub，就先按文档确认环境，再通过 agent_relay.py 接入。
+- 当用户对你说“接入 Relay Hub”时，把自己标记为 ready。
+- 当用户对你说“Relay Hub 状态”时，返回你当前是否 ready，以及是否有待处理 branch。
+- 当用户对你说“退出 Relay Hub”时，把自己标记为 offline。
 - 如果仓库尚未安装完成，先按 README 和 docs/INSTALL_PLAYBOOK.md 执行安装。
 - 安装完成后，只汇报是否进入“可用状态”，不要自行替用户做完整业务测试，除非用户明确要求。
 ```
