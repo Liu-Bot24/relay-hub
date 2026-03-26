@@ -3,15 +3,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from relay_hub import RelayHub
 from relay_hub.store import make_session_key
 
-
-DEFAULT_ROOT = Path(__file__).resolve().parent / "runtime"
+DEFAULT_ROOT = (PROJECT_ROOT.parent / "runtime") if PROJECT_ROOT.name == "app" else ((Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime") if (Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime").exists() else (PROJECT_ROOT / "runtime"))
 
 
 def output(payload: object) -> None:

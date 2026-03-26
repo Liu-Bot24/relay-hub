@@ -11,7 +11,7 @@ OpenClaw 如果要接 Relay Hub，应该调用哪些桥接命令。
 
 ```bash
 cd /path/to/relay-hub
-python3 openclaw_relay.py
+python3 scripts/openclaw_relay.py
 ```
 
 这个脚本同时支持两种 session 定位方式：
@@ -42,7 +42,7 @@ OpenClaw 应调用：
 
 ```bash
 cd /path/to/relay-hub
-python3 openclaw_relay.py \
+python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   open-entry \
   --agent <agent_id> \
@@ -68,7 +68,7 @@ OpenClaw 应调用：
 
 ```bash
 cd /path/to/relay-hub
-python3 openclaw_relay.py \
+python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   dispatch-input \
   --channel feishu \
@@ -79,7 +79,7 @@ python3 openclaw_relay.py \
 
 ```bash
 cd /path/to/relay-hub
-python3 openclaw_relay.py \
+python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   dispatch-input \
   --channel feishu \
@@ -104,7 +104,7 @@ OpenClaw 应调用：
 
 ```bash
 cd /path/to/relay-hub
-python3 openclaw_relay.py \
+python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   session-status \
   --channel feishu \
@@ -119,7 +119,7 @@ OpenClaw 应定期或在合适时机调用：
 
 ```bash
 cd /path/to/relay-hub
-python3 openclaw_relay.py \
+python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   pull-deliveries
 ```
@@ -140,7 +140,7 @@ OpenClaw 只需要按渠道发出去，不需要自己拼正文。
 
 ```bash
 cd /path/to/relay-hub
-python3 openclaw_relay.py \
+python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   ack-delivery \
   --channel feishu \
@@ -160,7 +160,7 @@ OpenClaw 应调用：
 
 ```bash
 cd /path/to/relay-hub
-python3 openclaw_relay.py \
+python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   exit-relay \
   --channel feishu \
@@ -174,7 +174,7 @@ python3 openclaw_relay.py \
 OpenClaw 对 Relay Hub 的唯一职责就是：
 
 1. 收用户指令
-2. 调 `openclaw_relay.py`
+2. 调 `scripts/openclaw_relay.py`
 3. 发网页入口
 4. 发待发送消息
 5. 标记已送达

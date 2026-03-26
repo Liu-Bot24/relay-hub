@@ -94,7 +94,7 @@ OpenClaw 网页启动日志：
 1. 看对应 worker 是否在跑
 2. 看 `runtime/logs/launchd.worker.<agent>.err.log`
 3. 检查该对象本身是否已登录、可调用
-4. 用 `python3 relayctl.py show-session --session <session_key>` 看是否真的进入 `queued`
+4. 用 `python3 scripts/relayctl.py show-session --session <session_key>` 看是否真的进入 `queued`
 
 如果回包没发到飞书 / 微信：
 
@@ -104,7 +104,7 @@ OpenClaw 网页启动日志：
 
 ```bash
 cd /path/to/relay-hub
-python3 relay_openclaw_bridge.py --config ~/.openclaw/workspace/data/relay_hub_openclaw.json --json pump-deliveries
+python3 scripts/relay_openclaw_bridge.py --config ~/.openclaw/workspace/data/relay_hub_openclaw.json --json pump-deliveries
 ```
 
 4. 若返回 `RELAY_PUMP_SENT`，说明 Relay Hub 到 OpenClaw 的发送泵正常
@@ -114,5 +114,5 @@ python3 relay_openclaw_bridge.py --config ~/.openclaw/workspace/data/relay_hub_o
 
 - 先改仓库版本，再通过安装器同步到 OpenClaw 工作区
 - 不要手工在多个地方维护两份桥接脚本
-- 优先改仓库里的 `relay_openclaw_bridge.py`
+- 优先改仓库里的 `scripts/relay_openclaw_bridge.py`
 - 安装器负责把它装进 `~/.openclaw/workspace/scripts/`

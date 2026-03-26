@@ -9,12 +9,16 @@ import time
 from pathlib import Path
 from typing import Any
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from relay_hub import RelayHub
 
-
-DEFAULT_ROOT = Path(__file__).resolve().parent / "runtime"
-DEFAULT_WORKDIR = Path(__file__).resolve().parent.parent
-DEFAULT_BRIDGE_SCRIPT = Path(__file__).resolve().parent / "relay_openclaw_bridge.py"
+DEFAULT_ROOT = (PROJECT_ROOT.parent / "runtime") if PROJECT_ROOT.name == "app" else ((Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime") if (Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime").exists() else (PROJECT_ROOT / "runtime"))
+DEFAULT_WORKDIR = PROJECT_ROOT.parent
+DEFAULT_BRIDGE_SCRIPT = SCRIPT_DIR / "relay_openclaw_bridge.py"
 DEFAULT_BRIDGE_CONFIG = Path.home() / ".openclaw" / "workspace" / "data" / "relay_hub_openclaw.json"
 
 

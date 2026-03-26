@@ -15,6 +15,7 @@ from relay_hub import RelayHub
 
 
 REPO_ROOT = Path(__file__).resolve().parent
+SCRIPTS_DIR = REPO_ROOT / "scripts"
 DEFAULT_INSTALL_ROOT = Path.home() / "Library" / "Application Support" / "RelayHub"
 DEFAULT_RUNTIME_ROOT = DEFAULT_INSTALL_ROOT / "runtime"
 DEFAULT_OPENCLAW_WORKSPACE = Path.home() / ".openclaw" / "workspace"
@@ -107,7 +108,7 @@ def delivery_channels(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def bridge_script_repo_path() -> Path:
-    return REPO_ROOT / "relay_openclaw_bridge.py"
+    return SCRIPTS_DIR / "relay_openclaw_bridge.py"
 
 
 def bridge_script_workspace_path(openclaw_workspace: Path) -> Path:
@@ -132,6 +133,8 @@ def skill_path(openclaw_workspace: Path) -> Path:
 
 def stage_app_bundle(app_root: Path) -> dict[str, Any]:
     ensure_dir(app_root)
+    scripts_root = app_root / "scripts"
+    ensure_dir(scripts_root)
     scripts = [
         "agent_relay.py",
         "codex_relay.py",
@@ -143,13 +146,14 @@ def stage_app_bundle(app_root: Path) -> dict[str, Any]:
     ]
     copied: list[str] = []
     for name in scripts:
-        src = REPO_ROOT / name
-        dst = app_root / name
+        src = SCRIPTS_DIR / name
+        dst = scripts_root / name
         shutil.copy2(src, dst)
         copied.append(str(dst))
     shutil.copytree(REPO_ROOT / "relay_hub", app_root / "relay_hub", dirs_exist_ok=True)
     return {
         "app_root": str(app_root),
+        "scripts_root": str(scripts_root),
         "scripts": copied,
         "package_dir": str(app_root / "relay_hub"),
     }
@@ -164,8 +168,8 @@ def build_openclaw_config(args: argparse.Namespace, runtime_root: Path, openclaw
             "repoRoot": str(REPO_ROOT),
             "appRoot": str(app_root),
             "runtimeRoot": str(runtime_root),
-            "openclawRelayScript": str(app_root / "openclaw_relay.py"),
-            "relayWebScript": str(app_root / "relay_web.py"),
+            "openclawRelayScript": str(app_root / "scripts" / "openclaw_relay.py"),
+            "relayWebScript": str(app_root / "scripts" / "relay_web.py"),
         },
         "aliases": {
             "path": str(alias_map_path(openclaw_workspace)),
@@ -327,7 +331,7 @@ def build_web_plist(app_root: Path, runtime_root: Path, logs_dir: Path, host: st
         "Label": "com.relayhub.web",
         "ProgramArguments": [
             sys.executable,
-            str(app_root / "relay_web.py"),
+            str(app_root / "scripts" / "relay_web.py"),
             "--root",
             str(runtime_root),
             "--host",
@@ -363,7 +367,7 @@ def build_worker_plist(
         "Label": label,
         "ProgramArguments": [
             sys.executable,
-            str(app_root / "relay_agent_worker.py"),
+            str(app_root / "scripts" / "relay_agent_worker.py"),
             "--root",
             str(runtime_root),
             "--agent",
@@ -445,7 +449,7 @@ def install_status(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
         "runtime_root": str(runtime_root),
         "runtime_exists": runtime_root.exists(),
         "app_root": str(app_root),
-        "app_bundle_installed": (app_root / "relay_web.py").exists() and (app_root / "relay_agent_worker.py").exists() and (app_root / "relay_hub").exists(),
+        "app_bundle_installed": (app_root / "scripts" / "relay_web.py").exists() and (app_root / "scripts" / "relay_agent_worker.py").exists() and (app_root / "relay_hub").exists(),
         "openclaw_workspace": str(openclaw_workspace),
         "bridge_script_installed": bridge_script_workspace_path(openclaw_workspace).exists(),
         "bridge_config_installed": bridge_config.exists(),

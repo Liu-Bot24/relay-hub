@@ -24,7 +24,7 @@
 优先使用通用桥接脚本：
 
 ```bash
-python3 /path/to/relay-hub/agent_relay.py
+python3 /path/to/relay-hub/scripts/agent_relay.py
 ```
 
 你有两种指定自己身份的方式：
@@ -41,21 +41,21 @@ export RELAY_AGENT_ID=claude-code
 或者：
 
 ```bash
-python3 /path/to/relay-hub/agent_relay.py --agent opencode ...
+python3 /path/to/relay-hub/scripts/agent_relay.py --agent opencode ...
 ```
 
 ## 1. 标记在线
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py --agent claude-code set-presence --status ready
+python3 scripts/agent_relay.py --agent claude-code set-presence --status ready
 ```
 
 ## 2. 从主线打开一个 branch
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py --agent claude-code start-branch \
+python3 scripts/agent_relay.py --agent claude-code start-branch \
   --channel feishu \
   --target ou_demo \
   --main-context-body "这里放主对话窗口导出的背景摘要。"
@@ -67,7 +67,7 @@ python3 agent_relay.py --agent claude-code start-branch \
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py append-main-note \
+python3 scripts/agent_relay.py append-main-note \
   --session feishu__ou_demo \
   --body "这是主窗口后来追加给 branch 的说明。"
 ```
@@ -76,7 +76,7 @@ python3 agent_relay.py append-main-note \
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py --agent claude-code claim-next
+python3 scripts/agent_relay.py --agent claude-code claim-next
 ```
 
 返回里会带：
@@ -89,7 +89,7 @@ python3 agent_relay.py --agent claude-code claim-next
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py branch-context --session feishu__ou_demo
+python3 scripts/agent_relay.py branch-context --session feishu__ou_demo
 ```
 
 这条命令返回：
@@ -105,7 +105,7 @@ python3 agent_relay.py branch-context --session feishu__ou_demo
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py --agent claude-code reply \
+python3 scripts/agent_relay.py --agent claude-code reply \
   --session feishu__ou_demo \
   --kind progress \
   --body "正在整理中。"
@@ -115,7 +115,7 @@ python3 agent_relay.py --agent claude-code reply \
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py --agent claude-code reply \
+python3 scripts/agent_relay.py --agent claude-code reply \
   --session feishu__ou_demo \
   --kind final \
   --body "这是最终回复。"
@@ -125,7 +125,7 @@ python3 agent_relay.py --agent claude-code reply \
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py --agent claude-code reply \
+python3 scripts/agent_relay.py --agent claude-code reply \
   --session feishu__ou_demo \
   --kind error \
   --body "处理失败，请重试。"
@@ -137,7 +137,7 @@ python3 agent_relay.py --agent claude-code reply \
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py merge-back --session feishu__ou_demo
+python3 scripts/agent_relay.py merge-back --session feishu__ou_demo
 ```
 
 它会返回一段 `merge_back_text`。  
@@ -147,7 +147,7 @@ python3 agent_relay.py merge-back --session feishu__ou_demo
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py merge-back --session feishu__ou_demo --mark-merged
+python3 scripts/agent_relay.py merge-back --session feishu__ou_demo --mark-merged
 ```
 
 这样下一次再回主窗口时，只会拿到新的 branch 增量。
@@ -158,4 +158,4 @@ python3 agent_relay.py merge-back --session feishu__ou_demo --mark-merged
 - OpenClaw 只管 branch 入口、`已录入`、渠道发送、退出
 - main chat 和 branch 不是并列双主线
 - branch 只是主线的外部分支工作区
-- 如果仓库里同时存在专用壳，例如 `codex_relay.py`，它只是兼容入口；通用入口仍然是 `agent_relay.py`
+- 如果仓库里同时存在专用壳，例如 `scripts/codex_relay.py`，它只是兼容入口；通用入口仍然是 `scripts/agent_relay.py`

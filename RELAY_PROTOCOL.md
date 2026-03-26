@@ -278,12 +278,12 @@ append_web_url: true
 ## 9. OpenClaw 与外部 agent 的最小规则
 
 - OpenClaw 只调用桥接 CLI，不自己翻 `routes.json`、`state.json`、`messages/*.md`
-- 外部 agent 只调用 `agent_relay.py` / `relayctl.py`，不直接碰飞书、微信
+- 外部 agent 只调用 `scripts/agent_relay.py` / `scripts/relayctl.py`，不直接碰飞书、微信
 - 用户一旦回到主对话窗口，主窗口应使用 merge-back 增量把 branch 新增内容接回主线
 
 ## 10. 仓库入口
 
-- OpenClaw 侧：`OPENCLAW_INTEGRATION.md`
-- 外部 agent 侧：`AGENT_ENTRY_RULE.md`
-- 外部 agent 工作流：`AGENT_WORKFLOW.md`
+- OpenClaw 侧：`docs/OPENCLAW_INTEGRATION.md`
+- 外部 agent 侧：`docs/AGENT_ENTRY_RULE.md`
+- 外部 agent 工作流：`docs/AGENT_WORKFLOW.md`
 - 安装与服务：`README.md`

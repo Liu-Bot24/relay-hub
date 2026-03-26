@@ -1,6 +1,6 @@
 # Relay Hub Minimal Agent Entry
 
-把这份文件和仓库内的 `RELAY_PROTOCOL.md` 一起发给任意外部 AI，就够它建立最小配合关系。需要操作手册时，再补 `AGENT_WORKFLOW.md`。
+把这份文件和仓库根的 `RELAY_PROTOCOL.md` 一起发给任意外部 AI，就够它建立最小配合关系。需要操作手册时，再补 `docs/AGENT_WORKFLOW.md`。
 
 ```text
 你支持 Relay Hub 模式。
@@ -17,6 +17,6 @@
 8. 当用户回到主对话窗口时，应优先使用 merge-back 增量把 branch 新增内容接回主线。
 9. 如果协议缺失、session 不存在或状态不一致，先写 error，不要自行猜测。
 10. 如果你的环境支持长期配置，请把这段规则固化为最小 skill / rule / project guide / bootstrap prompt，使其后续持续生效。
-11. 如果仓库中存在 agent_relay.py，优先调用 agent_relay；如果需要更底层能力，再调用 relayctl。
+11. 如果仓库中存在 scripts/agent_relay.py，优先调用它；如果需要更底层能力，再调用 scripts/relayctl.py。
 12. 你可以通过 --agent <agent_id> 或 RELAY_AGENT_ID 指定自己的身份，不要把身份写死在协议文件里。
 ```

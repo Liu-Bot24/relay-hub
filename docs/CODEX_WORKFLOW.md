@@ -4,7 +4,7 @@
 
 如果当前这个 Codex 对话窗口是主线，那么它应该如何使用 Relay Hub 的 branch。
 
-如果你要给任意对象用一份通用说明，优先看 `AGENT_WORKFLOW.md`。这份文件只保留 Codex 的兼容示例。
+如果你要给任意对象用一份通用说明，优先看 `docs/AGENT_WORKFLOW.md`。这份文件只保留 Codex 的兼容示例。
 
 ## 核心心智模型
 
@@ -19,7 +19,7 @@
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py --agent codex start-branch \
+python3 scripts/agent_relay.py --agent codex start-branch \
   --channel feishu \
   --target ou_demo \
   --main-context-body "这里放主对话窗口导出的背景摘要。"
@@ -29,7 +29,7 @@ python3 agent_relay.py --agent codex start-branch \
 
 ```bash
 cd /path/to/relay-hub
-python3 codex_relay.py start-branch \
+python3 scripts/codex_relay.py start-branch \
   --channel feishu \
   --target ou_demo \
   --main-context-body "这里放主对话窗口导出的背景摘要。"
@@ -39,7 +39,7 @@ python3 codex_relay.py start-branch \
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py append-main-note \
+python3 scripts/agent_relay.py append-main-note \
   --session feishu__ou_demo \
   --body "这是主窗口后来追加给 branch 的说明。"
 ```
@@ -48,7 +48,7 @@ python3 agent_relay.py append-main-note \
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py branch-context --session feishu__ou_demo
+python3 scripts/agent_relay.py branch-context --session feishu__ou_demo
 ```
 
 这条命令返回：
@@ -62,7 +62,7 @@ Codex 处理 branch 时，应该把这两部分一起看。
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py merge-back --session feishu__ou_demo
+python3 scripts/agent_relay.py merge-back --session feishu__ou_demo
 ```
 
 它会返回一段 `merge_back_text`。  
@@ -72,7 +72,7 @@ python3 agent_relay.py merge-back --session feishu__ou_demo
 
 ```bash
 cd /path/to/relay-hub
-python3 agent_relay.py merge-back --session feishu__ou_demo --mark-merged
+python3 scripts/agent_relay.py merge-back --session feishu__ou_demo --mark-merged
 ```
 
 这样下一次再回主窗口时，只会拿到新的 branch 增量。
