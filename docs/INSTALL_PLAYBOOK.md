@@ -3,7 +3,7 @@
 这份文件回答 3 件事：
 
 1. 仓库下载后，应该先执行什么安装命令
-2. 应该跟 `Claude Code` 说什么
+2. 应该跟 AI 编程工具说什么
 3. 应该跟 `OpenClaw` 说什么
 
 这不是协议文档；协议本体仍然是仓库根的 `RELAY_PROTOCOL.md`。
@@ -23,16 +23,6 @@ python3 install.py doctor --worker-backend manual
 - `web_base_url` 默认会由安装器自动探测局域网 IPv4 后生成，只有探测失败时才回落到 `127.0.0.1`
 
 通过后，再执行完整安装：
-
-```bash
-cd /path/to/relay-hub
-python3 install.py full \
-  --worker-agent claude-code \
-  --worker-backend manual \
-  --load-services
-```
-
-如果不是 `Claude Code`，而是别的 AI 编程工具，只需要把 `claude-code` 换成自己的 `agent_id`：
 
 ```bash
 cd /path/to/relay-hub
@@ -75,9 +65,9 @@ cd /path/to/relay-hub
 python3 install.py install-openclaw
 ```
 
-## 2. 应该跟 Claude Code 说什么
+## 2. 应该跟 AI 编程工具说什么
 
-下面这段可以直接发给 `Claude Code`。如果是别的对象，把其中的 `claude-code` 换成对应 `agent_id`，安装仍然使用 `--worker-backend manual`：
+下面这段可以直接发给 AI 编程工具。把其中的 `<your-agent-id>` 换成对应对象名，安装仍然使用 `--worker-backend manual`：
 
 ```text
 这是一个 Relay Hub 仓库。请先阅读：
@@ -88,7 +78,7 @@ python3 install.py install-openclaw
 4. docs/AGENT_WORKFLOW.md
 5. docs/COMPATIBILITY.md
 
-你的 agent_id 是 claude-code。
+你的 agent_id 是 <your-agent-id>。
 
 要求：
 - 不要直接读取原始消息渠道或 OpenClaw 插件内部实现。
@@ -99,20 +89,9 @@ python3 install.py install-openclaw
 - 安装完成后，只汇报是否进入“可用状态”，不要自行替用户做完整业务测试，除非用户明确要求。
 ```
 
-如果不是 `Claude Code`，只需要把其中一句：
-
-```text
-你的 agent_id 是 claude-code。
-```
-
-换成：
-
-```text
-你的 agent_id 是 <你的对象名>。
-```
-
 例如：
 
+- `claude-code`
 - `codex`
 - `gemini-cli`
 - `cursor-cli`
@@ -152,7 +131,7 @@ python3 install.py install-openclaw
 1. `python3 install.py doctor ...` 返回 `"ok": true`
 2. `python3 install.py status` 能看到 OpenClaw 桥接文件和 launchd 服务
 3. `OpenClaw` 能响应：
-   - `打开 claude 入口`
+   - `打开 <agent> 入口`
    - `已录入`
    - `状态`
    - `退出`

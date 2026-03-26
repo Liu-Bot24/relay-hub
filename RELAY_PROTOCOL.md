@@ -18,7 +18,7 @@
 
 说明：
 
-- 文中的 `feishu / openclaw-weixin / claude-code` 多数是示例名
+- 文中的 `channel_a / channel_b / claude-code` 多数是示例名
 - 协议本身不限定必须是这些渠道或对象
 - 真正的通用性边界见 `docs/COMPATIBILITY.md`
 
@@ -97,7 +97,7 @@ AgentRelayHub/
     codex.json
     claude-code.json
   sessions/
-    feishu__ou_demo/
+    channel_a__target_demo/
       meta.json
       state.json
       main_context.md
@@ -119,7 +119,7 @@ AgentRelayHub/
   "web_base_url": "http://127.0.0.1:4317",
   "default_delivery": {
     "mode": "all",
-    "channels": ["feishu", "openclaw-weixin"]
+    "channels": ["channel_a", "channel_b"]
   },
   "queue_ack_timeout_seconds": 15
 }
@@ -136,8 +136,8 @@ AgentRelayHub/
 示例：
 
 ```text
-feishu__ou_demo
-openclaw-weixin__wx_demo@im.wechat
+channel_a__target_demo
+channel_b__target_secondary
 ```
 
 ## 5. routes.json
@@ -151,14 +151,14 @@ openclaw-weixin__wx_demo@im.wechat
   "version": 1,
   "updated_at": "2026-03-27T10:00:00+08:00",
   "routes": {
-    "feishu__ou_demo": {
+    "channel_a__target_demo": {
       "mode": "relay",
       "agent": "claude-code",
       "status": "input_open",
-      "web_url": "http://127.0.0.1:4317/session/feishu__ou_demo",
+      "web_url": "http://127.0.0.1:4317/session/channel_a__target_demo",
       "default_delivery": {
         "mode": "all",
-        "channels": ["feishu", "openclaw-weixin"]
+        "channels": ["channel_a", "channel_b"]
       },
       "last_user_commit_id": "000021",
       "last_agent_message_id": "000022",
@@ -284,7 +284,7 @@ append_web_url: true
 ## 9. OpenClaw 与外部 agent 的最小规则
 
 - OpenClaw 只调用桥接 CLI，不自己翻 `routes.json`、`state.json`、`messages/*.md`
-- 外部 agent 只调用 `scripts/agent_relay.py` / `scripts/relayctl.py`，不直接碰飞书、微信
+- 外部 agent 只调用 `scripts/agent_relay.py` / `scripts/relayctl.py`，不直接碰原始消息渠道
 - 用户一旦回到主对话窗口，主窗口应使用 merge-back 增量把 branch 新增内容接回主线
 
 ## 10. 仓库入口

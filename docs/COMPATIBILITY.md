@@ -56,7 +56,7 @@
 
 ## 2. 消息渠道通用性
 
-### 是否只支持飞书 / 微信
+### 是否只支持少数预设渠道
 
 不是。
 
@@ -64,18 +64,18 @@
 
 - 只要该渠道是 `OpenClaw` 已支持、并且能通过 `openclaw message send` 发出的消息渠道，就可以接
 
-也就是说，协议层不是写死飞书 / 微信。  
-飞书 / 微信只是当前仓库里最先验证过、并且安装器提供了快捷参数的例子。
+也就是说，协议层不是写死某两个渠道。  
+文档里偶尔出现的特定渠道名，只是历史示例或快捷参数例子。
 
-### 为什么 README 里总出现飞书 / 微信
+### 为什么 README 里还会出现少量特定渠道名
 
-因为安装器提供了这两个快捷参数：
+因为安装器里仍然保留了几个针对特定渠道插件的快捷参数：
 
 - `--feishu-target`
 - `--weixin-target`
 - `--weixin-account-id`
 
-但这只是快捷写法，不是能力边界。
+但这只是快捷写法，不是能力边界，也不是推荐的默认入口。
 
 真正通用的写法是：
 
@@ -86,10 +86,9 @@
 
 ```bash
 python3 install.py full \
-  --web-base-url http://YOUR_LAN_IP:4317 \
   --delivery-channel some-channel=target_id \
-  --worker-agent claude-code \
-  --worker-backend claude-code \
+  --worker-agent some-agent \
+  --worker-backend manual \
   --load-services
 ```
 
@@ -174,7 +173,7 @@ Relay Hub 现在还不是：
 - 对所有操作系统都内置现成服务托管
 - 对所有消息网关都通用
 
-如果你只关心“拿给 Claude Code 和 OpenClaw 能不能自己部署并进入可用状态”，答案是：
+如果你只关心“拿给某个 AI 编程工具和 OpenClaw 能不能自己部署并进入可用状态”，答案是：
 
 - 可以
 

@@ -13,8 +13,8 @@
 
 说明：
 
-- 下文里的 `claude-code / feishu / ou_demo` 只是示例
-- 协议本身并不要求必须是 Claude、也不要求必须是飞书
+- 下文里的 `agent_demo / channel_a / target_demo` 只是示例
+- 协议本身并不要求必须是某个特定对象，也不要求必须是某个特定渠道
 - 当前仓库里现成打包好的后台自动 worker 只附带了 `Claude Code`
 
 ## 核心心智模型
@@ -47,30 +47,30 @@ export RELAY_AGENT_ID=claude-code
 或者：
 
 ```bash
-python3 /path/to/relay-hub/scripts/agent_relay.py --agent opencode ...
+python3 /path/to/relay-hub/scripts/agent_relay.py --agent agent_demo ...
 ```
 
 ## 1. 标记在线
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent claude-code set-presence --status ready
+python3 scripts/agent_relay.py --agent agent_demo set-presence --status ready
 ```
 
 如果你要临时关闭接单：
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent claude-code set-presence --status offline
+python3 scripts/agent_relay.py --agent agent_demo set-presence --status offline
 ```
 
 ## 2. 从主线打开一个 branch
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent claude-code start-branch \
-  --channel feishu \
-  --target ou_demo \
+python3 scripts/agent_relay.py --agent agent_demo start-branch \
+  --channel channel_a \
+  --target target_demo \
   --main-context-body "这里放主对话窗口导出的背景摘要。"
 ```
 
@@ -81,7 +81,7 @@ python3 scripts/agent_relay.py --agent claude-code start-branch \
 ```bash
 cd /path/to/relay-hub
 python3 scripts/agent_relay.py append-main-note \
-  --session feishu__ou_demo \
+  --session channel_a__target_demo \
   --body "这是主窗口后来追加给 branch 的说明。"
 ```
 
@@ -89,7 +89,7 @@ python3 scripts/agent_relay.py append-main-note \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent claude-code claim-next
+python3 scripts/agent_relay.py --agent agent_demo claim-next
 ```
 
 返回里会带：
@@ -102,7 +102,7 @@ python3 scripts/agent_relay.py --agent claude-code claim-next
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py branch-context --session feishu__ou_demo
+python3 scripts/agent_relay.py branch-context --session channel_a__target_demo
 ```
 
 这条命令返回：
@@ -118,8 +118,8 @@ python3 scripts/agent_relay.py branch-context --session feishu__ou_demo
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent claude-code reply \
-  --session feishu__ou_demo \
+python3 scripts/agent_relay.py --agent agent_demo reply \
+  --session channel_a__target_demo \
   --kind progress \
   --body "正在整理中。"
 ```
@@ -128,8 +128,8 @@ python3 scripts/agent_relay.py --agent claude-code reply \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent claude-code reply \
-  --session feishu__ou_demo \
+python3 scripts/agent_relay.py --agent agent_demo reply \
+  --session channel_a__target_demo \
   --kind final \
   --body "这是最终回复。"
 ```
@@ -138,8 +138,8 @@ python3 scripts/agent_relay.py --agent claude-code reply \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent claude-code reply \
-  --session feishu__ou_demo \
+python3 scripts/agent_relay.py --agent agent_demo reply \
+  --session channel_a__target_demo \
   --kind error \
   --body "处理失败，请重试。"
 ```
@@ -150,7 +150,7 @@ python3 scripts/agent_relay.py --agent claude-code reply \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py merge-back --session feishu__ou_demo
+python3 scripts/agent_relay.py merge-back --session channel_a__target_demo
 ```
 
 它会返回一段 `merge_back_text`。  
@@ -160,7 +160,7 @@ python3 scripts/agent_relay.py merge-back --session feishu__ou_demo
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py merge-back --session feishu__ou_demo --mark-merged
+python3 scripts/agent_relay.py merge-back --session channel_a__target_demo --mark-merged
 ```
 
 这样下一次再回主窗口时，只会拿到新的 branch 增量。

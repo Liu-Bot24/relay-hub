@@ -43,7 +43,7 @@ python3 install.py full --worker-agent <你的 agent_id> --worker-backend manual
 
 说明：
 - install.py 会自动探测本机局域网 IPv4，并生成 web_base_url；只有探测失败时，才回头问我
-- 默认不要求你先配置飞书、微信或别的渠道目标；如果安装时没有显式配置额外渠道，回包就默认走原始触发渠道
+- 默认不要求你先配置额外渠道目标；如果安装时没有显式配置额外渠道，回包就默认走原始触发渠道
 - 如果用户后面明确要求“除原始触发渠道外，还要额外镜像到别的渠道”，那时再执行 install.py install-openclaw --delivery-channel channel=target --delivery-account channel=accountId
 - manual 的意思是：仓库不为你内置现成自动 worker，但 OpenClaw 和网页入口会先安装好；后续你再按 docs/AGENT_ENTRY_RULE.md 和 docs/AGENT_WORKFLOW.md 接入
 
@@ -104,7 +104,7 @@ python3 install.py full --worker-agent <你的 agent_id> --worker-backend manual
 
 ## 这套机制的工作方式
 
-- 用户仍然在 `OpenClaw` 已连接的消息渠道里交互，例如飞书 / 微信
+- 用户仍然在 `OpenClaw` 已连接的消息渠道里交互
 - 真正的录入入口放在本地网页
 - 外部对象如 `Codex / Claude Code / Gemini CLI / Cursor CLI / Opencode` 只读写统一协议
 - OpenClaw 只负责“开入口、收已录入、查状态、退出、发回包”
@@ -202,9 +202,9 @@ python3 install.py full \
 
 ```bash
 python3 install.py install-openclaw \
-  --delivery-channel feishu=ou_xxx \
-  --delivery-channel openclaw-weixin=xxx@im.wechat \
-  --delivery-account openclaw-weixin=your-account-id
+  --delivery-channel channel_a=target_a \
+  --delivery-channel channel_b=target_b \
+  --delivery-account channel_b=account_b
 ```
 
 如果你明确要启用仓库内置的 `Claude Code` 自动 worker，再额外执行：
@@ -278,10 +278,9 @@ python3 install.py status
 ```bash
 cd /path/to/relay-hub
 python3 install.py install-openclaw \
-  --web-base-url http://YOUR_LAN_IP:4317 \
-  --delivery-channel feishu=ou_xxx \
-  --delivery-channel openclaw-weixin=xxx@im.wechat \
-  --delivery-account openclaw-weixin=your-account-id
+  --delivery-channel channel_a=target_a \
+  --delivery-channel channel_b=target_b \
+  --delivery-account channel_b=account_b
 ```
 
 只安装或更新 `launchd` 服务：
@@ -309,8 +308,8 @@ python3 install.py install-launchd \
 ## 边界说明
 
 - Relay Hub 的协议层是通用的，但仓库自带的“常驻自动 worker”目前只打包了 `Claude Code`
-- Relay Hub 的渠道层不是只支持飞书 / 微信；凡是 `OpenClaw` 能通过 `openclaw message send` 发出的渠道都可以接
-- 飞书 / 微信参数只是安装器里的快捷写法，不是协议限制
+- Relay Hub 的渠道层不是只支持某几个预设渠道；凡是 `OpenClaw` 能通过 `openclaw message send` 发出的渠道都可以接
+- 某些特定渠道参数只是安装器里的快捷写法，不是协议限制
 - 当前仓库的现成后台服务托管是 `macOS + launchd`
 - Relay Hub 依赖 `OpenClaw` 做消息网关，不直接对接别的渠道网关
 - Relay Hub 的网页 branch 不是主对话本身，而是主线分支

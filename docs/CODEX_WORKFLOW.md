@@ -8,8 +8,8 @@
 
 说明：
 
-- 下文里的 `feishu / ou_demo` 只是 Codex 示例
-- 不是说 Codex 只能跟飞书配合
+- 下文里的 `channel_a / target_demo` 只是 Codex 示例
+- 不是说 Codex 只能跟某个特定渠道配合
 
 ## 核心心智模型
 
@@ -25,8 +25,8 @@
 ```bash
 cd /path/to/relay-hub
 python3 scripts/agent_relay.py --agent codex start-branch \
-  --channel feishu \
-  --target ou_demo \
+  --channel channel_a \
+  --target target_demo \
   --main-context-body "这里放主对话窗口导出的背景摘要。"
 ```
 
@@ -35,8 +35,8 @@ python3 scripts/agent_relay.py --agent codex start-branch \
 ```bash
 cd /path/to/relay-hub
 python3 scripts/codex_relay.py start-branch \
-  --channel feishu \
-  --target ou_demo \
+  --channel channel_a \
+  --target target_demo \
   --main-context-body "这里放主对话窗口导出的背景摘要。"
 ```
 
@@ -45,7 +45,7 @@ python3 scripts/codex_relay.py start-branch \
 ```bash
 cd /path/to/relay-hub
 python3 scripts/agent_relay.py append-main-note \
-  --session feishu__ou_demo \
+  --session channel_a__target_demo \
   --body "这是主窗口后来追加给 branch 的说明。"
 ```
 
@@ -53,7 +53,7 @@ python3 scripts/agent_relay.py append-main-note \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py branch-context --session feishu__ou_demo
+python3 scripts/agent_relay.py branch-context --session channel_a__target_demo
 ```
 
 这条命令返回：
@@ -67,7 +67,7 @@ Codex 处理 branch 时，应该把这两部分一起看。
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py merge-back --session feishu__ou_demo
+python3 scripts/agent_relay.py merge-back --session channel_a__target_demo
 ```
 
 它会返回一段 `merge_back_text`。  
@@ -77,7 +77,7 @@ python3 scripts/agent_relay.py merge-back --session feishu__ou_demo
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py merge-back --session feishu__ou_demo --mark-merged
+python3 scripts/agent_relay.py merge-back --session channel_a__target_demo --mark-merged
 ```
 
 这样下一次再回主窗口时，只会拿到新的 branch 增量。

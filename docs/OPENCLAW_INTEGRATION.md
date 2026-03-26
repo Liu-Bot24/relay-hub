@@ -16,14 +16,14 @@ python3 scripts/openclaw_relay.py
 
 这个脚本同时支持两种 session 定位方式：
 
-- 直接传 `--session feishu__ou_xxx`
-- 或者更适合 OpenClaw 的 `--channel feishu --target ou_xxx`
+- 直接传 `--session channel_a__target_demo`
+- 或者更适合 OpenClaw 的 `--channel channel_a --target target_demo`
 
 对于 OpenClaw 来说，优先推荐第二种，因为它天然知道的就是当前渠道和目标身份。
 
 说明：
 
-- 下文里的 `feishu / ou_xxx` 只是示例
+- 下文里的 `channel_a / target_demo` 只是示例
 - 任何 `OpenClaw` 能收发的渠道名与目标标识，都可以替换它
 
 特别说明：
@@ -51,8 +51,8 @@ python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   open-entry \
   --agent <agent_id> \
-  --channel feishu \
-  --target ou_xxx
+  --channel <channel> \
+  --target <target>
 ```
 
 然后把返回结果里的：
@@ -76,8 +76,8 @@ cd /path/to/relay-hub
 python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   dispatch-input \
-  --channel feishu \
-  --target ou_xxx
+  --channel <channel> \
+  --target <target>
 ```
 
 如果希望尽量避免“石沉大海”，建议直接带 claim 等待：
@@ -87,8 +87,8 @@ cd /path/to/relay-hub
 python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   dispatch-input \
-  --channel feishu \
-  --target ou_xxx \
+  --channel <channel> \
+  --target <target> \
   --wait-claim
 ```
 
@@ -112,8 +112,8 @@ cd /path/to/relay-hub
 python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   session-status \
-  --channel feishu \
-  --target ou_xxx
+  --channel <channel> \
+  --target <target>
 ```
 
 然后把返回里的 `user_message` 发给用户即可。
@@ -148,8 +148,8 @@ cd /path/to/relay-hub
 python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   ack-delivery \
-  --channel feishu \
-  --target ou_xxx \
+  --channel <channel> \
+  --target <target> \
   --message-id 000002
 ```
 
@@ -168,8 +168,8 @@ cd /path/to/relay-hub
 python3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   exit-relay \
-  --channel feishu \
-  --target ou_xxx
+  --channel <channel> \
+  --target <target>
 ```
 
 之后该 session 不再继续走 relay 模式，并可把返回的 `user_message` 发给用户。

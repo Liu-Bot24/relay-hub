@@ -32,14 +32,14 @@ python3 install.py status
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-openclaw --web-base-url http://YOUR_LAN_IP:4317
+python3 install.py install-openclaw
 ```
 
 重装服务：
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-launchd --worker-agent claude-code --worker-backend claude-code --load-services
+python3 install.py install-launchd --worker-agent <agent_id> --worker-backend manual --load-services
 ```
 
 ## 手动管理 launchd
@@ -50,17 +50,17 @@ python3 install.py install-launchd --worker-agent claude-code --worker-backend c
 launchctl kickstart -k gui/$(id -u)/com.relayhub.web
 ```
 
-重启 Claude Worker：
+重启某个 Worker：
 
 ```bash
-launchctl kickstart -k gui/$(id -u)/com.relayhub.worker.claude-code
+launchctl kickstart -k gui/$(id -u)/com.relayhub.worker.<agent>
 ```
 
 卸载服务：
 
 ```bash
 launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.relayhub.web.plist
-launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.relayhub.worker.claude-code.plist
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.relayhub.worker.<agent>.plist
 ```
 
 ## 日志位置
@@ -96,7 +96,7 @@ OpenClaw 网页启动日志：
 3. 检查该对象本身是否已登录、可调用
 4. 用 `python3 scripts/relayctl.py show-session --session <session_key>` 看是否真的进入 `queued`
 
-如果回包没发到飞书 / 微信：
+如果回包没发到目标渠道：
 
 1. 看 `~/.openclaw/workspace/data/relay_hub_openclaw.json`
 2. 看目标 channel / target / accountId 是否正确
