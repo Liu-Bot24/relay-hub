@@ -57,6 +57,13 @@ cd /path/to/relay-hub
 python3 scripts/agent_relay.py --agent claude-code set-presence --status ready
 ```
 
+如果你要临时关闭接单：
+
+```bash
+cd /path/to/relay-hub
+python3 scripts/agent_relay.py --agent claude-code set-presence --status offline
+```
+
 ## 2. 从主线打开一个 branch
 
 ```bash
