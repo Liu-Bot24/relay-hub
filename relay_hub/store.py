@@ -14,7 +14,7 @@ DEFAULT_CONFIG = {
     "web_base_url": "http://127.0.0.1:4317",
     "default_delivery": {
         "mode": "all",
-        "channels": ["feishu", "openclaw-weixin"],
+        "channels": [],
     },
     "queue_ack_timeout_seconds": 15,
 }

@@ -6,6 +6,11 @@
 
 如果你要给任意对象用一份通用说明，优先看 `docs/AGENT_WORKFLOW.md`。这份文件只保留 Codex 的兼容示例。
 
+说明：
+
+- 下文里的 `feishu / ou_demo` 只是 Codex 示例
+- 不是说 Codex 只能跟飞书配合
+
 ## 核心心智模型
 
 - 当前 Codex 对话窗口是主线

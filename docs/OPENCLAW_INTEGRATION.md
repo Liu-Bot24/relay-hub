@@ -21,6 +21,11 @@ python3 scripts/openclaw_relay.py
 
 对于 OpenClaw 来说，优先推荐第二种，因为它天然知道的就是当前渠道和目标身份。
 
+说明：
+
+- 下文里的 `feishu / ou_xxx` 只是示例
+- 任何 `OpenClaw` 能收发的渠道名与目标标识，都可以替换它
+
 特别说明：
 
 - 当前 AI 主对话窗口才是主线

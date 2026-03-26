@@ -65,8 +65,23 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--feishu-target")
     parser.add_argument("--weixin-target")
     parser.add_argument("--weixin-account-id")
+    parser.add_argument(
+        "--delivery-channel",
+        action="append",
+        help="Additional delivery target in channel=target form. Repeatable.",
+    )
+    parser.add_argument(
+        "--delivery-account",
+        action="append",
+        help="Optional delivery account in channel=accountId form. Repeatable.",
+    )
     parser.add_argument("--worker-agent", default="claude-code")
-    parser.add_argument("--worker-backend", default="claude-code")
+    parser.add_argument(
+        "--worker-backend",
+        default="claude-code",
+        choices=["claude-code"],
+        help="Bundled background worker backend. Currently only claude-code is packaged.",
+    )
     parser.add_argument("--worker-workdir", help="Worker working directory. Defaults to repo parent.")
     parser.add_argument("--worker-poll-seconds", type=float, default=2.0)
     parser.add_argument("--launchagents-dir", help="launchd plist destination. Defaults to ~/Library/LaunchAgents.")
@@ -96,6 +111,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def delivery_channels(args: argparse.Namespace) -> dict[str, Any]:
+    def parse_pairs(values: list[str] | None, flag_name: str) -> dict[str, str]:
+        payload: dict[str, str] = {}
+        for raw in values or []:
+            if "=" not in raw:
+                raise SystemExit(f"{flag_name} expects channel=value, got: {raw}")
+            key, value = raw.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if not key or not value:
+                raise SystemExit(f"{flag_name} expects channel=value, got: {raw}")
+            payload[key] = value
+        return payload
+
     channels: dict[str, Any] = {}
     if args.feishu_target:
         channels["feishu"] = {"target": args.feishu_target}
@@ -104,6 +132,21 @@ def delivery_channels(args: argparse.Namespace) -> dict[str, Any]:
         if args.weixin_account_id:
             entry["accountId"] = args.weixin_account_id
         channels["openclaw-weixin"] = entry
+    generic_targets = parse_pairs(getattr(args, "delivery_channel", None), "--delivery-channel")
+    generic_accounts = parse_pairs(getattr(args, "delivery_account", None), "--delivery-account")
+    for channel, target in generic_targets.items():
+        entry = channels.get(channel, {})
+        entry["target"] = target
+        if channel in generic_accounts:
+            entry["accountId"] = generic_accounts[channel]
+        channels[channel] = entry
+    for channel, account_id in generic_accounts.items():
+        entry = channels.get(channel, {})
+        entry["accountId"] = account_id
+        channels[channel] = entry
+    for channel, entry in channels.items():
+        if not entry.get("target"):
+            raise SystemExit(f"delivery channel {channel} is missing a target")
     return channels
 
 
@@ -161,6 +204,8 @@ def stage_app_bundle(app_root: Path) -> dict[str, Any]:
 
 def build_openclaw_config(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, app_root: Path) -> dict[str, Any]:
     channels = delivery_channels(args)
+    if not channels:
+        raise SystemExit("at least one delivery target is required: use --delivery-channel channel=target or the --feishu-target / --weixin-target shortcuts")
     base_url = (args.web_base_url or default_web_base_url(args.web_port)).rstrip("/")
     return {
         "version": 1,
@@ -193,7 +238,7 @@ def build_openclaw_config(args: argparse.Namespace, runtime_root: Path, openclaw
 def build_skill_text(script_path: Path) -> str:
     return f"""---
 name: relay-hub-openclaw
-description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 codex/claude/gemini/cursor/opencode 入口”“已录入”“状态”“退出 relay”这类请求，并把外部 agent 的回包通过飞书/微信发回用户。
+description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 codex/claude/gemini/cursor/opencode 入口”“已录入”“状态”“退出 relay”这类请求，并把外部 agent 的回包通过 OpenClaw 已配置消息渠道发回用户。
 ---
 
 # relay-hub-openclaw
@@ -285,7 +330,7 @@ def bootstrap_runtime(args: argparse.Namespace, runtime_root: Path) -> dict[str,
     config = hub.init_layout(
         web_base_url=(args.web_base_url or default_web_base_url(args.web_port)).rstrip("/"),
         queue_ack_timeout_seconds=args.queue_ack_timeout,
-        default_channels=list(delivery_channels(args).keys()) or ["feishu", "openclaw-weixin"],
+        default_channels=list(delivery_channels(args).keys()),
     )
     return {"runtime_root": str(runtime_root), "config": config}
 
@@ -519,10 +564,13 @@ def install_doctor(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
         bool(args.web_base_url),
         args.web_base_url or "not provided; install will fall back to 127.0.0.1 which is not suitable for mobile clients",
     )
+    configured_delivery_channels = delivery_channels(args)
     add_check(
         "delivery_target",
-        bool(args.feishu_target or args.weixin_target),
-        "at least one delivery target provided" if (args.feishu_target or args.weixin_target) else "provide --feishu-target and/or --weixin-target",
+        bool(configured_delivery_channels),
+        "at least one delivery target provided"
+        if configured_delivery_channels
+        else "provide --delivery-channel channel=target, or use --feishu-target / --weixin-target shortcuts",
     )
 
     web_label = "com.relayhub.web"

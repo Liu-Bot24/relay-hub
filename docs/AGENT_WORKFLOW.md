@@ -11,6 +11,12 @@
 - `opencode`
 - 任何能执行命令并长期记住最小规则的 AI / 程序
 
+说明：
+
+- 下文里的 `claude-code / feishu / ou_demo` 只是示例
+- 协议本身并不要求必须是 Claude、也不要求必须是飞书
+- 当前仓库里现成打包好的后台自动 worker 只附带了 `Claude Code`
+
 ## 核心心智模型
 
 - 当前 AI 主对话窗口是主线

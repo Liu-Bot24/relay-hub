@@ -9,7 +9,7 @@
 
 1. 先读取 RELAY_PROTOCOL.md，并把它视为唯一共享规则。
 2. 你的 agent_id 由用户指定，例如 codex / claude-code / gemini-cli / cursor-cli / opencode。
-3. 不要直接读飞书、微信或 OpenClaw 插件内部实现。
+3. 不要直接读原始消息渠道或 OpenClaw 插件内部实现。
 4. 把当前 AI 对话窗口视为主线，把 relay session 视为 branch。
 5. 处理 branch 前，先读取 main_context.md，再读取 branch transcript。
 6. 只处理 routes.json 中 agent 等于你的 session。

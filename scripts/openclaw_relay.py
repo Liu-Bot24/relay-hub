@@ -59,7 +59,8 @@ def resolve_session_arg(args: argparse.Namespace) -> str:
 def build_open_message(branch: dict[str, Any], agent_status: str) -> str:
     session_key = branch["session_key"]
     web_url = branch["meta"]["web_url"]
-    channels = ", ".join(branch["meta"]["default_delivery"]["channels"])
+    raw_channels = list((branch["meta"].get("default_delivery") or {}).get("channels") or [])
+    channels = ", ".join(raw_channels) if raw_channels else "原始触发渠道"
     if agent_status == "ready":
         return (
             f"{branch['meta']['agent']} branch 已就绪。\n"

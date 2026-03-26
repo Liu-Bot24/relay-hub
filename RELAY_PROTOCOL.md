@@ -14,14 +14,20 @@
 
 - 让用户通过网页/程序录入内容
 - 让外部 agent 处理 branch
-- 让最终消息仍然通过 OpenClaw 的飞书/微信渠道发回用户
+- 让最终消息仍然通过 OpenClaw 的消息渠道发回用户
+
+说明：
+
+- 文中的 `feishu / openclaw-weixin / claude-code` 多数是示例名
+- 协议本身不限定必须是这些渠道或对象
+- 真正的通用性边界见 `docs/COMPATIBILITY.md`
 
 ## 1. 核心原则
 
 1. 当前 AI 主对话窗口才是主线。
 2. Relay session 只是主线分出去的 branch，不是第二条主聊天。
 3. 用户可见输出必须通过 OpenClaw 渠道发送。
-4. 外部 agent 不直接读飞书、微信或 OpenClaw 插件内部实现。
+4. 外部 agent 不直接读原始消息渠道或 OpenClaw 插件内部实现。
 5. 文件系统是 relay branch transcript 的真源。
 6. 只有当用户显式说“已录入”后，branch 的新输入才进入待处理队列。
 
@@ -55,7 +61,7 @@
 - 写入新用户消息
 - 展示主对话快照
 
-它不直接给用户发飞书/微信。
+它不直接给用户发消息渠道。
 
 ### External Agent
 

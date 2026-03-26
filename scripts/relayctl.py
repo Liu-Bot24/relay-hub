@@ -43,7 +43,7 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser.add_argument(
         "--default-channels",
         nargs="+",
-        default=["feishu", "openclaw-weixin"],
+        default=[],
     )
 
     agent_parser = subparsers.add_parser("set-agent", help="Create or update agent presence")
