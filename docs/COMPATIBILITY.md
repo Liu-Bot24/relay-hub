@@ -31,28 +31,23 @@
 - `scripts/agent_relay.py`
 - `scripts/relayctl.py`
 
-### 仓库自带的后台 worker
+### 仓库是否附带后台 worker
 
 当前不完全通用。
 
-现成打包好的“自动轮询并处理队列”的后台 worker，目前只附带了：
+当前仓库的产品边界是：
 
-- `Claude Code`
+- 不内置任何特定 AI 的后台 worker
 
-对应脚本是：
-
-- `scripts/relay_agent_worker.py`
-
-当前这个 worker 后端只实现了 `claude-code`。  
 所以结论是：
 
-- `Claude Code`：协议层可用，现成自动 worker 也可用
-- `Codex / Gemini CLI / Cursor CLI / Opencode`：协议层可用，但默认没有内置后台 worker
+- `Codex / Claude Code / Gemini CLI / Cursor CLI / Opencode`：协议层都可用
+- 但接单、处理、回包这一步，需要它们自己按协议参与
 
 这不代表它们不能接入，只代表：
 
 - 可以通过 `scripts/agent_relay.py` 手动参与
-- 或者自己再加一层很薄的专属 worker
+- 或者各自再实现一层很薄的专属适配 worker
 
 ## 2. 消息渠道通用性
 
@@ -87,8 +82,6 @@
 ```bash
 python3 install.py full \
   --delivery-channel some-channel=target_id \
-  --worker-agent some-agent \
-  --worker-backend manual \
   --load-services
 ```
 
@@ -165,11 +158,11 @@ Relay Hub 现在是：
 - 对 AI 协议层通用
 - 对 OpenClaw 渠道层通用
 - 对 macOS 安装与托管友好
-- 对 `Claude Code` 提供了现成后台 worker
+- 不对任何特定 AI 内置后台 worker
 
 Relay Hub 现在还不是：
 
-- 对所有 AI CLI 都内置现成自动 worker
+- 对所有 AI CLI 都内置各自现成的后台 worker
 - 对所有操作系统都内置现成服务托管
 - 对所有消息网关都通用
 

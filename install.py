@@ -99,15 +99,6 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
         action="append",
         help="Optional delivery account in channel=accountId form. Repeatable.",
     )
-    parser.add_argument("--worker-agent", default="claude-code")
-    parser.add_argument(
-        "--worker-backend",
-        default="claude-code",
-        choices=["claude-code", "manual"],
-        help="Bundled background worker backend. Use claude-code for the packaged Claude worker, or manual for non-bundled agents.",
-    )
-    parser.add_argument("--worker-workdir", help="Worker working directory. Defaults to repo parent.")
-    parser.add_argument("--worker-poll-seconds", type=float, default=2.0)
     parser.add_argument("--launchagents-dir", help="launchd plist destination. Defaults to ~/Library/LaunchAgents.")
     parser.add_argument("--load-services", action="store_true", help="Bootstrap launchd services after writing plists.")
     parser.add_argument("--skip-heartbeat-patch", action="store_true")
@@ -123,7 +114,7 @@ def build_parser() -> argparse.ArgumentParser:
     oc_parser = subparsers.add_parser("install-openclaw", help="Install/update OpenClaw-side bridge files")
     add_shared_args(oc_parser)
 
-    svc_parser = subparsers.add_parser("install-launchd", help="Install/update launchd plists for web and one worker")
+    svc_parser = subparsers.add_parser("install-launchd", help="Install/update launchd plist for Relay Hub web")
     add_shared_args(svc_parser)
 
     status_parser = subparsers.add_parser("status", help="Show current Relay Hub install status")
@@ -202,11 +193,12 @@ def stage_app_bundle(app_root: Path) -> dict[str, Any]:
     ensure_dir(app_root)
     scripts_root = app_root / "scripts"
     ensure_dir(scripts_root)
+    stale_worker = scripts_root / "relay_agent_worker.py"
+    stale_worker.unlink(missing_ok=True)
     scripts = [
         "agent_relay.py",
         "codex_relay.py",
         "openclaw_relay.py",
-        "relay_agent_worker.py",
         "relay_openclaw_bridge.py",
         "relay_web.py",
         "relayctl.py",
@@ -419,85 +411,30 @@ def build_web_plist(app_root: Path, runtime_root: Path, logs_dir: Path, host: st
     return plistlib.dumps(payload)
 
 
-def build_worker_plist(
-    app_root: Path,
-    runtime_root: Path,
-    logs_dir: Path,
-    agent: str,
-    backend: str,
-    workdir: Path,
-    config_path: Path,
-    poll_seconds: float,
-) -> tuple[str, bytes]:
-    label = f"com.relayhub.worker.{agent}"
-    payload = {
-        "Label": label,
-        "ProgramArguments": [
-            sys.executable,
-            str(app_root / "scripts" / "relay_agent_worker.py"),
-            "--root",
-            str(runtime_root),
-            "--agent",
-            agent,
-            "--backend",
-            backend,
-            "--workdir",
-            str(workdir),
-            "--bridge-config",
-            str(config_path),
-            "--poll-seconds",
-            str(poll_seconds),
-            "serve",
-        ],
-        "WorkingDirectory": str(app_root),
-        "RunAtLoad": True,
-        "KeepAlive": True,
-        "ProcessType": "Background",
-        "EnvironmentVariables": {
-            "PATH": DEFAULT_PATH,
-        },
-        "StandardOutPath": str(logs_dir / f"launchd.worker.{agent}.out.log"),
-        "StandardErrorPath": str(logs_dir / f"launchd.worker.{agent}.err.log"),
-    }
-    return label, plistlib.dumps(payload)
+def remove_worker_plists(launchagents_dir: Path) -> list[str]:
+    removed: list[str] = []
+    for plist in launchagents_dir.glob("com.relayhub.worker.*.plist"):
+        subprocess.run(["launchctl", "bootout", launchctl_domain(), str(plist)], capture_output=True, text=True)  # noqa: S603
+        plist.unlink(missing_ok=True)
+        removed.append(str(plist))
+    return removed
 
 
-def install_launchd(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, launchagents_dir: Path, app_root: Path) -> dict[str, Any]:
+def install_launchd(args: argparse.Namespace, runtime_root: Path, launchagents_dir: Path, app_root: Path) -> dict[str, Any]:
     app_bundle = stage_app_bundle(app_root)
     ensure_dir(launchagents_dir)
     logs_dir = runtime_root / "logs"
     ensure_dir(logs_dir)
     web_plist = launchagents_dir / "com.relayhub.web.plist"
-    worker_plist = launchagents_dir / f"com.relayhub.worker.{args.worker_agent}.plist"
     web_plist.write_bytes(build_web_plist(app_root, runtime_root, logs_dir, args.web_host, args.web_port))
-    worker_label = f"com.relayhub.worker.{args.worker_agent}"
-    worker_written = False
-    if args.worker_backend == "claude-code":
-        worker_label, worker_bytes = build_worker_plist(
-            app_root=app_root,
-            runtime_root=runtime_root,
-            logs_dir=logs_dir,
-            agent=args.worker_agent,
-            backend=args.worker_backend,
-            workdir=resolve_path(args.worker_workdir, REPO_ROOT.parent),
-            config_path=openclaw_config_path(openclaw_workspace),
-            poll_seconds=args.worker_poll_seconds,
-        )
-        worker_plist.write_bytes(worker_bytes)
-        worker_written = True
-    elif worker_plist.exists():
-        worker_plist.unlink()
+    removed_workers = remove_worker_plists(launchagents_dir)
     if args.load_services:
         launchctl_bootstrap(web_plist, "com.relayhub.web")
-        if worker_written:
-            launchctl_bootstrap(worker_plist, worker_label)
     return {
         "app_bundle": app_bundle,
         "launchagents_dir": str(launchagents_dir),
         "web_plist": str(web_plist),
-        "worker_plist": str(worker_plist) if worker_written else None,
-        "worker_backend": args.worker_backend,
-        "worker_installed": worker_written,
+        "removed_worker_plists": removed_workers,
         "loaded": bool(args.load_services),
     }
 
@@ -525,7 +462,7 @@ def install_status(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
         "runtime_root": str(runtime_root),
         "runtime_exists": runtime_root.exists(),
         "app_root": str(app_root),
-        "app_bundle_installed": (app_root / "scripts" / "relay_web.py").exists() and (app_root / "scripts" / "relay_agent_worker.py").exists() and (app_root / "relay_hub").exists(),
+        "app_bundle_installed": (app_root / "scripts" / "relay_web.py").exists() and (app_root / "relay_hub").exists(),
         "openclaw_workspace": str(openclaw_workspace),
         "bridge_script_installed": bridge_script_workspace_path(openclaw_workspace).exists(),
         "bridge_config_installed": bridge_config.exists(),
@@ -533,37 +470,16 @@ def install_status(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
         "heartbeat_installed": heartbeat_path(openclaw_workspace).exists(),
         "launchagents_dir": str(launchagents_dir),
         "web_plist_installed": (launchagents_dir / "com.relayhub.web.plist").exists(),
-        "worker_plist_installed": (launchagents_dir / f"com.relayhub.worker.{args.worker_agent}.plist").exists(),
+        "worker_plists_installed": sorted(str(path) for path in launchagents_dir.glob("com.relayhub.worker.*.plist")),
     }
     if bridge_config.exists():
         payload["bridge_config"] = json.loads(bridge_config.read_text(encoding="utf-8"))
     return payload
 
 
-def backend_command(backend: str) -> str | None:
-    if backend == "claude-code":
-        return "claude"
-    if backend == "manual":
-        return None
-    return None
-
-
 def launchd_loaded(label: str) -> bool:
     result = subprocess.run(["launchctl", "print", f"{launchctl_domain()}/{label}"], capture_output=True, text=True)  # noqa: S603
     return result.returncode == 0
-
-
-def claude_auth_ready() -> dict[str, Any]:
-    cli = shutil.which("claude")
-    if not cli:
-        return {"ok": False, "detail": "claude not found"}
-    result = subprocess.run(["claude", "auth", "status"], capture_output=True, text=True)  # noqa: S603
-    text = (result.stdout or result.stderr or "").strip()
-    logged_in = "loggedIn: true" in text or '"loggedIn": true' in text
-    return {
-        "ok": logged_in,
-        "detail": "logged in" if logged_in else (text.splitlines()[-1] if text else "not logged in"),
-    }
 
 
 def install_doctor(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, launchagents_dir: Path, app_root: Path) -> dict[str, Any]:
@@ -576,16 +492,6 @@ def install_doctor(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
 
     openclaw_cli = shutil.which("openclaw")
     add_check("openclaw_cli", bool(openclaw_cli), openclaw_cli or "openclaw not found in PATH")
-
-    backend_cli = backend_command(args.worker_backend)
-    if backend_cli:
-        backend_path = shutil.which(backend_cli)
-        add_check(f"{backend_cli}_cli", bool(backend_path), backend_path or f"{backend_cli} not found in PATH")
-        if backend_cli == "claude" and backend_path:
-            auth = claude_auth_ready()
-            add_check("claude_auth", auth["ok"], auth["detail"])
-    else:
-        add_check("worker_backend", True, f"{args.worker_backend} backend selected; no bundled worker CLI required")
 
     add_check("openclaw_workspace", openclaw_workspace.exists(), str(openclaw_workspace))
     add_check("launchagents_dir_parent", launchagents_dir.parent.exists(), str(launchagents_dir.parent))
@@ -609,14 +515,9 @@ def install_doctor(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
     )
 
     web_label = "com.relayhub.web"
-    worker_label = f"com.relayhub.worker.{args.worker_agent}"
     add_check("launchd_web_loaded", launchd_loaded(web_label), web_label)
-    if args.worker_backend == "manual":
-        add_check("launchd_worker_loaded", True, "manual backend selected; no worker launchd service expected")
-    else:
-        add_check("launchd_worker_loaded", launchd_loaded(worker_label), worker_label)
 
-    ok = all(check["ok"] for check in checks if check["name"] not in {"launchd_web_loaded", "launchd_worker_loaded"})
+    ok = all(check["ok"] for check in checks if check["name"] not in {"launchd_web_loaded"})
     return {
         "ok": ok,
         "version": VERSION,
@@ -650,7 +551,7 @@ def main() -> None:
         payload["openclaw"] = install_openclaw(args, runtime_root, openclaw_workspace, app_root)
 
     if args.command in {"install-launchd", "full"}:
-        payload["launchd"] = install_launchd(args, runtime_root, openclaw_workspace, launchagents_dir, app_root)
+        payload["launchd"] = install_launchd(args, runtime_root, launchagents_dir, app_root)
 
     output(payload)
 

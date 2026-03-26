@@ -14,7 +14,7 @@
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py doctor --worker-backend manual
+python3 install.py doctor
 ```
 
 说明：
@@ -26,18 +26,15 @@ python3 install.py doctor --worker-backend manual
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py full \
-  --worker-agent <your-agent-id> \
-  --worker-backend manual \
-  --load-services
+python3 install.py full --load-services
 ```
 
 这表示：
 
 - OpenClaw 和网页入口照常安装
 - 默认回包走原始触发渠道，不要求先配置额外渠道
-- 仓库不为该对象提供内置专属后台 worker
-- 该对象后续应按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 手动接入
+- 仓库不为任何特定对象默认附带现成后台 worker
+- 外部对象后续应按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 自行接入
 
 如果你后面明确要“除原始触发渠道外，还要额外镜像到别的渠道”，再单独执行：
 
@@ -46,16 +43,6 @@ cd /path/to/relay-hub
 python3 install.py install-openclaw \
   --delivery-channel some-channel=target_id \
   --delivery-account some-channel=account_id
-```
-
-如果你明确就是要使用仓库内置的 `Claude Code` 自动 worker，那属于高级模式，可以额外再执行：
-
-```bash
-cd /path/to/relay-hub
-python3 install.py install-launchd \
-  --worker-agent claude-code \
-  --worker-backend claude-code \
-  --load-services
 ```
 
 如果你只想先装 OpenClaw 侧：
@@ -67,7 +54,7 @@ python3 install.py install-openclaw
 
 ## 2. 应该跟 AI 编程工具说什么
 
-下面这段可以直接发给 AI 编程工具。把其中的 `<your-agent-id>` 换成对应对象名，安装仍然使用 `--worker-backend manual`：
+下面这段可以直接发给 AI 编程工具。把其中的 `<your-agent-id>` 换成对应对象名：
 
 ```text
 这是一个 Relay Hub 仓库。请先阅读：
@@ -143,6 +130,6 @@ python3 install.py install-openclaw
 - 不要让外部 AI 直接读原始消息渠道
 - 不要让 OpenClaw 自己翻 Relay Hub 的底层文件
 - 不要把网页 branch 当成第二条主聊天
-- 不要假设本仓库已经对所有 AI CLI 都内置了现成后台 worker
+- 不要假设本仓库已经对任何 AI CLI 都内置了后台 worker
 
 更详细的通用性边界，见 `docs/COMPATIBILITY.md`。
