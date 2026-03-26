@@ -6,6 +6,7 @@ import json
 import os
 import plistlib
 import shutil
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -52,6 +53,29 @@ def resolve_path(raw: str | None, default: Path) -> Path:
 
 def default_web_base_url(port: int) -> str:
     return f"http://127.0.0.1:{port}"
+
+
+def detect_lan_ipv4() -> str | None:
+    probe_targets = [("10.255.255.255", 1), ("192.0.2.1", 1), ("8.8.8.8", 80)]
+    for host, port in probe_targets:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.connect((host, port))
+                ip = sock.getsockname()[0]
+            if ip and not ip.startswith("127."):
+                return ip
+        except OSError:
+            continue
+    return None
+
+
+def resolved_web_base_url(args: argparse.Namespace) -> str:
+    if args.web_base_url:
+        return args.web_base_url.rstrip("/")
+    detected_ip = detect_lan_ipv4()
+    if detected_ip:
+        return f"http://{detected_ip}:{args.web_port}"
+    return default_web_base_url(args.web_port)
 
 
 def add_shared_args(parser: argparse.ArgumentParser) -> None:
@@ -204,9 +228,7 @@ def stage_app_bundle(app_root: Path) -> dict[str, Any]:
 
 def build_openclaw_config(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, app_root: Path) -> dict[str, Any]:
     channels = delivery_channels(args)
-    if not channels:
-        raise SystemExit("at least one delivery target is required: use --delivery-channel channel=target or the --feishu-target / --weixin-target shortcuts")
-    base_url = (args.web_base_url or default_web_base_url(args.web_port)).rstrip("/")
+    base_url = resolved_web_base_url(args)
     return {
         "version": 1,
         "relayHub": {
@@ -328,7 +350,7 @@ def merge_heartbeat(existing: str, block: str) -> str:
 def bootstrap_runtime(args: argparse.Namespace, runtime_root: Path) -> dict[str, Any]:
     hub = RelayHub(runtime_root)
     config = hub.init_layout(
-        web_base_url=(args.web_base_url or default_web_base_url(args.web_port)).rstrip("/"),
+        web_base_url=resolved_web_base_url(args),
         queue_ack_timeout_seconds=args.queue_ack_timeout,
         default_channels=list(delivery_channels(args).keys()),
     )
@@ -574,16 +596,16 @@ def install_doctor(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
     add_check("git_repo", status["repo_is_git"], "git initialized" if status["repo_is_git"] else "run `git init -b main` in relay-hub")
     add_check(
         "web_base_url",
-        bool(args.web_base_url),
-        args.web_base_url or "not provided; install will fall back to 127.0.0.1 which is not suitable for mobile clients",
+        True,
+        resolved_web_base_url(args),
     )
     configured_delivery_channels = delivery_channels(args)
     add_check(
         "delivery_target",
-        bool(configured_delivery_channels),
-        "at least one delivery target provided"
+        True,
+        "at least one explicit delivery target provided"
         if configured_delivery_channels
-        else "provide --delivery-channel channel=target, or use --feishu-target / --weixin-target shortcuts",
+        else "no explicit delivery target provided; replies will default to the original trigger channel",
     )
 
     web_label = "com.relayhub.web"

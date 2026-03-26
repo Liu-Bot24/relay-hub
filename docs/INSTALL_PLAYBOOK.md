@@ -14,40 +14,29 @@
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py doctor \
-  --web-base-url http://YOUR_LAN_IP:4317 \
-  --delivery-channel feishu=ou_xxx \
-  --worker-backend claude-code
+python3 install.py doctor --worker-backend manual
 ```
-
-如果你不用飞书，`feishu=ou_xxx` 只是示例；把它换成任何 `OpenClaw` 能发消息的渠道即可。
 
 说明：
 
 - 仓库路径就是这个包本身的路径
-- `web_base_url` 最好由 AI 在本机自动探测局域网 IPv4 后生成，只有探测失败时再来问用户
+- `web_base_url` 默认会由安装器自动探测局域网 IPv4 后生成，只有探测失败时才回落到 `127.0.0.1`
 
 通过后，再执行完整安装：
 
 ```bash
 cd /path/to/relay-hub
 python3 install.py full \
-  --web-base-url http://YOUR_LAN_IP:4317 \
-  --delivery-channel feishu=ou_xxx \
-  --delivery-channel openclaw-weixin=xxx@im.wechat \
-  --delivery-account openclaw-weixin=your-account-id \
   --worker-agent claude-code \
-  --worker-backend claude-code \
+  --worker-backend manual \
   --load-services
 ```
 
-如果不是 `Claude Code`，而是别的 AI 编程工具，推荐改成：
+如果不是 `Claude Code`，而是别的 AI 编程工具，只需要把 `claude-code` 换成自己的 `agent_id`：
 
 ```bash
 cd /path/to/relay-hub
 python3 install.py full \
-  --web-base-url http://YOUR_LAN_IP:4317 \
-  --delivery-channel feishu=ou_xxx \
   --worker-agent <your-agent-id> \
   --worker-backend manual \
   --load-services
@@ -56,21 +45,39 @@ python3 install.py full \
 这表示：
 
 - OpenClaw 和网页入口照常安装
-- 但仓库不为该对象提供现成自动 worker
+- 默认回包走原始触发渠道，不要求先配置额外渠道
+- 仓库不为该对象提供内置专属后台 worker
 - 该对象后续应按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 手动接入
+
+如果你后面明确要“除原始触发渠道外，还要额外镜像到别的渠道”，再单独执行：
+
+```bash
+cd /path/to/relay-hub
+python3 install.py install-openclaw \
+  --delivery-channel some-channel=target_id \
+  --delivery-account some-channel=account_id
+```
+
+如果你明确就是要使用仓库内置的 `Claude Code` 自动 worker，那属于高级模式，可以额外再执行：
+
+```bash
+cd /path/to/relay-hub
+python3 install.py install-launchd \
+  --worker-agent claude-code \
+  --worker-backend claude-code \
+  --load-services
+```
 
 如果你只想先装 OpenClaw 侧：
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-openclaw \
-  --web-base-url http://YOUR_LAN_IP:4317 \
-  --delivery-channel feishu=ou_xxx
+python3 install.py install-openclaw
 ```
 
 ## 2. 应该跟 Claude Code 说什么
 
-下面这段可以直接发给 `Claude Code`。如果是别的对象，把其中的 `claude-code` 换成对应 `agent_id`，并把安装命令里的 `--worker-backend claude-code` 改成 `--worker-backend manual`：
+下面这段可以直接发给 `Claude Code`。如果是别的对象，把其中的 `claude-code` 换成对应 `agent_id`，安装仍然使用 `--worker-backend manual`：
 
 ```text
 这是一个 Relay Hub 仓库。请先阅读：
@@ -150,7 +157,7 @@ python3 install.py install-openclaw \
    - `状态`
    - `退出`
 4. 本地网页入口能打开 branch 页面
-5. `Claude Code` worker 能 claim 队列并把 final 回包重新发回 OpenClaw 渠道
+5. 网页入口和 OpenClaw 命令链已经进入可用状态
 
 ## 5. 不要做什么
 
