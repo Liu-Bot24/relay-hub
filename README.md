@@ -25,8 +25,9 @@ Relay Hub 把三件事连到一起：
 2. RELAY_PROTOCOL.md
 3. docs/INSTALL_PLAYBOOK.md
 4. docs/COMPATIBILITY.md
-5. docs/AGENT_ENTRY_RULE.md
-6. docs/AGENT_WORKFLOW.md
+5. docs/INTEGRATION_CONTRACT.md
+6. docs/AGENT_ENTRY_RULE.md
+7. docs/AGENT_WORKFLOW.md
 
 先自己确定下面两件事，不要先来问我：
 1. 仓库根目录
@@ -65,13 +66,18 @@ python3 install.py full --load-services
   2. 查找 DEVELOPMENT_LOG.md；如果没有，就在项目根目录创建
   3. 立即写入一条当前主线快照
   4. 然后再把自己标记为 ready
+  5. 并在你自己的环境里开启持续接单机制；如果你的环境根本做不到持续接单，就明确告诉我当前只支持 manual-only，不要假装已经完整接入
 - 当我对你说“Relay Hub 状态”时，告诉我你当前是否 ready，以及是否有待处理 branch
-- 当我对你说“退出 Relay Hub”时，把自己标记为 offline
+- 当我对你说“退出 Relay Hub”时，把自己标记为 offline，并关闭持续接单机制
 - 当 OpenClaw 先帮我打开网页入口时，不要把那一刻当成 branch 已开始；用户第一次在网页里保存消息时，branch 才正式开始
+- 你必须为每条 AI 主对话稳定维护一个 main_session_ref：
+  1. 优先使用宿主环境原生提供的 conversation / thread / session id
+  2. 如果宿主没有提供，就在当前主对话第一次接入 Relay Hub 时生成一个稳定 ref，并在该主对话范围内持续复用
 - 当你第一次正式接 OpenClaw 打开的 branch 时，必须补齐：
   1. main_session_ref
   2. 当前主线摘要
   3. 当前项目根目录 / 开发日志绑定
+- 当你已经是 ready 时，不能只会手动执行一次 claim-next；完整支持模式下，你应持续监控 queued branch，并在自己的环境里接单处理
 - 当我回到当前主对话窗口说第一句话时，先执行一次 resume-main，把 branch 增量合流回主线，再继续回答我
 ```
 
@@ -82,7 +88,8 @@ python3 install.py full --load-services
 1. README.md
 2. docs/OPENCLAW_RULE.md
 3. docs/OPENCLAW_INTEGRATION.md
-4. docs/COMPATIBILITY.md
+4. docs/INTEGRATION_CONTRACT.md
+5. docs/COMPATIBILITY.md
 
 你只负责这 5 件事：
 1. 当我说“打开 <agent> 入口”时，调用已安装的 relay bridge 打开入口
@@ -96,6 +103,8 @@ python3 install.py full --load-services
 - 不要自己解释协议细节，只调用桥接脚本
 - 你是渠道网关，不是主记忆体
 - main_context 和 merge-back 不由你负责
+- 当前渠道和当前目标，默认必须从当前入站消息上下文里获取；只有宿主真的拿不到时，才回问用户
+- 如果当前渠道对象已经有 branch，你必须主动问用户“复用入口”还是“新建入口”，不能自己替用户决定
 ```
 
 ## 用户实际会说的话
@@ -236,6 +245,7 @@ python3 install.py install-launchd --load-services
 
 - 通用协议：`RELAY_PROTOCOL.md`
 - 安装章程：`docs/INSTALL_PLAYBOOK.md`
+- 接入硬章程：`docs/INTEGRATION_CONTRACT.md`
 - 通用性审计：`docs/COMPATIBILITY.md`
 - OpenClaw 接入映射：`docs/OPENCLAW_INTEGRATION.md`
 - OpenClaw 最小规则：`docs/OPENCLAW_RULE.md`

@@ -8,6 +8,7 @@
 你的职责只有 5 件事：
 
 1. 当用户要求“打开 <agent> 入口”时，调用 `scripts/openclaw_relay.py open-entry`。
+   - 默认先从当前入站消息上下文里取“当前渠道”和“当前目标”；只有宿主真的拿不到时，才回问用户。
    - 如果桥接脚本返回“当前渠道对象已经有一个 branch，请明确选择复用还是新建”，就先把这句话发给用户，主动询问，不要替用户决定。
    - 如果用户随后明确表示复用（例如“复用”或“复用入口”），就再次调用 `open-entry --branch-mode reuse`。
    - 如果用户随后明确表示新建（例如“新建”或“新建入口”），就再次调用 `open-entry --branch-mode new`。
@@ -25,5 +26,6 @@
 - main_context.md 的生成和 merge-back 的消费，不由你负责。
 - 你不要自己翻 routes.json、state.json、messages/*.md。
 - 你只调用桥接脚本，不自己解释协议细节。
+- 当前渠道和当前目标，不要用文档示例值，不要沿用别的会话值。
 - 如果对象未 ready、未 claim、或 session 不存在，直接把桥接脚本返回的 user_message 发给用户，不要假装成功。
 ```

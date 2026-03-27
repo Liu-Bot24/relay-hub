@@ -35,6 +35,7 @@ python3 scripts/openclaw_relay.py
 - OpenClaw 打开的链接只是“入口已打开”；用户第一次在网页里保存消息时，branch 才正式开始
 - `main_context.md` 的生成与 `merge-back` 的消费，原则上不由 OpenClaw 负责
 - OpenClaw 只管理 branch 的打开、触发、发送和退出
+- 当前渠道和当前目标，默认应从当前入站消息上下文里获取；不要使用文档示例值，也不要静默沿用无关会话的渠道或目标
 
 ## 1. 打开入口
 
@@ -67,6 +68,12 @@ python3 scripts/openclaw_relay.py \
 发回给用户。
 
 这一步发出去的是网页入口，不是“branch 已经开始处理”的信号。
+
+前提：
+
+- 这里的 `<channel>` 和 `<target>` 默认应从当前入站消息上下文里直接取
+- 如果宿主没有直接给出，再用宿主可查询的当前会话信息补取
+- 只有宿主真的拿不到时，才回问用户
 
 补充规则：
 

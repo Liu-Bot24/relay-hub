@@ -266,6 +266,8 @@ description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 codex/c
 - 当前主对话窗口不在 OpenClaw 里。OpenClaw 只负责“开入口、收已录入、查状态、退出、发回包”。
 - 网页链接发出去时只是入口已打开；用户第一次在网页里保存消息时，branch 才正式开始。
 - 只有当当前实例已经为该渠道配置了默认 target 时，才能省略 `--target`；否则必须传当前渠道目标。
+- 当前渠道和当前目标，默认必须从当前入站消息上下文里获取；如果宿主没有直接给出，再用宿主可查询的当前会话信息补取；只有真的拿不到时才回问用户。
+- 不要使用文档示例值，不要沿用别的会话的渠道或目标。
 
 支持的对象名
 - `codex`
@@ -282,7 +284,7 @@ description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 codex/c
 python3 {script_path} open-entry --agent "<agent>" --channel "<当前渠道>" --target "<当前目标>"
 ```
 
-如果脚本返回“请明确选择：回复‘复用入口’继续使用旧 branch，或回复‘新建入口’创建全新 branch”，必须先把这个问题发给用户，等用户明确回答后再重试。用户只要明确表达“复用”或“新建”即可，不要求一字不差：
+如果脚本返回“请明确选择：回复‘复用入口’继续使用旧 branch，或回复‘新建入口’创建全新 branch”，必须先把这个问题发给用户，主动询问，不要替用户决定。等用户明确回答后再重试。用户只要明确表达“复用”或“新建”即可，不要求一字不差：
 
 ```bash
 python3 {script_path} open-entry --agent "<agent>" --channel "<当前渠道>" --target "<当前目标>" --branch-mode reuse

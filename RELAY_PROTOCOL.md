@@ -33,6 +33,16 @@
 7. 开发日志是 branch 上下文和主线合流的重要参考。
 8. 只有当用户显式说“已录入”后，branch 的新输入才进入待处理队列。
 
+## 1.1 完整支持 vs manual-only
+
+如果一个外部 AI 只能临时手动执行命令、不能在自己的环境里持续接单，它仍然可以参与 Relay Hub，但只能算：
+
+- `manual-only`
+
+只有当它能在自己的环境里建立最小长期机制，并在 `ready` 时持续接走 `queued` branch，才算：
+
+- `完整支持`
+
 ## 2. 角色分工
 
 ### OpenClaw
@@ -212,6 +222,13 @@ channel_b__target_secondary
 - `created_at`
 - `web_url`
 - `default_delivery`
+
+其中 `main_session_ref` 的规则是：
+
+- 同一条 AI 主对话必须稳定复用同一个 `main_session_ref`
+- 新主对话才应生成新的 `main_session_ref`
+- 优先使用宿主原生的 conversation / thread / session id
+- 如果宿主没有提供，就在该主对话第一次接入 Relay Hub 时生成一个稳定 ref
 
 `state.json` 记录动态状态，例如：
 

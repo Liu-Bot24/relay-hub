@@ -17,6 +17,18 @@
 - 协议本身不绑定任何特定 AI，也不绑定任何特定消息渠道
 - Relay Hub 默认只安装通用层；外部 AI 需要按本文件自行接入
 
+## 0. 完整支持 vs manual-only
+
+如果一个外部 AI 只会临时执行命令、不会在自己的环境里持续接单，那它只能算：
+
+- `manual-only`
+
+只有当它能在自己的环境里建立最小长期机制，并在 `ready` 时持续接走 `queued` branch，才算：
+
+- `完整支持`
+
+Relay Hub 仓库不会替某一家 AI 内置专属后台接单器；接单机制必须由接入方 AI 在自己的环境里落地。
+
 ## 核心心智模型
 
 - 当前 AI 主对话窗口是主线
@@ -45,6 +57,7 @@ AI 自己应把这些话映射成下面的内部动作。
 2. 查找或创建 `DEVELOPMENT_LOG.md`
 3. 写入一条当前主线快照
 4. 把自己标记为 ready
+5. 在自己的环境里启动持续接单机制
 
 推荐直接执行：
 
@@ -62,6 +75,12 @@ python3 scripts/agent_relay.py --agent agent_demo enable-relay \
 - 记住当前项目根目录和开发日志路径
 - 把当前对象状态标记为 `ready`
 
+然后还要做一件仓库不会替你做的事：
+
+- 在自己的环境里开启持续接单机制
+
+如果宿主环境根本做不到持续接单，应明确告诉用户当前只能 `manual-only`。
+
 ## 2. 查询当前接入状态
 
 ```bash
@@ -78,6 +97,21 @@ python3 scripts/agent_relay.py --agent agent_demo agent-status
 
 - `entry_open` 表示入口已打开，但用户还没在网页里写第一条消息
 - `input_open` 表示 branch 已开始，用户还在继续网页录入
+
+## 2.1 main_session_ref 规范
+
+每条 AI 主对话都必须稳定维护一个 `main_session_ref`。
+
+优先级从高到低：
+
+1. 优先用宿主环境原生提供的 conversation / thread / session id
+2. 如果宿主没有暴露原生会话标识，就在该主对话第一次“接入 Relay Hub”时生成一个稳定 ref
+
+要求：
+
+- 同一主对话必须复用同一个 `main_session_ref`
+- 用户明确新开主对话时，才换新的 `main_session_ref`
+- 不要每次 branch 都重新生成
 
 ## 3. 从主线主动打开一个 branch
 
@@ -127,6 +161,26 @@ python3 scripts/agent_relay.py --agent agent_demo claim-next \
 ```
 
 如果你已经先做过 `enable-relay`，这个命令会自动复用你当前项目根目录和开发日志路径，把 branch 绑到当前项目上。
+
+### 4.1 持续接单的最低实现
+
+完整支持模式下，你在自己的环境里至少要做到：
+
+1. 只要自己是 `ready`
+2. 就持续检查是否出现新的 `queued` branch
+3. 一旦出现，就立刻 `claim-next`
+4. 如有需要，补写 `main_context`
+5. 再继续 `branch-context -> reply`
+
+这层长期机制可以是：
+
+- skill
+- rule
+- automation
+- watcher
+- 任何宿主原生支持的持久化方式
+
+但不能只靠用户每次手动提醒你执行一次命令。
 
 ## 5. 真正处理前，读取上下文
 
@@ -204,7 +258,7 @@ python3 scripts/agent_relay.py --agent agent_demo resume-main \
 
 ## 8. 退出 Relay Hub
 
-当用户说“退出 Relay Hub”时，只需要把自己标记为 offline：
+当用户说“退出 Relay Hub”时，先关闭持续接单机制，再把自己标记为 offline：
 
 ```bash
 cd /path/to/relay-hub
