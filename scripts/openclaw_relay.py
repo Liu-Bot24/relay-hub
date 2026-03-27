@@ -65,7 +65,9 @@ def build_open_message(branch: dict[str, Any], agent_status: str) -> str:
     web_url = branch["meta"]["web_url"]
     branch_status = (branch.get("state") or {}).get("status")
     raw_channels = list((branch["meta"].get("default_delivery") or {}).get("channels") or [])
-    channels = ", ".join(raw_channels) if raw_channels else "原始触发渠道"
+    delivery_channels = ["原始触发渠道"]
+    delivery_channels.extend(channel for channel in raw_channels if channel not in delivery_channels)
+    channels = " + ".join(delivery_channels)
     branch_note = (
         "注意：用户第一次在网页里保存消息时，branch 才会正式开始。"
         if branch_status == "entry_open"

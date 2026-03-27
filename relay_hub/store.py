@@ -249,22 +249,27 @@ class RelayHub:
     def _resolve_development_log(
         self,
         *,
-        project_root: str | Path,
+        project_root: str | Path | None = None,
         development_log_path: str | Path | None = None,
-    ) -> tuple[Path, bool]:
-        project_path = Path(project_root).expanduser().resolve()
+    ) -> tuple[Path, Path, bool]:
         explicit_path = Path(development_log_path).expanduser().resolve() if development_log_path else None
+        if project_root is not None:
+            project_path = Path(project_root).expanduser().resolve()
+        elif explicit_path is not None:
+            project_path = explicit_path.parent
+        else:
+            raise ValueError("project_root is required unless development_log_path is provided")
         if explicit_path is not None:
             created = not explicit_path.exists()
             ensure_development_log(explicit_path)
-            return explicit_path, created
+            return project_path, explicit_path, created
         existing = find_development_log(project_path)
         if existing is not None:
-            return existing, False
+            return project_path, existing, False
         created_path = project_path / "DEVELOPMENT_LOG.md"
         created = not created_path.exists()
         ensure_development_log(created_path)
-        return created_path, created
+        return project_path, created_path, created
 
     def enable_agent(
         self,
@@ -275,9 +280,8 @@ class RelayHub:
         development_log_path: str | Path | None = None,
         author: str | None = None,
     ) -> dict[str, Any]:
-        project_path = Path(project_root).expanduser().resolve()
-        log_path, created = self._resolve_development_log(
-            project_root=project_path,
+        project_path, log_path, created = self._resolve_development_log(
+            project_root=project_root,
             development_log_path=development_log_path,
         )
         prepend_log_entry(
@@ -314,7 +318,7 @@ class RelayHub:
         self,
         session_key: str,
         *,
-        project_root: str | Path,
+        project_root: str | Path | None = None,
         development_log_path: str | Path | None = None,
         snapshot_body: str | None = None,
         author: str | None = None,
@@ -322,9 +326,8 @@ class RelayHub:
         meta = self.get_meta(session_key)
         if not meta:
             raise FileNotFoundError(f"session {session_key} does not exist")
-        project_path = Path(project_root).expanduser().resolve()
-        log_path, created = self._resolve_development_log(
-            project_root=project_path,
+        project_path, log_path, created = self._resolve_development_log(
+            project_root=project_root,
             development_log_path=development_log_path,
         )
         meta["project_root"] = str(project_path)

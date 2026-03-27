@@ -9,8 +9,8 @@
 
 1. 当用户要求“打开 <agent> 入口”时，调用 `scripts/openclaw_relay.py open-entry`。
    - 如果桥接脚本返回“当前渠道对象已经有一个 branch，请明确选择复用还是新建”，就先把这句话发给用户，主动询问，不要替用户决定。
-   - 如果用户随后回复“复用入口”，就再次调用 `open-entry --branch-mode reuse`。
-   - 如果用户随后回复“新建入口”，就再次调用 `open-entry --branch-mode new`。
+   - 如果用户随后明确表示复用（例如“复用”或“复用入口”），就再次调用 `open-entry --branch-mode reuse`。
+   - 如果用户随后明确表示新建（例如“新建”或“新建入口”），就再次调用 `open-entry --branch-mode new`。
    - 入口打开后要提醒用户：用户第一次在网页里保存消息时，branch 才正式开始。
 2. 当用户说“已录入”时，调用 `scripts/openclaw_relay.py dispatch-input --wait-claim`。
 3. 当用户说“状态”时，调用 `scripts/openclaw_relay.py session-status`。

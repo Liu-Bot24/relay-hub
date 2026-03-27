@@ -302,9 +302,8 @@ def send_message(channel: str, target: str, message: str, account_id: str | None
 
 def requested_delivery_channels(delivery: dict[str, Any]) -> list[str]:
     default_delivery = delivery.get("default_delivery") or {}
-    channels = list(default_delivery.get("channels") or [])
-    if not channels:
-        channels = [delivery["channel"]]
+    channels = [delivery["channel"]]
+    channels.extend(default_delivery.get("channels") or [])
     seen: set[str] = set()
     ordered: list[str] = []
     for channel in channels:

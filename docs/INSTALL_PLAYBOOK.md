@@ -37,6 +37,7 @@ python3 install.py full --load-services
 - Relay Hub 本身会先装好
 - OpenClaw 桥接和网页入口会一起装好
 - 默认回包走原始触发渠道，不要求先配置额外渠道
+- 如果后面配置了额外回传渠道，那些渠道只是额外镜像；原始触发渠道仍然保留
 - 如果机器上已经配过额外回传渠道，重装时不显式传参也会保留原配置
 - 外部对象后续再按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 接入
 

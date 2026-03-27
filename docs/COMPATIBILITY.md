@@ -75,6 +75,8 @@ python3 install.py full \
   --load-services
 ```
 
+这些额外渠道是镜像渠道，不会替代原始触发渠道；原始触发渠道仍然保留。
+
 ### 当前渠道层真正的边界
 
 - 支持：`OpenClaw` 已支持的消息渠道
