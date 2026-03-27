@@ -72,6 +72,7 @@ python3 scripts/openclaw_relay.py \
 - `复用` 表示继续使用当前 active branch
 - `新建` 表示为同一个 `channel + target` 创建一条全新的 branch，并把该渠道对象的 active alias 切到新 branch
 - OpenClaw 不应该静默替用户决定“复用还是新建”
+- 因此 OpenClaw 的正确行为是：第一次命中该提示时，主动把问题问给用户；等用户回答后，再带 `--branch-mode reuse` 或 `--branch-mode new` 重调一次
 
 ## 2. 已录入
 
