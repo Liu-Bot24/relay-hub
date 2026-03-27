@@ -284,7 +284,7 @@ description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 codex/c
 python3 {script_path} open-entry --agent "<agent>" --channel "<当前渠道>" --target "<当前目标>"
 ```
 
-如果脚本返回“请明确选择：回复‘复用入口’继续使用旧 branch，或回复‘新建入口’创建全新 branch”，必须先把这个问题发给用户，主动询问，不要替用户决定。等用户明确回答后再重试。用户只要明确表达“复用”或“新建”即可，不要求一字不差：
+如果脚本返回“请明确选择：回复‘复用入口’继续使用旧 branch，或回复‘新建入口’创建全新 branch”，必须先把这个问题发给用户，主动询问，不要替用户决定。并把这次的 `agent / channel / target` 视作当前待确认入口；等用户明确回答后再重试。用户只要明确表达“复用”或“新建”即可，不要求一字不差：
 
 ```bash
 python3 {script_path} open-entry --agent "<agent>" --channel "<当前渠道>" --target "<当前目标>" --branch-mode reuse

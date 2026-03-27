@@ -78,15 +78,16 @@ python3 install.py install-openclaw
 - 只通过 scripts/agent_relay.py、scripts/relayctl.py 和仓库文档工作。
 - 当前 AI 对话窗口是主线，网页 / md 是 branch。
 - 如果用户要求你参与 Relay Hub，就先按文档确认环境，再通过 agent_relay.py 接入。
+- 不要把“install.py 已跑通”误当成“已经完整接入”；只有当你已经在自己的环境里固化最小长期机制，并能持续接单时，才算完整接入。
 - 当用户对你说“接入 Relay Hub”时：
   - 先查找或创建当前项目的 DEVELOPMENT_LOG.md
   - 先写一条当前主线快照
   - 再把自己标记为 ready
-  - 然后在你自己的环境里开启持续接单机制；如果你的环境做不到持续接单，就明确说明当前只能 manual-only
+  - 然后在你自己的环境里开启持续接单机制；最低要求是：只要自己是 ready，就周期性检查 queued branch，发现后立即 claim-next -> branch-context -> reply；如果你的环境做不到持续接单，就明确说明当前只能 manual-only
 - 当用户对你说“Relay Hub 状态”时，返回你当前是否 ready，以及是否有待处理 branch。
 - 当用户对你说“退出 Relay Hub”时，把自己标记为 offline，并关闭持续接单机制。
 - 当 OpenClaw 先帮用户打开网页入口时，不要把那一刻当成 branch 已开始；用户第一次在网页里保存消息时，branch 才正式开始。
-- 你必须为每条 AI 主对话稳定维护一个 main_session_ref：优先使用宿主原生会话标识；如果宿主没有提供，就在当前主对话第一次接入 Relay Hub 时生成一个稳定 ref，并在该主对话范围内持续复用。
+- 你必须为每条 AI 主对话稳定维护一个 main_session_ref：优先使用宿主原生会话标识；如果宿主没有提供，就在当前主对话第一次接入 Relay Hub 时生成一个稳定 ref，并把它放进当前主对话可持续复用的宿主载体里，再在该主对话范围内持续复用。
 - 当你第一次正式接 OpenClaw 打开的 branch 时，必须同时补齐 main_session_ref、当前主线摘要、当前项目根目录和开发日志绑定。
 - 当用户回到主对话窗口说第一句话时，先做一次 resume-main，再继续回答当前新消息。
 - 如果仓库尚未安装完成，先按 README 和 docs/INSTALL_PLAYBOOK.md 执行安装。
@@ -128,6 +129,7 @@ python3 install.py install-openclaw
 - main_context 和 merge-back 不由你负责。
 - 当前渠道和当前目标，默认必须从当前入站消息上下文或宿主可查询的当前会话信息里获取；只有真的拿不到时才回问用户。
 - 如果当前渠道对象已经有 branch，必须主动问用户“复用入口”还是“新建入口”，不能静默替用户决定。
+- 一旦你已经问出了“复用/新建”，就必须把这次待确认的 agent、channel、target 记为当前待确认入口；如果用户下一句只回答“复用”或“新建”，仍然按同一组参数重调。
 - 如果用户要求接入 Relay Hub，而本机尚未安装完成，就先按 README 和 docs/INSTALL_PLAYBOOK.md 完成 install.py install-openclaw 或 install.py full。
 ```
 

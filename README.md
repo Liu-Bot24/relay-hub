@@ -20,14 +20,16 @@ Relay Hub 把三件事连到一起：
 ```text
 你现在正在处理位于 [本包所在路径] 的 Relay Hub 仓库。这个路径就是当前这个包解压或克隆后的目录。请在该仓库根目录工作，并严格按下面流程执行，不要自行简化步骤。
 
-先阅读这些文件：
+先优先阅读这 4 个关键文件：
 1. README.md
 2. RELAY_PROTOCOL.md
-3. docs/INSTALL_PLAYBOOK.md
-4. docs/COMPATIBILITY.md
-5. docs/INTEGRATION_CONTRACT.md
-6. docs/AGENT_ENTRY_RULE.md
-7. docs/AGENT_WORKFLOW.md
+3. docs/INTEGRATION_CONTRACT.md
+4. docs/AGENT_ENTRY_RULE.md
+
+如果读完上面 4 个文件后还需要具体安装细节，再补读：
+5. docs/INSTALL_PLAYBOOK.md
+6. docs/AGENT_WORKFLOW.md
+7. docs/COMPATIBILITY.md
 
 先自己确定下面两件事，不要先来问我：
 1. 仓库根目录
@@ -49,9 +51,14 @@ python3 install.py full --load-services
 1. python3 install.py doctor
 2. python3 install.py status
 
-成功标准：
+安装完成标准：
 - doctor 返回 ok=true
 - status 能看到 openclaw bridge、skill、heartbeat、web plist
+
+完整接入标准：
+- 你已经在自己的环境里固化最小长期规则 / skill / guide
+- 你已经明确当前主对话如何稳定生成并复用 main_session_ref
+- 你已经进入 ready，并且能在自己的环境里持续接单；如果做不到，就明确说明当前只能 manual-only
 
 安装要求：
 - install.py 会自动探测本机局域网地址；只有探测失败时，才回头问我
@@ -66,13 +73,13 @@ python3 install.py full --load-services
   2. 查找 DEVELOPMENT_LOG.md；如果没有，就在项目根目录创建
   3. 立即写入一条当前主线快照
   4. 然后再把自己标记为 ready
-  5. 并在你自己的环境里开启持续接单机制；如果你的环境根本做不到持续接单，就明确告诉我当前只支持 manual-only，不要假装已经完整接入
+  5. 并在你自己的环境里开启持续接单机制；最低要求是：只要自己是 ready，就周期性检查 queued branch，发现后立即 claim-next -> branch-context -> reply；如果你的环境根本做不到持续接单，就明确告诉我当前只支持 manual-only，不要假装已经完整接入
 - 当我对你说“Relay Hub 状态”时，告诉我你当前是否 ready，以及是否有待处理 branch
 - 当我对你说“退出 Relay Hub”时，把自己标记为 offline，并关闭持续接单机制
 - 当 OpenClaw 先帮我打开网页入口时，不要把那一刻当成 branch 已开始；用户第一次在网页里保存消息时，branch 才正式开始
 - 你必须为每条 AI 主对话稳定维护一个 main_session_ref：
   1. 优先使用宿主环境原生提供的 conversation / thread / session id
-  2. 如果宿主没有提供，就在当前主对话第一次接入 Relay Hub 时生成一个稳定 ref，并在该主对话范围内持续复用
+  2. 如果宿主没有提供，就在当前主对话第一次接入 Relay Hub 时生成一个稳定 ref，并把它固化到当前主对话可持续复用的宿主载体里，再在该主对话范围内持续复用；不能只把它留在单条回复里
 - 当你第一次正式接 OpenClaw 打开的 branch 时，必须补齐：
   1. main_session_ref
   2. 当前主线摘要
@@ -105,6 +112,7 @@ python3 install.py full --load-services
 - main_context 和 merge-back 不由你负责
 - 当前渠道和当前目标，默认必须从当前入站消息上下文里获取；只有宿主真的拿不到时，才回问用户
 - 如果当前渠道对象已经有 branch，你必须主动问用户“复用入口”还是“新建入口”，不能自己替用户决定
+- 一旦你已经问出了“复用/新建”，就必须把这次待确认的 agent、channel、target 记为当前待确认入口；如果用户下一句只回答“复用”或“新建”，仍然按同一组参数重调，不要在第二轮丢上下文
 ```
 
 ## 用户实际会说的话
@@ -190,6 +198,7 @@ relay-hub/
   RELAY_PROTOCOL.md
   docs/
     INSTALL_PLAYBOOK.md
+    INTEGRATION_CONTRACT.md
     COMPATIBILITY.md
     RUNBOOK.md
     AGENT_ENTRY_RULE.md

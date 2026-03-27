@@ -29,6 +29,13 @@
 
 Relay Hub 仓库不会替某一家 AI 内置专属后台接单器；接单机制必须由接入方 AI 在自己的环境里落地。
 
+所以从产品角度要分清两件事：
+
+- `安装完成`
+  说明仓库和 OpenClaw 侧已经装好
+- `完整接入`
+  说明外部 AI 也已经把自己的长期规则、`main_session_ref` 规则和持续接单机制落好了
+
 ## 核心心智模型
 
 - 当前 AI 主对话窗口是主线
@@ -81,6 +88,17 @@ python3 scripts/agent_relay.py --agent agent_demo enable-relay \
 
 如果宿主环境根本做不到持续接单，应明确告诉用户当前只能 `manual-only`。
 
+最简单、最通用的最低实现可以是：
+
+1. 只要自己是 `ready`
+2. 就周期性执行 `agent-status`
+3. 若 `queued_count == 0`，继续等待
+4. 若 `queued_count > 0`，立刻 `claim-next`
+5. 若 branch 缺少主线摘要，再立刻补写
+6. 再执行 `branch-context -> reply`
+
+是否用 skill、rule、automation 或宿主自己的 watcher，由接入方自己决定；但这套最小动作链不能缺。
+
 ## 2. 查询当前接入状态
 
 ```bash
@@ -105,7 +123,7 @@ python3 scripts/agent_relay.py --agent agent_demo agent-status
 优先级从高到低：
 
 1. 优先用宿主环境原生提供的 conversation / thread / session id
-2. 如果宿主没有暴露原生会话标识，就在该主对话第一次“接入 Relay Hub”时生成一个稳定 ref
+2. 如果宿主没有暴露原生会话标识，就在该主对话第一次“接入 Relay Hub”时生成一个稳定 ref，并把它存进当前主对话可持续复用的宿主载体
 
 要求：
 

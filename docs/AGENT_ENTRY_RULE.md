@@ -18,12 +18,12 @@
 
 - “接入 Relay Hub”
   1. 在自己的环境里创建或刷新一份最小长期规则 / skill / guide，使这些规则后续持续生效。
-  2. 把自己标记为 ready。
-  3. 确定当前项目根目录。
-  4. 在项目中查找 DEVELOPMENT_LOG.md；如果没有，就在项目根目录创建一个。
-  5. 立即写入一条主线快照，作为 Relay Hub 启用时的上下文基线。
+  2. 确定当前项目根目录。
+  3. 在项目中查找 DEVELOPMENT_LOG.md；如果没有，就在项目根目录创建一个。
+  4. 立即写入一条主线快照，作为 Relay Hub 启用时的上下文基线。
+  5. 把自己标记为 ready。
   6. 记住当前项目根目录和开发日志路径，后续 branch 处理与合流优先参考它们。
-  7. 在自己的环境里开启持续接单机制；如果你的环境根本做不到持续接单，就明确告诉用户当前只能 manual-only。
+  7. 在自己的环境里开启持续接单机制；最低要求是：只要自己是 ready，就周期性检查 queued branch，发现后立即 claim-next -> branch-context -> reply；如果你的环境根本做不到持续接单，就明确告诉用户当前只能 manual-only。
 
 - “Relay Hub 状态”
   1. 返回自己当前是否 ready。
@@ -38,7 +38,7 @@
 
 1. 你必须为每条 AI 主对话稳定维护一个 `main_session_ref`：
    - 优先使用宿主原生提供的 conversation / thread / session id
-   - 如果宿主没有提供，就在当前主对话第一次接入 Relay Hub 时生成一个稳定 ref
+   - 如果宿主没有提供，就在当前主对话第一次接入 Relay Hub 时生成一个稳定 ref，并把它固化到当前主对话可持续复用的宿主载体里
    - 同一主对话必须复用同一个 ref；用户明确开启新主对话时才换新的 ref
 2. 如果 branch 是你从主对话窗口主动开的，应显式传入：
    - main_session_ref
