@@ -46,6 +46,14 @@ def resolve_agent(value: str | None, default_agent: str | None) -> str:
     raise SystemExit("agent is required: pass --agent or set RELAY_AGENT_ID")
 
 
+def resolve_project_value(args: argparse.Namespace, presence: dict[str, Any], attr: str) -> str | None:
+    direct = getattr(args, attr, None)
+    if direct:
+        return direct
+    key = f"current_{attr}"
+    return presence.get(key)
+
+
 def last_branch_message_id(merge_back: dict[str, Any]) -> str | None:
     messages = merge_back.get("branch_messages") or []
     if not messages:
@@ -60,6 +68,7 @@ def build_agent_status(hub: RelayHub, agent: str) -> dict[str, Any]:
     processing = [session for session in sessions if session.get("status") == "processing"]
     awaiting_user = [session for session in sessions if session.get("status") == "awaiting_user"]
     input_open = [session for session in sessions if session.get("status") == "input_open"]
+    entry_open = [session for session in sessions if session.get("status") == "entry_open"]
     error = [session for session in sessions if session.get("status") == "error"]
     return {
         "agent": presence,
@@ -70,6 +79,7 @@ def build_agent_status(hub: RelayHub, agent: str) -> dict[str, Any]:
             "processing_count": len(processing),
             "awaiting_user_count": len(awaiting_user),
             "input_open_count": len(input_open),
+            "entry_open_count": len(entry_open),
             "error_count": len(error),
             "has_pending_branch": bool(queued or processing),
         },
@@ -94,6 +104,22 @@ def build_parser(label: str) -> argparse.ArgumentParser:
         help="Show this agent's current ready/offline state and branch summary",
     )
 
+    enable_parser = subparsers.add_parser(
+        "enable-relay",
+        help="Mark this agent as ready and attach/create a development log for the current project",
+    )
+    enable_parser.add_argument("--project-root", required=True)
+    enable_parser.add_argument("--development-log-path")
+    enable_group = enable_parser.add_mutually_exclusive_group(required=True)
+    enable_group.add_argument("--snapshot-body")
+    enable_group.add_argument("--snapshot-file")
+    enable_parser.add_argument("--author")
+
+    subparsers.add_parser(
+        "disable-relay",
+        help="Mark this agent as offline for Relay Hub without removing project bindings",
+    )
+
     start_parser = subparsers.add_parser(
         "start-branch",
         help="Open a branch session and optionally seed it with main-chat context",
@@ -108,6 +134,8 @@ def build_parser(label: str) -> argparse.ArgumentParser:
     start_parser.add_argument("--main-context-source", default="main-chat")
     start_parser.add_argument("--main-session-ref")
     start_parser.add_argument("--main-session-ref-source", default="agent-session")
+    start_parser.add_argument("--project-root")
+    start_parser.add_argument("--development-log-path")
 
     note_parser = subparsers.add_parser(
         "append-main-note",
@@ -132,6 +160,12 @@ def build_parser(label: str) -> argparse.ArgumentParser:
         help="Claim the next queued branch for this agent",
     )
     claim_parser.add_argument("--main-session-ref", required=True)
+    claim_main_group = claim_parser.add_mutually_exclusive_group()
+    claim_main_group.add_argument("--main-context-body")
+    claim_main_group.add_argument("--main-context-file")
+    claim_parser.add_argument("--main-context-source", default="main-chat")
+    claim_parser.add_argument("--project-root")
+    claim_parser.add_argument("--development-log-path")
 
     branch_parser = subparsers.add_parser(
         "branch-context",
@@ -168,6 +202,15 @@ def build_parser(label: str) -> argparse.ArgumentParser:
         help="After building the packet, mark its last branch message as merged back",
     )
 
+    resume_parser = subparsers.add_parser(
+        "resume-main",
+        help="On the first main-window message after a branch, merge the latest bound branch back and optionally close relay",
+    )
+    resume_parser.add_argument("--main-session-ref", required=True)
+    resume_parser.add_argument("--session")
+    resume_parser.add_argument("--limit", type=int, default=100)
+    resume_parser.add_argument("--keep-relay-open", action="store_true")
+
     show_parser = subparsers.add_parser(
         "show-branch",
         help="Show one branch session with main context and transcript",
@@ -193,8 +236,26 @@ def main(default_agent: str | None = None, label: str = "Agent") -> None:
             output({"ok": True, "status": build_agent_status(hub, agent)})
             return
 
+        if args.command == "enable-relay":
+            agent = resolve_agent(args.agent, default_agent)
+            payload = hub.enable_agent(
+                agent=agent,
+                project_root=args.project_root,
+                development_log_path=args.development_log_path,
+                snapshot_body=read_body(args.snapshot_body, args.snapshot_file) or "",
+                author=args.author or agent,
+            )
+            output({"ok": True, "relay_enabled": payload})
+            return
+
+        if args.command == "disable-relay":
+            agent = resolve_agent(args.agent, default_agent)
+            output({"ok": True, "agent": hub.set_agent(agent, "offline")})
+            return
+
         if args.command == "start-branch":
             agent = resolve_agent(args.agent, default_agent)
+            presence = hub.get_agent(agent)
             main_context_body = read_body(args.main_context_body, args.main_context_file)
             payload = hub.open_session(
                 agent=agent,
@@ -207,12 +268,25 @@ def main(default_agent: str | None = None, label: str = "Agent") -> None:
                 main_session_ref=args.main_session_ref,
                 main_session_ref_source=args.main_session_ref_source,
             )
+            project_root = resolve_project_value(args, presence, "project_root")
+            development_log_path = resolve_project_value(args, presence, "development_log_path")
+            attached_project = None
+            if project_root or development_log_path:
+                attached_project = hub.attach_project(
+                    payload["session_key"],
+                    project_root=project_root or presence.get("current_project_root"),
+                    development_log_path=development_log_path,
+                    snapshot_body=main_context_body,
+                    author=agent,
+                )
             output(
                 {
                     "ok": True,
                     "branch": payload,
+                    "attached_project": attached_project,
                     "next_steps": [
                         f"Open the web entry: {payload['meta']['web_url']}",
+                        "The branch is only considered started after the first web message is saved.",
                         f"When branch input is done, dispatch session: {payload['session_key']}",
                         f"Before {agent} processes the branch, read branch-context.",
                     ],
@@ -240,8 +314,36 @@ def main(default_agent: str | None = None, label: str = "Agent") -> None:
 
         if args.command == "claim-next":
             agent = resolve_agent(args.agent, default_agent)
+            presence = hub.get_agent(agent)
+            main_context_body = read_body(args.main_context_body, args.main_context_file)
             payload = hub.claim_next(agent, main_session_ref=args.main_session_ref)
-            output({"ok": payload is not None, "claim": payload})
+            attached_project = None
+            attached_main_context = None
+            if payload is not None:
+                project_root = resolve_project_value(args, presence, "project_root")
+                development_log_path = resolve_project_value(args, presence, "development_log_path")
+                if project_root or development_log_path:
+                    attached_project = hub.attach_project(
+                        payload["session_key"],
+                        project_root=project_root or presence.get("current_project_root"),
+                        development_log_path=development_log_path,
+                        snapshot_body=main_context_body,
+                        author=agent,
+                    )
+                if main_context_body is not None:
+                    attached_main_context = hub.set_main_context(
+                        payload["session_key"],
+                        main_context_body,
+                        source=args.main_context_source,
+                    )
+            output(
+                {
+                    "ok": payload is not None,
+                    "claim": payload,
+                    "attached_project": attached_project,
+                    "attached_main_context": attached_main_context,
+                }
+            )
             return
 
         if args.command == "branch-context":
@@ -281,6 +383,18 @@ def main(default_agent: str | None = None, label: str = "Agent") -> None:
                 if last_id:
                     merged = hub.mark_merged_back(args.session, last_id)
             output({"ok": True, "merge_back": payload, "mark_merged_result": merged})
+            return
+
+        if args.command == "resume-main":
+            agent = resolve_agent(args.agent, default_agent)
+            payload = hub.resume_main(
+                agent=agent,
+                main_session_ref=args.main_session_ref,
+                session_key=args.session,
+                limit=args.limit,
+                close_relay=not args.keep_relay_open,
+            )
+            output({"ok": payload is not None, "resume_main": payload})
             return
 
         if args.command == "show-branch":

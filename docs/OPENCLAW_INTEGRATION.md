@@ -32,6 +32,7 @@ python3 scripts/openclaw_relay.py
 - Relay session 是从主线分出去的 branch
 - OpenClaw 只知道 `channel + target`，不知道外部 AI 当前是哪条主会话
 - 所以 OpenClaw 打开的 branch 初始可能是“未绑定主会话”的状态
+- OpenClaw 打开的链接只是“入口已打开”；用户第一次在网页里保存消息时，branch 才正式开始
 - `main_context.md` 的生成与 `merge-back` 的消费，原则上不由 OpenClaw 负责
 - OpenClaw 只管理 branch 的打开、触发、发送和退出
 
@@ -64,6 +65,8 @@ python3 scripts/openclaw_relay.py \
 - `user_message`
 
 发回给用户。
+
+这一步发出去的是网页入口，不是“branch 已经开始处理”的信号。
 
 补充规则：
 

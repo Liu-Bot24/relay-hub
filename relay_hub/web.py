@@ -98,6 +98,7 @@ def render_session(hub: RelayHub, session_key: str, notice: str | None = None) -
     meta = bundle["meta"]
     state = bundle["state"]
     main_context = bundle.get("main_context") or {}
+    development_log = bundle.get("development_log") or {}
     if not meta:
         return html_page("Session Not Found", f"<h1>Session 不存在</h1><p><code>{escape(session_key)}</code></p>")
     messages_html = []
@@ -116,10 +117,12 @@ def render_session(hub: RelayHub, session_key: str, notice: str | None = None) -
         )
     notice_html = f'<div class="card"><strong>{escape(notice)}</strong></div>' if notice else ""
     relay_open = state.get("mode") == "relay"
+    entry_open = relay_open and state.get("status") == "entry_open"
     write_panel = (
         f"""
         <div class="card">
           <strong>写入新消息</strong>
+          <div class="muted" style="margin: 8px 0 10px;">{escape('branch 会在你第一次保存网页消息时正式开始。' if entry_open else '当前 branch 已开始；继续在这里写入后续网页消息。')}</div>
           <form method="post" action="{escape(session_url(session_key))}/commit" style="margin-top: 12px;" onsubmit="const btn=this.querySelector('button'); btn.disabled=true; btn.textContent='正在保存...';">
             <textarea name="body" placeholder="在这里写入本轮输入内容。"></textarea>
             <div style="margin-top: 12px;">
@@ -139,7 +142,7 @@ def render_session(hub: RelayHub, session_key: str, notice: str | None = None) -
     body = f"""
     <div style="margin-bottom: 18px;"><a href="/">返回全部 session</a></div>
     <h1>{escape(session_key)}</h1>
-    <p class="muted">网页入口是主对话窗口派生出来的分支工作区。真正的“已录入”与对外发送，仍然应该由 OpenClaw 或 relayctl 触发。</p>
+    <p class="muted">网页入口是主对话窗口派生出来的分支工作区。链接发出时只是入口打开；用户第一次保存网页消息时，branch 才正式开始。真正的“已录入”与对外发送，仍然应该由 OpenClaw 或 relayctl 触发。</p>
     {notice_html}
     <div class="grid">
       <div class="card">
@@ -155,6 +158,11 @@ def render_session(hub: RelayHub, session_key: str, notice: str | None = None) -
       <strong>主对话快照</strong>
       <div class="muted" style="margin: 8px 0 10px;">branch 不是主对话本身；这里显示的是它继承下来的主线快照。</div>
       <pre>{escape(main_context.get('body') or '当前还没有记录主对话快照。')}</pre>
+    </div>
+    <div class="card">
+      <strong>开发日志参考</strong>
+      <div class="muted" style="margin: 8px 0 10px;">从入口打开到 branch 开始之间，以及 branch 期间的重要上下文，应优先由项目开发日志托底。</div>
+      <pre>{escape(development_log.get('path') or '当前还没有附加开发日志。')}</pre>
     </div>
     {write_panel}
     <div class="card">

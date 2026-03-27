@@ -6,7 +6,7 @@ Relay Hub 把三件事连到一起：
 - 本地网页负责录入 branch 内容
 - AI 编程工具按统一协议接入并处理 branch
 
-主线始终是 AI 自己的主对话窗口；网页只是分支工作区，不是第二条主聊天。
+主线始终是 AI 自己的主对话窗口；网页只是分支工作区，不是第二条主聊天。网页链接发出时只是入口打开，用户第一次在网页里保存消息时，branch 才正式开始。
 
 ## 最短人类操作手册
 
@@ -60,9 +60,19 @@ python3 install.py full --load-services
 - 不要直接读取原始消息渠道或 OpenClaw 插件内部实现
 - 不要自行做业务对话测试，除非我明确要求
 - 如果安装失败，就原样贴出失败点并停止，不要自创旁路方案
-- 当我对你说“接入 Relay Hub”时，把自己标记为 ready
+- 当我对你说“接入 Relay Hub”时：
+  1. 先确定当前项目根目录
+  2. 查找 DEVELOPMENT_LOG.md；如果没有，就在项目根目录创建
+  3. 立即写入一条当前主线快照
+  4. 然后再把自己标记为 ready
 - 当我对你说“Relay Hub 状态”时，告诉我你当前是否 ready，以及是否有待处理 branch
 - 当我对你说“退出 Relay Hub”时，把自己标记为 offline
+- 当 OpenClaw 先帮我打开网页入口时，不要把那一刻当成 branch 已开始；用户第一次在网页里保存消息时，branch 才正式开始
+- 当你第一次正式接 OpenClaw 打开的 branch 时，必须补齐：
+  1. main_session_ref
+  2. 当前主线摘要
+  3. 当前项目根目录 / 开发日志绑定
+- 当我回到当前主对话窗口说第一句话时，先执行一次 resume-main，把 branch 增量合流回主线，再继续回答我
 ```
 
 ### 发给 OpenClaw 的话
@@ -108,7 +118,7 @@ python3 install.py full --load-services
 安装和更新的主入口只有这一条：
 
 ```bash
-cd /path/to/relay-hub
+cd [本包所在路径]
 python3 install.py full --load-services
 ```
 
@@ -123,7 +133,7 @@ python3 install.py full --load-services
 建议安装后再执行两条检查：
 
 ```bash
-cd /path/to/relay-hub
+cd [本包所在路径]
 python3 install.py doctor
 python3 install.py status
 ```
@@ -154,10 +164,12 @@ python3 install.py status
 
 1. 用户在 OpenClaw 里说：`打开 <agent> 入口`
 2. OpenClaw 返回网页入口
-3. 用户在网页里写 branch 内容
-4. 用户回到 OpenClaw 说：`已录入`
-5. 外部 AI 按协议接手 branch
-6. 处理结果再通过 OpenClaw 发回原消息渠道
+3. 用户第一次在网页里保存消息，branch 才正式开始
+4. 用户继续在网页里写 branch 内容
+5. 用户回到 OpenClaw 说：`已录入`
+6. 外部 AI 按协议接手 branch
+7. 处理结果通过 OpenClaw 发回原消息渠道
+8. 用户回到 AI 主窗口说第一句话时，AI 先做一次 merge-back，再继续主线对话
 
 ## 仓库结构
 
@@ -198,14 +210,14 @@ relay-hub/
 查看当前安装状态：
 
 ```bash
-cd /path/to/relay-hub
+cd [本包所在路径]
 python3 install.py status
 ```
 
 只重装 OpenClaw 侧桥接：
 
 ```bash
-cd /path/to/relay-hub
+cd [本包所在路径]
 python3 install.py install-openclaw \
   --delivery-channel <channel_a>=<target_a> \
   --delivery-channel <channel_b>=<target_b> \
@@ -215,7 +227,7 @@ python3 install.py install-openclaw \
 只安装或更新 `launchd` 服务：
 
 ```bash
-cd /path/to/relay-hub
+cd [本包所在路径]
 python3 install.py install-launchd --load-services
 ```
 
@@ -238,6 +250,8 @@ python3 install.py install-launchd --load-services
 - Relay Hub 依赖 `OpenClaw` 做消息网关，不直接对接别的渠道网关
 - Relay Hub 的网页 branch 不是主对话本身，而是主线分支
 - 当前主对话窗口仍然是主线
+- 项目开发日志是 branch 上下文和主线合流的重要参考
+- 如果项目里没有 `DEVELOPMENT_LOG.md`，启用 Relay Hub 时应自动创建，并把第一条写成主线快照
 - OpenClaw 不负责主线快照和 merge-back
 - 外部对象不应直接读取原始消息渠道
 - OpenClaw 也不应自己翻 `routes.json`、`messages/*.md`

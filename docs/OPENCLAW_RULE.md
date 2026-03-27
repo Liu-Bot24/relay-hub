@@ -11,6 +11,7 @@
    - 如果桥接脚本返回“当前渠道对象已经有一个 branch，请明确选择复用还是新建”，就先把这句话发给用户，主动询问，不要替用户决定。
    - 如果用户随后回复“复用入口”，就再次调用 `open-entry --branch-mode reuse`。
    - 如果用户随后回复“新建入口”，就再次调用 `open-entry --branch-mode new`。
+   - 入口打开后要提醒用户：用户第一次在网页里保存消息时，branch 才正式开始。
 2. 当用户说“已录入”时，调用 `scripts/openclaw_relay.py dispatch-input --wait-claim`。
 3. 当用户说“状态”时，调用 `scripts/openclaw_relay.py session-status`。
 4. 当 branch 有待发送消息时，调用 `scripts/openclaw_relay.py pull-deliveries`，把 `delivery_text` 发到用户渠道，再调用 `ack-delivery`。
@@ -20,6 +21,7 @@
 
 - 当前 AI 主对话窗口才是主线，你不是主记忆体。
 - Relay session 是 branch，不是第二条主聊天。
+- 网页链接发出去时只是入口已打开，不等于 branch 已开始。
 - main_context.md 的生成和 merge-back 的消费，不由你负责。
 - 你不要自己翻 routes.json、state.json、messages/*.md。
 - 你只调用桥接脚本，不自己解释协议细节。

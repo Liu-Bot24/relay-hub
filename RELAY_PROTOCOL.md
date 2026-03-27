@@ -26,10 +26,12 @@
 
 1. 当前 AI 主对话窗口才是主线。
 2. Relay session 只是主线分出去的 branch，不是第二条主聊天。
-3. 用户可见输出必须通过 OpenClaw 渠道发送。
-4. 外部 agent 不直接读原始消息渠道或 OpenClaw 插件内部实现。
-5. 文件系统是 relay branch transcript 的真源。
-6. 只有当用户显式说“已录入”后，branch 的新输入才进入待处理队列。
+3. OpenClaw 打开网页链接时，只是“入口已打开”；用户第一次在网页里保存消息时，branch 才正式开始。
+4. 用户可见输出必须通过 OpenClaw 渠道发送。
+5. 外部 agent 不直接读原始消息渠道或 OpenClaw 插件内部实现。
+6. 文件系统是 relay branch transcript 的真源。
+7. 开发日志是 branch 上下文和主线合流的重要参考。
+8. 只有当用户显式说“已录入”后，branch 的新输入才进入待处理队列。
 
 ## 2. 角色分工
 
@@ -154,7 +156,7 @@ channel_b__target_secondary
     "channel_a__target_demo": {
       "mode": "relay",
       "agent": "claude-code",
-      "status": "input_open",
+      "status": "entry_open",
       "web_url": "http://127.0.0.1:4317/session/channel_a__target_demo",
       "default_delivery": {
         "mode": "all",
@@ -204,6 +206,9 @@ channel_b__target_secondary
 - `channel`
 - `target`
 - `agent`
+- `main_session_ref`
+- `project_root`
+- `development_log_path`
 - `created_at`
 - `web_url`
 - `default_delivery`
@@ -212,6 +217,9 @@ channel_b__target_secondary
 
 - `mode`
 - `status`
+- `entry_opened_at`
+- `branch_started_at`
+- `cycle_floor_message_id`
 - `dispatch_requested_at`
 - `last_user_message_id`
 - `last_committed_user_message_id`
@@ -219,11 +227,13 @@ channel_b__target_secondary
 - `last_agent_message_id`
 - `last_delivered_message_id`
 - `last_merged_back_message_id`
+- `last_merged_back_at`
 - `agent_claimed_at`
 - `updated_at`
 
 推荐状态机：
 
+- `entry_open`
 - `input_open`
 - `queued`
 - `processing`
@@ -236,7 +246,13 @@ channel_b__target_secondary
 
 ### 8.1 主对话快照
 
-`main_context.md` 用来记录 branch 打开时继承下来的主线快照。
+`main_context.md` 用来记录 branch 继承下来的主线快照。
+
+注意：
+
+- 它不是自动猜出来的
+- 只有外部 AI 显式写入时才会生成
+- OpenClaw 默认不会替外部 AI 生成这份快照
 
 ### 8.2 branch transcript
 
@@ -285,7 +301,7 @@ append_web_url: true
 
 - OpenClaw 只调用桥接 CLI，不自己翻 `routes.json`、`state.json`、`messages/*.md`
 - 外部 agent 只调用 `scripts/agent_relay.py` / `scripts/relayctl.py`，不直接碰原始消息渠道
-- 用户一旦回到主对话窗口，主窗口应使用 merge-back 增量把 branch 新增内容接回主线
+- 用户回到主对话窗口并发送第一句话时，主窗口应先做一次 resume-main，把 branch 增量接回主线，再继续回答当前新消息
 
 ## 10. 仓库入口
 

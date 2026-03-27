@@ -8,6 +8,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+from .devlog import (
+    ensure_development_log,
+    find_development_log,
+    log_entries_since,
+    prepend_log_entry,
+)
+
 
 DEFAULT_CONFIG = {
     "version": 1,
@@ -133,6 +140,12 @@ def main_session_ref_matches(bound_ref: str | None, expected_ref: str | None) ->
     return bound_ref == expected_ref
 
 
+def parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    return datetime.fromisoformat(value)
+
+
 class RelayHub:
     def __init__(self, root: str | Path):
         self.root = Path(root).expanduser().resolve()
@@ -219,6 +232,10 @@ class RelayHub:
                     "write_final": True,
                     "write_error": True,
                 },
+                "relay_enabled_at": None,
+                "current_project_root": None,
+                "current_development_log_path": None,
+                "last_snapshot_at": None,
             },
         )
 
@@ -228,6 +245,118 @@ class RelayHub:
         payload["last_seen_at"] = now_iso()
         atomic_write_json(self.agent_path(agent), payload)
         return payload
+
+    def _resolve_development_log(
+        self,
+        *,
+        project_root: str | Path,
+        development_log_path: str | Path | None = None,
+    ) -> tuple[Path, bool]:
+        project_path = Path(project_root).expanduser().resolve()
+        explicit_path = Path(development_log_path).expanduser().resolve() if development_log_path else None
+        if explicit_path is not None:
+            created = not explicit_path.exists()
+            ensure_development_log(explicit_path)
+            return explicit_path, created
+        existing = find_development_log(project_path)
+        if existing is not None:
+            return existing, False
+        created_path = project_path / "DEVELOPMENT_LOG.md"
+        created = not created_path.exists()
+        ensure_development_log(created_path)
+        return created_path, created
+
+    def enable_agent(
+        self,
+        *,
+        agent: str,
+        project_root: str | Path,
+        snapshot_body: str,
+        development_log_path: str | Path | None = None,
+        author: str | None = None,
+    ) -> dict[str, Any]:
+        project_path = Path(project_root).expanduser().resolve()
+        log_path, created = self._resolve_development_log(
+            project_root=project_path,
+            development_log_path=development_log_path,
+        )
+        prepend_log_entry(
+            log_path,
+            author=author or agent,
+            goal="Relay Hub 主线快照",
+            key_operations=[
+                "开启 Relay Hub 能力并记录当前主对话窗口摘要。",
+                "后续 branch 处理与主线合流优先参考开发日志。",
+            ],
+            changed_files=["无代码文件变更，记录主线状态快照。"],
+            verification_results=["开发日志已更新，可供后续 branch 上下文和合流参考。"],
+            next_steps=["继续在主线工作时，按项目规则持续更新开发日志。"],
+            snapshot_body=snapshot_body,
+        )
+        payload = self.get_agent(agent)
+        enabled_at = now_iso()
+        payload["status"] = "ready"
+        payload["last_seen_at"] = enabled_at
+        payload["relay_enabled_at"] = enabled_at
+        payload["current_project_root"] = str(project_path)
+        payload["current_development_log_path"] = str(log_path)
+        payload["last_snapshot_at"] = enabled_at
+        atomic_write_json(self.agent_path(agent), payload)
+        return {
+            "agent": payload,
+            "project_root": str(project_path),
+            "development_log_path": str(log_path),
+            "development_log_created": created,
+            "snapshot_written": True,
+        }
+
+    def attach_project(
+        self,
+        session_key: str,
+        *,
+        project_root: str | Path,
+        development_log_path: str | Path | None = None,
+        snapshot_body: str | None = None,
+        author: str | None = None,
+    ) -> dict[str, Any]:
+        meta = self.get_meta(session_key)
+        if not meta:
+            raise FileNotFoundError(f"session {session_key} does not exist")
+        project_path = Path(project_root).expanduser().resolve()
+        log_path, created = self._resolve_development_log(
+            project_root=project_path,
+            development_log_path=development_log_path,
+        )
+        meta["project_root"] = str(project_path)
+        meta["development_log_path"] = str(log_path)
+        meta["development_log_attached_at"] = now_iso()
+        atomic_write_json(self.meta_path(session_key), meta)
+        snapshot_written = False
+        if snapshot_body:
+            prepend_log_entry(
+                log_path,
+                author=author or meta.get("agent") or "relay-hub",
+                goal=f"Relay Hub branch {session_key} 主线快照",
+                key_operations=[
+                    "在 branch 正式处理前记录当前主线摘要。",
+                    "供 branch 处理和后续 merge-back 使用。",
+                ],
+                changed_files=["无代码文件变更，记录 branch 对应的主线快照。"],
+                verification_results=["开发日志已附加 branch 主线快照。"],
+                next_steps=["branch 期间的重要主线进展继续按项目规则写入开发日志。"],
+                snapshot_body=snapshot_body,
+            )
+            snapshot_written = True
+            state = self.get_state(session_key)
+            state["development_log_snapshot_at"] = now_iso()
+            self.save_state(session_key, state)
+        return {
+            "session_key": session_key,
+            "project_root": str(project_path),
+            "development_log_path": str(log_path),
+            "development_log_created": created,
+            "snapshot_written": snapshot_written,
+        }
 
     def session_dir(self, session_key: str) -> Path:
         return self.sessions_dir / session_key
@@ -308,6 +437,95 @@ class RelayHub:
         self.save_state(session_key, state)
         return {"path": str(path), "meta": payload, "body": body}
 
+    def _current_max_message_id(self, session_key: str) -> str | None:
+        messages = self.list_messages(session_key)
+        if not messages:
+            return None
+        return str(messages[-1]["meta"].get("id") or "")
+
+    def _current_cycle_floor_id(self, state: dict[str, Any]) -> int:
+        return message_id_int(state.get("cycle_floor_message_id"))
+
+    def _development_log_bundle(
+        self,
+        meta: dict[str, Any],
+        state: dict[str, Any],
+        *,
+        purpose: str,
+        limit: int = 5,
+    ) -> dict[str, Any]:
+        log_path = meta.get("development_log_path")
+        if not log_path:
+            return {
+                "attached": False,
+                "path": None,
+                "since": None,
+                "entries": [],
+            }
+        if purpose == "context":
+            candidates = [
+                parse_iso_datetime(state.get("main_context_updated_at")),
+                parse_iso_datetime(state.get("entry_opened_at")),
+                parse_iso_datetime(meta.get("created_at")),
+            ]
+        else:
+            candidates = [
+                parse_iso_datetime(state.get("last_merged_back_at")),
+                parse_iso_datetime(state.get("branch_started_at")),
+                parse_iso_datetime(state.get("entry_opened_at")),
+                parse_iso_datetime(meta.get("created_at")),
+            ]
+        valid_candidates = [candidate for candidate in candidates if candidate is not None]
+        since_iso = max(valid_candidates).isoformat() if valid_candidates else None
+        entries = log_entries_since(log_path, since_iso, limit=limit)
+        return {
+            "attached": True,
+            "path": log_path,
+            "since": since_iso,
+            "entries": entries,
+        }
+
+    def _format_context_packet_text(
+        self,
+        session_key: str,
+        main_context: dict[str, Any],
+        development_log: dict[str, Any],
+        branch_messages: list[dict[str, Any]],
+    ) -> str:
+        lines = [f"[Relay branch context: {session_key}]"]
+        lines.append("")
+        if main_context.get("body"):
+            lines.append("主对话快照：")
+            lines.append(main_context["body"].rstrip())
+        else:
+            lines.append("主对话快照：当前缺失。")
+        if development_log.get("attached"):
+            lines.append("")
+            lines.append(f"开发日志参考：{development_log.get('path')}")
+            entries = development_log.get("entries") or []
+            if entries:
+                for entry in entries:
+                    lines.append("")
+                    lines.append(entry.get("raw", "").rstrip())
+            else:
+                lines.append("自参考时间点以来没有新的开发日志条目。")
+        else:
+            lines.append("")
+            lines.append("开发日志参考：当前未附加开发日志。")
+        lines.append("")
+        lines.append("branch 消息：")
+        if not branch_messages:
+            lines.append("当前还没有 branch 消息。")
+        else:
+            for message in branch_messages:
+                lines.append("")
+                lines.append(
+                    f"{message.get('role')}/{message.get('kind')} id={message.get('id')} "
+                    f"source={message.get('source')} created_at={message.get('created_at')}"
+                )
+                lines.append((message.get("body") or "").rstrip())
+        return "\n".join(lines).rstrip()
+
     def web_url(self, session_key: str) -> str:
         return f"{self.config()['web_base_url']}/s/{session_public_token(session_key)}"
 
@@ -329,6 +547,7 @@ class RelayHub:
         session_key = session_key_override or make_session_key(channel, target, branch_ref=branch_ref)
         session_dir = self.session_dir(session_key)
         created = not session_dir.exists()
+        previous_state = self.get_state(session_key)
         ensure_dir(self.messages_dir(session_key))
         ensure_dir(self.attachments_dir(session_key))
         existing_meta = self.get_meta(session_key)
@@ -356,22 +575,45 @@ class RelayHub:
             meta["main_session_ref"] = existing_meta.get("main_session_ref")
             meta["main_session_ref_source"] = existing_meta.get("main_session_ref_source")
             meta["main_session_ref_bound_at"] = existing_meta.get("main_session_ref_bound_at")
+        if existing_meta.get("project_root"):
+            meta["project_root"] = existing_meta.get("project_root")
+        if existing_meta.get("development_log_path"):
+            meta["development_log_path"] = existing_meta.get("development_log_path")
+            meta["development_log_attached_at"] = existing_meta.get("development_log_attached_at")
+        existing_relay = is_relay_mode(previous_state)
+        current_max_message_id = self._current_max_message_id(session_key)
+        if existing_relay:
+            status = previous_state.get("status") or "entry_open"
+            entry_opened_at = previous_state.get("entry_opened_at") or now_iso()
+            branch_started_at = previous_state.get("branch_started_at")
+            cycle_floor_message_id = previous_state.get("cycle_floor_message_id") or current_max_message_id
+        else:
+            status = "entry_open"
+            entry_opened_at = now_iso()
+            branch_started_at = None
+            cycle_floor_message_id = current_max_message_id
         state = {
             "session_key": session_key,
             "mode": "relay",
             "agent": agent,
-            "status": "input_open",
-            "dispatch_requested_at": None,
+            "status": status,
+            "entry_opened_at": entry_opened_at,
+            "branch_started_at": branch_started_at,
+            "cycle_floor_message_id": cycle_floor_message_id,
+            "dispatch_requested_at": previous_state.get("dispatch_requested_at") if existing_relay else None,
             "dispatch_ack_timeout_seconds": config["queue_ack_timeout_seconds"],
-            "last_user_message_id": self.get_state(session_key).get("last_user_message_id"),
-            "last_committed_user_message_id": self.get_state(session_key).get("last_committed_user_message_id"),
-            "last_queued_user_message_id": self.get_state(session_key).get("last_queued_user_message_id"),
-            "last_agent_message_id": self.get_state(session_key).get("last_agent_message_id"),
-            "last_delivered_message_id": self.get_state(session_key).get("last_delivered_message_id"),
-            "last_merged_back_message_id": self.get_state(session_key).get("last_merged_back_message_id"),
-            "agent_claimed_at": self.get_state(session_key).get("agent_claimed_at"),
-            "main_context_updated_at": self.get_state(session_key).get("main_context_updated_at"),
-            "main_session_ref_updated_at": self.get_state(session_key).get("main_session_ref_updated_at"),
+            "last_user_message_id": previous_state.get("last_user_message_id"),
+            "last_committed_user_message_id": previous_state.get("last_committed_user_message_id"),
+            "last_branch_user_message_id": previous_state.get("last_branch_user_message_id") if existing_relay else None,
+            "last_queued_user_message_id": previous_state.get("last_queued_user_message_id"),
+            "last_agent_message_id": previous_state.get("last_agent_message_id"),
+            "last_delivered_message_id": previous_state.get("last_delivered_message_id"),
+            "last_merged_back_message_id": previous_state.get("last_merged_back_message_id"),
+            "last_merged_back_at": previous_state.get("last_merged_back_at"),
+            "agent_claimed_at": previous_state.get("agent_claimed_at") if existing_relay else None,
+            "main_context_updated_at": previous_state.get("main_context_updated_at"),
+            "main_session_ref_updated_at": previous_state.get("main_session_ref_updated_at"),
+            "development_log_snapshot_at": previous_state.get("development_log_snapshot_at"),
             "updated_at": now_iso(),
         }
         atomic_write_json(self.meta_path(session_key), meta)
@@ -424,8 +666,14 @@ class RelayHub:
                     "agent": meta.get("agent"),
                     "channel": meta.get("channel"),
                     "target": meta.get("target"),
+                    "main_session_ref": meta.get("main_session_ref"),
+                    "project_root": meta.get("project_root"),
+                    "development_log_path": meta.get("development_log_path"),
                     "status": state.get("status"),
                     "mode": state.get("mode"),
+                    "entry_opened_at": state.get("entry_opened_at"),
+                    "branch_started_at": state.get("branch_started_at"),
+                    "last_merged_back_at": state.get("last_merged_back_at"),
                     "web_url": meta.get("web_url"),
                     "message_count": len(messages),
                     "route": routes.get(session_key),
@@ -435,10 +683,13 @@ class RelayHub:
 
     def get_session(self, session_key: str) -> dict[str, Any]:
         routes = self.routes().get("routes", {})
+        meta = self.get_meta(session_key)
+        state = self.get_state(session_key)
         return {
-            "meta": self.get_meta(session_key),
-            "state": self.get_state(session_key),
+            "meta": meta,
+            "state": state,
             "main_context": self.get_main_context(session_key),
+            "development_log": self._development_log_bundle(meta, state, purpose="context"),
             "route": routes.get(session_key),
             "messages": self.list_messages(session_key),
         }
@@ -457,7 +708,13 @@ class RelayHub:
                 f"not {expected_main_session_ref}"
             )
         main_context = bundle["main_context"]
-        messages = bundle["messages"]
+        state = bundle["state"]
+        floor_int = self._current_cycle_floor_id(state)
+        messages = [
+            message
+            for message in bundle["messages"]
+            if message_id_int(str(message["meta"].get("id") or "")) > floor_int
+        ]
         if limit > 0:
             messages = messages[-limit:]
         branch_messages = []
@@ -474,16 +731,28 @@ class RelayHub:
                     "body": message["body"],
                 }
             )
+        development_log = self._development_log_bundle(
+            bundle["meta"],
+            state,
+            purpose="context",
+        )
         return {
             "session_key": session_key,
             "meta": bundle["meta"],
-            "state": bundle["state"],
+            "state": state,
             "main_context": main_context,
             "main_context_present": bool(main_context.get("body")),
             "main_session_ref": bound_main_session_ref,
+            "development_log": development_log,
             "route": bundle["route"],
             "messages": branch_messages,
             "branch_messages": branch_messages,
+            "context_packet_text": self._format_context_packet_text(
+                session_key,
+                main_context,
+                development_log,
+                branch_messages,
+            ),
         }
 
     def build_merge_back(
@@ -508,7 +777,7 @@ class RelayHub:
             )
         state = bundle["state"]
         floor = since_message_id or state.get("last_merged_back_message_id")
-        floor_int = message_id_int(floor)
+        floor_int = max(message_id_int(floor), self._current_cycle_floor_id(state))
         branch_messages = []
         for message in bundle["messages"]:
             meta = message["meta"]
@@ -530,22 +799,47 @@ class RelayHub:
             )
         if limit > 0:
             branch_messages = branch_messages[-limit:]
-        merge_back_text = self._format_merge_back_text(session_key, branch_messages)
+        development_log = self._development_log_bundle(
+            bundle["meta"],
+            state,
+            purpose="merge",
+        )
+        merge_back_text = self._format_merge_back_text(session_key, development_log, branch_messages)
         return {
             "session_key": session_key,
             "meta": bundle["meta"],
-            "state": bundle["state"],
+            "state": state,
             "main_context": bundle["main_context"],
             "main_session_ref": bound_main_session_ref,
+            "development_log": development_log,
             "since_message_id": floor,
             "branch_messages": branch_messages,
             "merge_back_text": merge_back_text,
         }
 
-    def _format_merge_back_text(self, session_key: str, branch_messages: list[dict[str, Any]]) -> str:
-        if not branch_messages:
-            return f"[Relay branch merge-back: {session_key}]\n没有新的分支增量。"
+    def _format_merge_back_text(
+        self,
+        session_key: str,
+        development_log: dict[str, Any],
+        branch_messages: list[dict[str, Any]],
+    ) -> str:
         lines = [f"[Relay branch merge-back: {session_key}]"]
+        if development_log.get("attached"):
+            lines.append("下面先给出自上次合流以来的开发日志增量：")
+            entries = development_log.get("entries") or []
+            if entries:
+                for entry in entries:
+                    lines.append("")
+                    lines.append(entry.get("raw", "").rstrip())
+            else:
+                lines.append("（无新的开发日志条目）")
+        else:
+            lines.append("当前未附加开发日志。")
+        if not branch_messages:
+            lines.append("")
+            lines.append("没有新的分支增量。")
+            return "\n".join(lines).rstrip()
+        lines.append("")
         lines.append("下面是需要并回主对话窗口的分支增量：")
         for message in branch_messages:
             role = message.get("role") or "unknown"
@@ -646,7 +940,13 @@ class RelayHub:
         atomic_write_text(file_path, format_front_matter(payload, body))
         state["last_user_message_id"] = message_id
         state["last_committed_user_message_id"] = message_id
-        state["status"] = "input_open"
+        branch_started_now = False
+        if source == "web-ui" and not state.get("branch_started_at"):
+            state["branch_started_at"] = created_at
+            branch_started_now = True
+        if source == "web-ui":
+            state["last_branch_user_message_id"] = message_id
+        state["status"] = "input_open" if state.get("branch_started_at") else "entry_open"
         self.save_state(session_key, state)
         routes = self.routes()
         route = routes["routes"].get(session_key, {})
@@ -655,7 +955,13 @@ class RelayHub:
         route["updated_at"] = now_iso()
         routes["routes"][session_key] = route
         self.save_routes(routes)
-        return {"message_id": message_id, "path": str(file_path), "source": source}
+        return {
+            "message_id": message_id,
+            "path": str(file_path),
+            "source": source,
+            "branch_started_now": branch_started_now,
+            "branch_started_at": state.get("branch_started_at"),
+        }
 
     def dispatch_session(self, session_key: str) -> dict[str, Any]:
         state = self.get_state(session_key)
@@ -663,9 +969,11 @@ class RelayHub:
             raise FileNotFoundError(f"session {session_key} does not exist")
         if not is_relay_mode(state):
             raise ValueError("relay branch is closed; reopen it from OpenClaw before dispatching new input")
-        committed_id = state.get("last_committed_user_message_id")
+        committed_id = state.get("last_branch_user_message_id")
         if not committed_id:
-            raise ValueError("no committed user message found")
+            raise ValueError("还没有网页录入内容；先在网页里保存第一条消息，branch 才会正式开始")
+        if message_id_int(committed_id) <= self._current_cycle_floor_id(state):
+            raise ValueError("当前 cycle 还没有新的网页录入内容")
         if committed_id == state.get("last_queued_user_message_id") and state.get("status") in {"queued", "processing"}:
             return {"session_key": session_key, "status": state["status"], "queued_message_id": committed_id}
         state["status"] = "queued"
@@ -718,6 +1026,80 @@ class RelayHub:
             "meta": self.get_meta(session_key),
             "main_context_present": bool(self.get_main_context(session_key).get("body")),
             "main_session_ref": self.get_meta(session_key).get("main_session_ref"),
+        }
+
+    def _sessions_for_main_session(self, agent: str, main_session_ref: str) -> list[dict[str, Any]]:
+        sessions: list[dict[str, Any]] = []
+        for session in self.list_sessions():
+            if session.get("agent") != agent:
+                continue
+            if session.get("main_session_ref") != main_session_ref:
+                continue
+            if session.get("mode") != "relay":
+                continue
+            state = self.get_state(session["session_key"])
+            max_message_id = message_id_int(self._current_max_message_id(session["session_key"]))
+            merge_floor = max(
+                self._current_cycle_floor_id(state),
+                message_id_int(state.get("last_merged_back_message_id")),
+            )
+            has_unmerged_increment = max_message_id > merge_floor
+            if state.get("status") == "entry_open" and not has_unmerged_increment:
+                continue
+            sessions.append(session)
+        sessions.sort(
+            key=lambda session: (
+                parse_iso_datetime(session.get("branch_started_at"))
+                or parse_iso_datetime(session.get("entry_opened_at"))
+                or parse_iso_datetime((self.get_state(session["session_key"]) or {}).get("updated_at"))
+                or datetime.fromtimestamp(0).astimezone()
+            ),
+            reverse=True,
+        )
+        return sessions
+
+    def resume_main(
+        self,
+        *,
+        agent: str,
+        main_session_ref: str,
+        session_key: str | None = None,
+        limit: int = 100,
+        close_relay: bool = True,
+    ) -> dict[str, Any] | None:
+        if session_key is not None:
+            session = self.get_session(session_key)
+            if session["meta"].get("agent") != agent:
+                raise ValueError(f"session {session_key} belongs to {session['meta'].get('agent')}, not {agent}")
+            target_session_key = session_key
+        else:
+            candidates = self._sessions_for_main_session(agent, main_session_ref)
+            if not candidates:
+                return None
+            if len(candidates) > 1:
+                raise ValueError(
+                    "multiple relay branches are still bound to this main session; "
+                    "pass --session to resume the correct one explicitly"
+                )
+            target_session_key = candidates[0]["session_key"]
+        merge_back = self.build_merge_back(
+            target_session_key,
+            limit=limit,
+            expected_main_session_ref=main_session_ref,
+            require_main_session_ref=True,
+        )
+        last_branch_message_id = None
+        if merge_back["branch_messages"]:
+            last_branch_message_id = merge_back["branch_messages"][-1]["id"]
+            self.mark_merged_back(target_session_key, last_branch_message_id)
+        if close_relay:
+            self.set_normal_mode(target_session_key)
+        return {
+            "session_key": target_session_key,
+            "main_session_ref": main_session_ref,
+            "merge_back": merge_back,
+            "last_merged_message_id": last_branch_message_id,
+            "closed": close_relay,
         }
 
     def message_by_id(self, session_key: str, message_id: str | None) -> dict[str, Any] | None:
@@ -810,10 +1192,12 @@ class RelayHub:
         target = message_id_int(message_id)
         if target >= current_last:
             state["last_merged_back_message_id"] = message_id
+            state["last_merged_back_at"] = now_iso()
             self.save_state(session_key, state)
         return {
             "session_key": session_key,
             "last_merged_back_message_id": state.get("last_merged_back_message_id"),
+            "last_merged_back_at": state.get("last_merged_back_at"),
         }
 
     def set_normal_mode(self, session_key: str) -> dict[str, Any]:
@@ -822,6 +1206,7 @@ class RelayHub:
             raise FileNotFoundError(f"session {session_key} does not exist")
         state["mode"] = "normal"
         state["status"] = "awaiting_user"
+        state["branch_closed_at"] = now_iso()
         self.save_state(session_key, state)
         routes = self.routes()
         route = routes["routes"].get(session_key, {})

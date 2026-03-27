@@ -23,6 +23,11 @@ def output(payload: object) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+def fail(message: str, exit_code: int = 1) -> None:
+    output({"ok": False, "user_message": message})
+    raise SystemExit(exit_code)
+
+
 def resolve_root(value: str | None) -> Path:
     return Path(value).expanduser().resolve() if value else DEFAULT_ROOT
 
@@ -58,18 +63,26 @@ def resolve_session_arg(args: argparse.Namespace) -> str:
 
 def build_open_message(branch: dict[str, Any], agent_status: str) -> str:
     web_url = branch["meta"]["web_url"]
+    branch_status = (branch.get("state") or {}).get("status")
     raw_channels = list((branch["meta"].get("default_delivery") or {}).get("channels") or [])
     channels = ", ".join(raw_channels) if raw_channels else "原始触发渠道"
+    branch_note = (
+        "注意：用户第一次在网页里保存消息时，branch 才会正式开始。"
+        if branch_status == "entry_open"
+        else "这是当前 branch 的网页入口。"
+    )
     if agent_status == "ready":
         return (
-            f"{branch['meta']['agent']} branch 已就绪。\n"
+            f"{branch['meta']['agent']} 入口已打开。\n"
             f"网页入口：{web_url}\n"
-            f"默认回传渠道：{channels}"
+            f"默认回传渠道：{channels}\n"
+            f"{branch_note}"
         )
     return (
-        f"{branch['meta']['agent']} branch 入口已打开，但对象当前状态是 {agent_status}。\n"
+        f"{branch['meta']['agent']} 入口已打开，但对象当前状态是 {agent_status}。\n"
         f"网页入口：{web_url}\n"
-        f"默认回传渠道：{channels}"
+        f"默认回传渠道：{channels}\n"
+        f"{branch_note}"
     )
 
 
@@ -85,8 +98,10 @@ def build_status_message(session: dict[str, Any]) -> str:
         status_text = "对象正在处理中。"
     elif status == "awaiting_user":
         status_text = "当前等待你的下一步输入。"
+    elif status == "entry_open":
+        status_text = "入口已打开，等待你在网页里写第一条消息。"
     elif status == "input_open":
-        status_text = "网页入口已打开，等待录入。"
+        status_text = "branch 已开始，等待更多网页录入或“已录入”。"
     elif status == "error":
         status_text = "最近一次处理出错。"
     else:
@@ -131,6 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
     open_parser.add_argument("--target", required=True)
     open_parser.add_argument("--delivery-mode", choices=["all", "subset"])
     open_parser.add_argument("--delivery-channels", nargs="*")
+    open_parser.add_argument("--branch-mode", choices=["reuse", "new"])
     open_main_group = open_parser.add_mutually_exclusive_group()
     open_main_group.add_argument("--main-context-body")
     open_main_group.add_argument("--main-context-file")
@@ -170,87 +186,89 @@ def main() -> None:
     args = parser.parse_args()
     hub = RelayHub(resolve_root(args.root))
     hub.init_layout()
-
-    if args.command == "open-entry":
-        main_context_body = read_optional_text(args.main_context_body, args.main_context_file)
-        branch = hub.open_session(
-            agent=args.agent,
-            channel=args.channel,
-            target=args.target,
-            delivery_mode=args.delivery_mode,
-            delivery_channels=args.delivery_channels,
-            main_context_body=main_context_body,
-            main_context_source=args.main_context_source,
-            session_key_override=args.session_key,
-            branch_ref=args.branch_ref,
-        )
-        agent = hub.get_agent(args.agent)
-        output(
-            {
-                "ok": True,
-                "branch": branch,
-                "agent_status": agent.get("status"),
-                "user_message": build_open_message(branch, agent.get("status", "offline")),
-            }
-        )
-        return
-
-    if args.command == "dispatch-input":
-        session_key = resolve_session_arg(args)
-        queued = hub.dispatch_session(session_key)
-        session = hub.get_session(session_key)
-        payload: dict[str, Any] = {
-            "ok": True,
-            "queued": queued,
-            "session": session,
-            "user_message": f"已录入，已加入 {session['meta'].get('agent')} 的待处理队列。",
-        }
-        if args.wait_claim:
-            payload["claim_wait"] = wait_for_claim(
-                hub,
-                session_key,
-                timeout_seconds=args.timeout_seconds,
-                poll_interval_seconds=args.poll_interval_seconds,
+    try:
+        if args.command == "open-entry":
+            main_context_body = read_optional_text(args.main_context_body, args.main_context_file)
+            branch = hub.open_session(
+                agent=args.agent,
+                channel=args.channel,
+                target=args.target,
+                delivery_mode=args.delivery_mode,
+                delivery_channels=args.delivery_channels,
+                main_context_body=main_context_body,
+                main_context_source=args.main_context_source,
+                session_key_override=args.session_key,
+                branch_ref=args.branch_ref if args.branch_mode != "reuse" else None,
             )
-            payload["user_message"] = payload["claim_wait"]["message"]
-        output(payload)
-        return
+            agent = hub.get_agent(args.agent)
+            output(
+                {
+                    "ok": True,
+                    "branch": branch,
+                    "agent_status": agent.get("status"),
+                    "user_message": build_open_message(branch, agent.get("status", "offline")),
+                }
+            )
+            return
 
-    if args.command == "session-status":
-        session = hub.get_session(resolve_session_arg(args))
-        output({"ok": True, "session": session, "user_message": build_status_message(session)})
-        return
-
-    if args.command == "pull-deliveries":
-        session_key = None
-        if args.session or (args.channel and args.target):
+        if args.command == "dispatch-input":
             session_key = resolve_session_arg(args)
-        deliveries = hub.pending_deliveries(session_key=session_key)
-        output({"ok": True, "deliveries": deliveries, "count": len(deliveries)})
-        return
-
-    if args.command == "ack-delivery":
-        payload = hub.mark_delivered(resolve_session_arg(args), args.message_id)
-        output({"ok": True, **payload})
-        return
-
-    if args.command == "exit-relay":
-        session_key = resolve_session_arg(args)
-        payload = hub.set_normal_mode(session_key)
-        output(
-            {
+            queued = hub.dispatch_session(session_key)
+            session = hub.get_session(session_key)
+            payload: dict[str, Any] = {
                 "ok": True,
-                **payload,
-                "user_message": "已退出 Relay Hub，恢复 OpenClaw 正常模式。",
+                "queued": queued,
+                "session": session,
+                "user_message": f"已录入，已加入 {session['meta'].get('agent')} 的待处理队列。",
             }
-        )
-        return
+            if args.wait_claim:
+                payload["claim_wait"] = wait_for_claim(
+                    hub,
+                    session_key,
+                    timeout_seconds=args.timeout_seconds,
+                    poll_interval_seconds=args.poll_interval_seconds,
+                )
+                payload["user_message"] = payload["claim_wait"]["message"]
+            output(payload)
+            return
 
-    if args.command == "resolve-session":
-        session_key = make_session_key(args.channel, args.target)
-        exists = hub.session_dir(session_key).exists()
-        output({"ok": True, "session_key": session_key, "exists": exists})
-        return
+        if args.command == "session-status":
+            session = hub.get_session(resolve_session_arg(args))
+            output({"ok": True, "session": session, "user_message": build_status_message(session)})
+            return
+
+        if args.command == "pull-deliveries":
+            session_key = None
+            if args.session or (args.channel and args.target):
+                session_key = resolve_session_arg(args)
+            deliveries = hub.pending_deliveries(session_key=session_key)
+            output({"ok": True, "deliveries": deliveries, "count": len(deliveries)})
+            return
+
+        if args.command == "ack-delivery":
+            payload = hub.mark_delivered(resolve_session_arg(args), args.message_id)
+            output({"ok": True, **payload})
+            return
+
+        if args.command == "exit-relay":
+            session_key = resolve_session_arg(args)
+            payload = hub.set_normal_mode(session_key)
+            output(
+                {
+                    "ok": True,
+                    **payload,
+                    "user_message": "已退出 Relay Hub，恢复 OpenClaw 正常模式。",
+                }
+            )
+            return
+
+        if args.command == "resolve-session":
+            session_key = make_session_key(args.channel, args.target)
+            exists = hub.session_dir(session_key).exists()
+            output({"ok": True, "session_key": session_key, "exists": exists})
+            return
+    except (FileNotFoundError, ValueError) as exc:
+        fail(str(exc))
 
     parser.error(f"unknown command: {args.command}")
 
