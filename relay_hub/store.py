@@ -49,8 +49,11 @@ def encode_session_target(target: str) -> str:
     return quote(target, safe="@._-")
 
 
-def make_session_key(channel: str, target: str) -> str:
-    return f"{channel}__{encode_session_target(target)}"
+def make_session_key(channel: str, target: str, branch_ref: str | None = None) -> str:
+    base = f"{channel}__{encode_session_target(target)}"
+    if not branch_ref:
+        return base
+    return f"{base}__branch__{encode_session_target(branch_ref)}"
 
 
 def session_public_token(session_key: str) -> str:
@@ -319,14 +322,21 @@ class RelayHub:
         main_context_source: str = "main-chat",
         main_session_ref: str | None = None,
         main_session_ref_source: str = "agent-session",
+        session_key_override: str | None = None,
+        branch_ref: str | None = None,
     ) -> dict[str, Any]:
         config = self.config()
-        session_key = make_session_key(channel, target)
+        session_key = session_key_override or make_session_key(channel, target, branch_ref=branch_ref)
         session_dir = self.session_dir(session_key)
         created = not session_dir.exists()
         ensure_dir(self.messages_dir(session_key))
         ensure_dir(self.attachments_dir(session_key))
         existing_meta = self.get_meta(session_key)
+        if existing_meta.get("agent") and existing_meta.get("agent") != agent:
+            raise ValueError(
+                f"session {session_key} already belongs to {existing_meta.get('agent')}; "
+                f"reuse it with the same agent or create a new branch"
+            )
         default_delivery = {
             "mode": delivery_mode or config["default_delivery"]["mode"],
             "channels": delivery_channels or config["default_delivery"]["channels"],

@@ -134,6 +134,9 @@ def build_parser() -> argparse.ArgumentParser:
     open_main_group = open_parser.add_mutually_exclusive_group()
     open_main_group.add_argument("--main-context-body")
     open_main_group.add_argument("--main-context-file")
+    open_key_group = open_parser.add_mutually_exclusive_group()
+    open_key_group.add_argument("--session-key")
+    open_key_group.add_argument("--branch-ref")
     open_parser.add_argument("--main-context-source", default="main-chat")
 
     dispatch_parser = subparsers.add_parser("dispatch-input", help="Queue a branch after the user says 已录入")
@@ -178,6 +181,8 @@ def main() -> None:
             delivery_channels=args.delivery_channels,
             main_context_body=main_context_body,
             main_context_source=args.main_context_source,
+            session_key_override=args.session_key,
+            branch_ref=args.branch_ref,
         )
         agent = hub.get_agent(args.agent)
         output(

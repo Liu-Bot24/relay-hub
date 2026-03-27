@@ -65,6 +65,14 @@ python3 scripts/openclaw_relay.py \
 
 发回给用户。
 
+补充规则：
+
+- 如果当前渠道对象还没有 branch，OpenClaw 可以直接打开入口
+- 如果当前渠道对象已经有 branch，而这次调用没有显式指定“复用”或“新建”，桥接层会直接返回一条提示，让用户自己选
+- `复用` 表示继续使用当前 active branch
+- `新建` 表示为同一个 `channel + target` 创建一条全新的 branch，并把该渠道对象的 active alias 切到新 branch
+- OpenClaw 不应该静默替用户决定“复用还是新建”
+
 ## 2. 已录入
 
 当用户说：

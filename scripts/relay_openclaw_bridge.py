@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import secrets
 import socket
 import subprocess
 import sys
@@ -130,6 +131,10 @@ def ensure_runtime_config(config: dict[str, Any]) -> None:
 
 def now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def new_branch_ref() -> str:
+    return datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(2)
 
 
 def alias_key(channel: str, target: str) -> str:
@@ -338,6 +343,7 @@ def build_parser() -> argparse.ArgumentParser:
     open_parser = subparsers.add_parser("open-entry", help="Open or reuse one relay branch for OpenClaw")
     open_parser.add_argument("--agent", required=True)
     add_locator_args(open_parser)
+    open_parser.add_argument("--branch-mode", choices=["reuse", "new"])
 
     dispatch_parser = subparsers.add_parser("dispatch-input", help="Queue one relay branch after user input")
     add_locator_args(dispatch_parser)
@@ -361,18 +367,53 @@ def handle_open_entry(config: dict[str, Any], args: argparse.Namespace) -> dict[
     ensure_runtime_config(config)
     web_started = ensure_web_running(config)
     channel, target = resolve_channel_target(config, args.channel, args.target)
-    payload = run_openclaw_relay(
-        config,
-        [
-            "open-entry",
-            "--agent",
-            normalize_agent(args.agent),
-            "--channel",
-            channel,
-            "--target",
-            target,
-        ],
-    )
+    aliased_session = resolve_session_alias(config, channel, target)
+    if aliased_session and not args.branch_mode:
+        existing_payload = run_openclaw_relay(
+            config,
+            [
+                "session-status",
+                "--session",
+                aliased_session,
+            ],
+        )
+        existing_session = existing_payload.get("session") or {}
+        existing_meta = existing_session.get("meta") or {}
+        existing_state = existing_session.get("state") or {}
+        return {
+            "ok": False,
+            "needs_branch_mode_choice": True,
+            "resolved": {
+                "channel": channel,
+                "target": target,
+                "session": aliased_session,
+            },
+            "existing_branch": {
+                "session_key": aliased_session,
+                "agent": existing_meta.get("agent"),
+                "status": existing_state.get("status"),
+                "web_url": existing_meta.get("web_url"),
+            },
+            "user_message": (
+                f"当前渠道对象已经有一个 branch：{aliased_session}\n"
+                f"当前对象：{existing_meta.get('agent') or '未知'}，状态：{existing_state.get('status') or '未知'}\n"
+                "请明确选择：回复“复用入口”继续使用旧 branch，或回复“新建入口”创建全新 branch。"
+            ),
+        }
+    relay_args = [
+        "open-entry",
+        "--agent",
+        normalize_agent(args.agent),
+        "--channel",
+        channel,
+        "--target",
+        target,
+    ]
+    if aliased_session and args.branch_mode == "reuse":
+        relay_args.extend(["--session-key", aliased_session])
+    elif args.branch_mode == "new":
+        relay_args.extend(["--branch-ref", new_branch_ref()])
+    payload = run_openclaw_relay(config, relay_args)
     payload["aliases"] = register_channel_aliases(
         config,
         session_key=payload["branch"]["session_key"],
@@ -381,6 +422,8 @@ def handle_open_entry(config: dict[str, Any], args: argparse.Namespace) -> dict[
         delivery_channels=list((payload["branch"]["meta"].get("default_delivery") or {}).get("channels") or []),
     )
     payload["resolved"] = {"channel": channel, "target": target}
+    if aliased_session:
+        payload["resolved"]["previous_session"] = aliased_session
     payload["web_started"] = web_started
     return payload
 
