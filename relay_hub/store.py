@@ -124,6 +124,12 @@ def is_relay_mode(state: dict[str, Any]) -> bool:
     return state.get("mode") == "relay"
 
 
+def main_session_ref_matches(bound_ref: str | None, expected_ref: str | None) -> bool:
+    if expected_ref is None:
+        return True
+    return bound_ref == expected_ref
+
+
 class RelayHub:
     def __init__(self, root: str | Path):
         self.root = Path(root).expanduser().resolve()
@@ -255,6 +261,32 @@ class RelayHub:
         meta, body = parse_front_matter(path.read_text(encoding="utf-8"))
         return {"path": str(path), "meta": meta, "body": body}
 
+    def set_main_session_ref(self, session_key: str, main_session_ref: str, source: str = "agent-session") -> dict[str, Any]:
+        meta = self.get_meta(session_key)
+        if not meta:
+            raise FileNotFoundError(f"session {session_key} does not exist")
+        existing = meta.get("main_session_ref")
+        if existing and existing != main_session_ref:
+            raise ValueError(
+                f"session {session_key} is already bound to main session {existing}; "
+                f"refusing to switch silently to {main_session_ref}"
+            )
+        if not existing:
+            bound_at = now_iso()
+            meta["main_session_ref"] = main_session_ref
+            meta["main_session_ref_source"] = source
+            meta["main_session_ref_bound_at"] = bound_at
+            atomic_write_json(self.meta_path(session_key), meta)
+            state = self.get_state(session_key)
+            state["main_session_ref_updated_at"] = bound_at
+            self.save_state(session_key, state)
+        return {
+            "session_key": session_key,
+            "main_session_ref": meta.get("main_session_ref"),
+            "main_session_ref_source": meta.get("main_session_ref_source"),
+            "main_session_ref_bound_at": meta.get("main_session_ref_bound_at"),
+        }
+
     def set_main_context(self, session_key: str, body: str, source: str = "main-chat") -> dict[str, Any]:
         meta = self.get_meta(session_key)
         if not meta:
@@ -285,6 +317,8 @@ class RelayHub:
         delivery_channels: list[str] | None = None,
         main_context_body: str | None = None,
         main_context_source: str = "main-chat",
+        main_session_ref: str | None = None,
+        main_session_ref_source: str = "agent-session",
     ) -> dict[str, Any]:
         config = self.config()
         session_key = make_session_key(channel, target)
@@ -292,6 +326,7 @@ class RelayHub:
         created = not session_dir.exists()
         ensure_dir(self.messages_dir(session_key))
         ensure_dir(self.attachments_dir(session_key))
+        existing_meta = self.get_meta(session_key)
         default_delivery = {
             "mode": delivery_mode or config["default_delivery"]["mode"],
             "channels": delivery_channels or config["default_delivery"]["channels"],
@@ -303,10 +338,14 @@ class RelayHub:
             "agent": agent,
             "session_role": "branch",
             "branch_parent": "main-chat",
-            "created_at": self.get_meta(session_key).get("created_at", now_iso()),
+            "created_at": existing_meta.get("created_at", now_iso()),
             "web_url": self.web_url(session_key),
             "default_delivery": default_delivery,
         }
+        if existing_meta.get("main_session_ref"):
+            meta["main_session_ref"] = existing_meta.get("main_session_ref")
+            meta["main_session_ref_source"] = existing_meta.get("main_session_ref_source")
+            meta["main_session_ref_bound_at"] = existing_meta.get("main_session_ref_bound_at")
         state = {
             "session_key": session_key,
             "mode": "relay",
@@ -322,10 +361,18 @@ class RelayHub:
             "last_merged_back_message_id": self.get_state(session_key).get("last_merged_back_message_id"),
             "agent_claimed_at": self.get_state(session_key).get("agent_claimed_at"),
             "main_context_updated_at": self.get_state(session_key).get("main_context_updated_at"),
+            "main_session_ref_updated_at": self.get_state(session_key).get("main_session_ref_updated_at"),
             "updated_at": now_iso(),
         }
         atomic_write_json(self.meta_path(session_key), meta)
         self.save_state(session_key, state)
+        if main_session_ref is not None:
+            self.set_main_session_ref(
+                session_key,
+                main_session_ref,
+                source=main_session_ref_source,
+            )
+            meta = self.get_meta(session_key)
         main_context = self.get_main_context(session_key)
         if main_context_body is not None:
             main_context = self.set_main_context(session_key, main_context_body, source=main_context_source)
@@ -386,8 +433,19 @@ class RelayHub:
             "messages": self.list_messages(session_key),
         }
 
-    def build_context(self, session_key: str, limit: int = 50) -> dict[str, Any]:
+    def build_context(
+        self,
+        session_key: str,
+        limit: int = 50,
+        expected_main_session_ref: str | None = None,
+    ) -> dict[str, Any]:
         bundle = self.get_session(session_key)
+        bound_main_session_ref = bundle["meta"].get("main_session_ref")
+        if expected_main_session_ref and not main_session_ref_matches(bound_main_session_ref, expected_main_session_ref):
+            raise ValueError(
+                f"session {session_key} belongs to main session {bound_main_session_ref or 'UNBOUND'}, "
+                f"not {expected_main_session_ref}"
+            )
         main_context = bundle["main_context"]
         messages = bundle["messages"]
         if limit > 0:
@@ -412,13 +470,32 @@ class RelayHub:
             "state": bundle["state"],
             "main_context": main_context,
             "main_context_present": bool(main_context.get("body")),
+            "main_session_ref": bound_main_session_ref,
             "route": bundle["route"],
             "messages": branch_messages,
             "branch_messages": branch_messages,
         }
 
-    def build_merge_back(self, session_key: str, since_message_id: str | None = None, limit: int = 100) -> dict[str, Any]:
+    def build_merge_back(
+        self,
+        session_key: str,
+        since_message_id: str | None = None,
+        limit: int = 100,
+        expected_main_session_ref: str | None = None,
+        require_main_session_ref: bool = False,
+    ) -> dict[str, Any]:
         bundle = self.get_session(session_key)
+        bound_main_session_ref = bundle["meta"].get("main_session_ref")
+        if require_main_session_ref and not bound_main_session_ref:
+            raise ValueError(
+                f"session {session_key} is not bound to any main session yet; "
+                "bind it before merging branch increments back"
+            )
+        if expected_main_session_ref and not main_session_ref_matches(bound_main_session_ref, expected_main_session_ref):
+            raise ValueError(
+                f"session {session_key} belongs to main session {bound_main_session_ref or 'UNBOUND'}, "
+                f"not {expected_main_session_ref}"
+            )
         state = bundle["state"]
         floor = since_message_id or state.get("last_merged_back_message_id")
         floor_int = message_id_int(floor)
@@ -449,6 +526,7 @@ class RelayHub:
             "meta": bundle["meta"],
             "state": bundle["state"],
             "main_context": bundle["main_context"],
+            "main_session_ref": bound_main_session_ref,
             "since_message_id": floor,
             "branch_messages": branch_messages,
             "merge_back_text": merge_back_text,
@@ -594,7 +672,7 @@ class RelayHub:
         self.save_routes(routes)
         return {"session_key": session_key, "status": state["status"], "queued_message_id": committed_id}
 
-    def claim_next(self, agent: str) -> dict[str, Any] | None:
+    def claim_next(self, agent: str, main_session_ref: str | None = None) -> dict[str, Any] | None:
         queued: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
         for session in self.list_sessions():
             if session.get("agent") != agent:
@@ -602,11 +680,17 @@ class RelayHub:
             state = self.get_state(session["session_key"])
             if state.get("status") != "queued":
                 continue
+            bound_main_session_ref = session.get("main_session_ref")
+            if main_session_ref and bound_main_session_ref and bound_main_session_ref != main_session_ref:
+                continue
             queued.append((session["session_key"], session, state))
         if not queued:
             return None
         queued.sort(key=lambda item: item[2].get("dispatch_requested_at") or "")
         session_key, _session, state = queued[0]
+        if main_session_ref:
+            self.set_main_session_ref(session_key, main_session_ref, source="agent-claim")
+            state = self.get_state(session_key)
         state["status"] = "processing"
         state["agent_claimed_at"] = now_iso()
         self.save_state(session_key, state)
@@ -623,6 +707,7 @@ class RelayHub:
             "last_user_message": last_message,
             "meta": self.get_meta(session_key),
             "main_context_present": bool(self.get_main_context(session_key).get("body")),
+            "main_session_ref": self.get_meta(session_key).get("main_session_ref"),
         }
 
     def message_by_id(self, session_key: str, message_id: str | None) -> dict[str, Any] | None:

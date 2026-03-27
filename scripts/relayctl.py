@@ -65,6 +65,8 @@ def build_parser() -> argparse.ArgumentParser:
     open_main_group.add_argument("--main-context-body")
     open_main_group.add_argument("--main-context-file")
     open_parser.add_argument("--main-context-source", default="main-chat")
+    open_parser.add_argument("--main-session-ref")
+    open_parser.add_argument("--main-session-ref-source", default="agent-session")
 
     subparsers.add_parser("list-sessions", help="List all sessions")
 
@@ -77,6 +79,14 @@ def build_parser() -> argparse.ArgumentParser:
     set_main_group = set_main_parser.add_mutually_exclusive_group(required=True)
     set_main_group.add_argument("--body")
     set_main_group.add_argument("--body-file")
+
+    set_main_session_parser = subparsers.add_parser(
+        "set-main-session-ref",
+        help="Bind one branch session to one specific main AI session reference",
+    )
+    set_main_session_parser.add_argument("--session", required=True)
+    set_main_session_parser.add_argument("--main-session-ref", required=True)
+    set_main_session_parser.add_argument("--source", default="agent-session")
 
     show_main_parser = subparsers.add_parser("show-main-context", help="Show the stored main-window context seed")
     show_main_parser.add_argument("--session", required=True)
@@ -93,6 +103,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     claim_parser = subparsers.add_parser("claim-next", help="Claim the next queued session for an agent")
     claim_parser.add_argument("--agent", required=True)
+    claim_parser.add_argument("--main-session-ref")
 
     reply_parser = subparsers.add_parser("write-reply", help="Write a progress/final/error message")
     reply_parser.add_argument("--session", required=True)
@@ -111,6 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     context_parser.add_argument("--session", required=True)
     context_parser.add_argument("--limit", type=int, default=50)
+    context_parser.add_argument("--main-session-ref")
 
     merge_parser = subparsers.add_parser(
         "build-merge-back",
@@ -119,6 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
     merge_parser.add_argument("--session", required=True)
     merge_parser.add_argument("--since-message-id")
     merge_parser.add_argument("--limit", type=int, default=100)
+    merge_parser.add_argument("--main-session-ref")
 
     deliveries_parser = subparsers.add_parser(
         "list-pending-delivery",
@@ -177,6 +190,8 @@ def main() -> None:
                 delivery_channels=args.delivery_channels,
                 main_context_body=main_context_body,
                 main_context_source=args.main_context_source,
+                main_session_ref=args.main_session_ref,
+                main_session_ref_source=args.main_session_ref_source,
             )
             output({"ok": True, **payload})
             return
@@ -189,6 +204,18 @@ def main() -> None:
         if args.command == "set-main-context":
             output({"ok": True, "main_context": hub.set_main_context(args.session, read_body(args), source=args.source)})
             return
+        if args.command == "set-main-session-ref":
+            output(
+                {
+                    "ok": True,
+                    "main_session": hub.set_main_session_ref(
+                        args.session,
+                        args.main_session_ref,
+                        source=args.source,
+                    ),
+                }
+            )
+            return
         if args.command == "show-main-context":
             output({"ok": True, "main_context": hub.get_main_context(args.session)})
             return
@@ -199,7 +226,7 @@ def main() -> None:
             output({"ok": True, **hub.dispatch_session(args.session)})
             return
         if args.command == "claim-next":
-            payload = hub.claim_next(args.agent)
+            payload = hub.claim_next(args.agent, main_session_ref=args.main_session_ref)
             output({"ok": payload is not None, "claim": payload})
             return
         if args.command == "write-reply":
@@ -219,7 +246,16 @@ def main() -> None:
             )
             return
         if args.command == "build-context":
-            output({"ok": True, "context": hub.build_context(args.session, limit=args.limit)})
+            output(
+                {
+                    "ok": True,
+                    "context": hub.build_context(
+                        args.session,
+                        limit=args.limit,
+                        expected_main_session_ref=args.main_session_ref,
+                    ),
+                }
+            )
             return
         if args.command == "build-merge-back":
             output(
@@ -229,6 +265,8 @@ def main() -> None:
                         args.session,
                         since_message_id=args.since_message_id,
                         limit=args.limit,
+                        expected_main_session_ref=args.main_session_ref,
+                        require_main_session_ref=bool(args.main_session_ref),
                     ),
                 }
             )

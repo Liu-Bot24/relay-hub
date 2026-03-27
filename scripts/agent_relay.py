@@ -106,6 +106,8 @@ def build_parser(label: str) -> argparse.ArgumentParser:
     start_main_group.add_argument("--main-context-body")
     start_main_group.add_argument("--main-context-file")
     start_parser.add_argument("--main-context-source", default="main-chat")
+    start_parser.add_argument("--main-session-ref")
+    start_parser.add_argument("--main-session-ref-source", default="agent-session")
 
     note_parser = subparsers.add_parser(
         "append-main-note",
@@ -117,10 +119,19 @@ def build_parser(label: str) -> argparse.ArgumentParser:
     note_group.add_argument("--body")
     note_group.add_argument("--body-file")
 
+    bind_parser = subparsers.add_parser(
+        "bind-main-session",
+        help="Bind one existing branch to the current main AI session reference",
+    )
+    bind_parser.add_argument("--session", required=True)
+    bind_parser.add_argument("--main-session-ref", required=True)
+    bind_parser.add_argument("--source", default="agent-session")
+
     claim_parser = subparsers.add_parser(
         "claim-next",
         help="Claim the next queued branch for this agent",
     )
+    claim_parser.add_argument("--main-session-ref", required=True)
 
     branch_parser = subparsers.add_parser(
         "branch-context",
@@ -128,6 +139,7 @@ def build_parser(label: str) -> argparse.ArgumentParser:
     )
     branch_parser.add_argument("--session", required=True)
     branch_parser.add_argument("--limit", type=int, default=50)
+    branch_parser.add_argument("--main-session-ref", required=True)
 
     reply_parser = subparsers.add_parser(
         "reply",
@@ -149,6 +161,7 @@ def build_parser(label: str) -> argparse.ArgumentParser:
     merge_parser.add_argument("--session", required=True)
     merge_parser.add_argument("--since-message-id")
     merge_parser.add_argument("--limit", type=int, default=100)
+    merge_parser.add_argument("--main-session-ref", required=True)
     merge_parser.add_argument(
         "--mark-merged",
         action="store_true",
@@ -191,6 +204,8 @@ def main(default_agent: str | None = None, label: str = "Agent") -> None:
                 delivery_channels=args.delivery_channels,
                 main_context_body=main_context_body,
                 main_context_source=args.main_context_source,
+                main_session_ref=args.main_session_ref,
+                main_session_ref_source=args.main_session_ref_source,
             )
             output(
                 {
@@ -214,14 +229,27 @@ def main(default_agent: str | None = None, label: str = "Agent") -> None:
             output({"ok": True, "note": payload})
             return
 
+        if args.command == "bind-main-session":
+            payload = hub.set_main_session_ref(
+                args.session,
+                args.main_session_ref,
+                source=args.source,
+            )
+            output({"ok": True, "main_session": payload})
+            return
+
         if args.command == "claim-next":
             agent = resolve_agent(args.agent, default_agent)
-            payload = hub.claim_next(agent)
+            payload = hub.claim_next(agent, main_session_ref=args.main_session_ref)
             output({"ok": payload is not None, "claim": payload})
             return
 
         if args.command == "branch-context":
-            payload = hub.build_context(args.session, limit=args.limit)
+            payload = hub.build_context(
+                args.session,
+                limit=args.limit,
+                expected_main_session_ref=args.main_session_ref,
+            )
             output({"ok": True, "branch_context": payload})
             return
 
@@ -244,6 +272,8 @@ def main(default_agent: str | None = None, label: str = "Agent") -> None:
                 args.session,
                 since_message_id=args.since_message_id,
                 limit=args.limit,
+                expected_main_session_ref=args.main_session_ref,
+                require_main_session_ref=bool(args.main_session_ref),
             )
             merged = None
             if args.mark_merged:
