@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,14 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from relay_hub import RelayHub
+from relay_hub.pickup import (
+    list_pickup_states,
+    load_pickup_state,
+    pickup_context_seed_path,
+    pickup_log_path,
+    process_alive,
+    save_pickup_state,
+)
 
 DEFAULT_ROOT = (Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime") if (Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime").exists() else (PROJECT_ROOT / "runtime")
 
@@ -70,6 +80,8 @@ def build_agent_status(hub: RelayHub, agent: str) -> dict[str, Any]:
     input_open = [session for session in sessions if session.get("status") == "input_open"]
     entry_open = [session for session in sessions if session.get("status") == "entry_open"]
     error = [session for session in sessions if session.get("status") == "error"]
+    pickup_states = list_pickup_states(hub.root, agent=agent)
+    active_pickups = [state for state in pickup_states if state.get("alive")]
     return {
         "agent": presence,
         "summary": {
@@ -82,9 +94,100 @@ def build_agent_status(hub: RelayHub, agent: str) -> dict[str, Any]:
             "entry_open_count": len(entry_open),
             "error_count": len(error),
             "has_pending_branch": bool(queued or processing),
+            "pickup_count": len(pickup_states),
+            "active_pickup_count": len(active_pickups),
         },
+        "pickup": pickup_states,
         "sessions": sessions,
     }
+
+
+def pick_backend(value: str | None, agent: str) -> str:
+    if value:
+        return value
+    if agent == "codex":
+        return "codex-exec"
+    raise SystemExit("backend is required unless agent=codex, which defaults to codex-exec")
+
+
+def daemon_script_path() -> Path:
+    return SCRIPT_DIR / "relay_agent_daemon.py"
+
+
+def start_pickup_process(
+    *,
+    hub: RelayHub,
+    root: Path,
+    agent: str,
+    main_session_ref: str,
+    backend: str,
+    backend_command: str | None,
+    poll_interval_seconds: float,
+    main_context_body: str | None,
+) -> dict[str, Any]:
+    presence = hub.get_agent(agent)
+    if presence.get("status") != "ready":
+        raise SystemExit(f"{agent} is not ready; run enable-relay first")
+    if backend == "command" and not backend_command:
+        raise SystemExit("--backend-command is required when backend=command")
+    existing = load_pickup_state(root, agent, main_session_ref)
+    existing_pid = existing.get("pid")
+    if process_alive(existing_pid):
+        return existing
+    if main_context_body is not None:
+        seed_path = pickup_context_seed_path(root, agent, main_session_ref)
+        seed_path.parent.mkdir(parents=True, exist_ok=True)
+        seed_path.write_text(main_context_body, encoding="utf-8")
+    log_path = pickup_log_path(root, agent, main_session_ref)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        sys.executable,
+        str(daemon_script_path()),
+        "--root",
+        str(root),
+        "--agent",
+        agent,
+        "--main-session-ref",
+        main_session_ref,
+        "--backend",
+        backend,
+        "--poll-interval-seconds",
+        str(poll_interval_seconds),
+    ]
+    if backend_command:
+        cmd.extend(["--backend-command", backend_command])
+    if main_context_body is not None:
+        cmd.extend(["--main-context-body", main_context_body])
+    with log_path.open("ab") as handle:
+        proc = subprocess.Popen(  # noqa: S603
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=handle,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    existing.update(
+        {
+            "backend": backend,
+            "backend_command": backend_command,
+            "project_root": presence.get("current_project_root"),
+            "development_log_path": presence.get("current_development_log_path"),
+            "status": "starting",
+            "pid": proc.pid,
+            "log_path": str(log_path),
+        }
+    )
+    return save_pickup_state(root, agent, main_session_ref, existing)
+
+
+def stop_pickup_process(root: Path, agent: str, main_session_ref: str) -> dict[str, Any]:
+    state = load_pickup_state(root, agent, main_session_ref)
+    pid = state.get("pid")
+    if process_alive(pid):
+        os.kill(pid, signal.SIGTERM)
+    state["status"] = "stopped"
+    state["pid"] = None
+    return save_pickup_state(root, agent, main_session_ref, state)
 
 
 def build_parser(label: str) -> argparse.ArgumentParser:
@@ -110,15 +213,44 @@ def build_parser(label: str) -> argparse.ArgumentParser:
     )
     enable_parser.add_argument("--project-root", required=True)
     enable_parser.add_argument("--development-log-path")
+    enable_parser.add_argument("--main-session-ref")
     enable_group = enable_parser.add_mutually_exclusive_group(required=True)
     enable_group.add_argument("--snapshot-body")
     enable_group.add_argument("--snapshot-file")
     enable_parser.add_argument("--author")
+    enable_parser.add_argument("--start-pickup", action="store_true")
+    enable_parser.add_argument("--backend", choices=["codex-exec", "command"])
+    enable_parser.add_argument("--backend-command")
+    enable_parser.add_argument("--poll-interval-seconds", type=float, default=2.0)
 
     subparsers.add_parser(
         "disable-relay",
         help="Mark this agent as offline for Relay Hub without removing project bindings",
     )
+
+    pickup_start_parser = subparsers.add_parser(
+        "start-pickup",
+        help="Start the sustained pickup loop for one bound main session",
+    )
+    pickup_start_parser.add_argument("--main-session-ref", required=True)
+    pickup_start_parser.add_argument("--backend", choices=["codex-exec", "command"])
+    pickup_start_parser.add_argument("--backend-command")
+    pickup_main_group = pickup_start_parser.add_mutually_exclusive_group()
+    pickup_main_group.add_argument("--main-context-body")
+    pickup_main_group.add_argument("--main-context-file")
+    pickup_start_parser.add_argument("--poll-interval-seconds", type=float, default=2.0)
+
+    pickup_stop_parser = subparsers.add_parser(
+        "stop-pickup",
+        help="Stop the sustained pickup loop for one main session",
+    )
+    pickup_stop_parser.add_argument("--main-session-ref", required=True)
+
+    pickup_status_parser = subparsers.add_parser(
+        "pickup-status",
+        help="Show sustained pickup status for one or all main sessions of this agent",
+    )
+    pickup_status_parser.add_argument("--main-session-ref")
 
     start_parser = subparsers.add_parser(
         "start-branch",
@@ -245,12 +377,60 @@ def main(default_agent: str | None = None, label: str = "Agent") -> None:
                 snapshot_body=read_body(args.snapshot_body, args.snapshot_file) or "",
                 author=args.author or agent,
             )
-            output({"ok": True, "relay_enabled": payload})
+            pickup = None
+            if args.start_pickup:
+                if not args.main_session_ref:
+                    fail("--main-session-ref is required when --start-pickup is used")
+                pickup = start_pickup_process(
+                    hub=hub,
+                    root=hub.root,
+                    agent=agent,
+                    main_session_ref=args.main_session_ref,
+                    backend=pick_backend(args.backend, agent),
+                    backend_command=args.backend_command,
+                    poll_interval_seconds=args.poll_interval_seconds,
+                    main_context_body=read_body(args.snapshot_body, args.snapshot_file),
+                )
+            output({"ok": True, "relay_enabled": payload, "pickup": pickup})
             return
 
         if args.command == "disable-relay":
             agent = resolve_agent(args.agent, default_agent)
-            output({"ok": True, "agent": hub.set_agent(agent, "offline")})
+            stopped_pickups = []
+            for pickup in list_pickup_states(hub.root, agent=agent):
+                stopped_pickups.append(stop_pickup_process(hub.root, agent, pickup["main_session_ref"]))
+            output({"ok": True, "agent": hub.set_agent(agent, "offline"), "stopped_pickups": stopped_pickups})
+            return
+
+        if args.command == "start-pickup":
+            agent = resolve_agent(args.agent, default_agent)
+            payload = start_pickup_process(
+                hub=hub,
+                root=hub.root,
+                agent=agent,
+                main_session_ref=args.main_session_ref,
+                backend=pick_backend(args.backend, agent),
+                backend_command=args.backend_command,
+                poll_interval_seconds=args.poll_interval_seconds,
+                main_context_body=read_body(args.main_context_body, args.main_context_file),
+            )
+            output({"ok": True, "pickup": payload})
+            return
+
+        if args.command == "stop-pickup":
+            agent = resolve_agent(args.agent, default_agent)
+            payload = stop_pickup_process(hub.root, agent, args.main_session_ref)
+            output({"ok": True, "pickup": payload})
+            return
+
+        if args.command == "pickup-status":
+            agent = resolve_agent(args.agent, default_agent)
+            if args.main_session_ref:
+                payload = load_pickup_state(hub.root, agent, args.main_session_ref)
+                payload["alive"] = process_alive(payload.get("pid"))
+                output({"ok": True, "pickup": payload})
+                return
+            output({"ok": True, "pickup": list_pickup_states(hub.root, agent=agent)})
             return
 
         if args.command == "start-branch":

@@ -17,6 +17,7 @@ from relay_hub import RelayHub
 from relay_hub.store import make_session_key
 
 DEFAULT_ROOT = (PROJECT_ROOT.parent / "runtime") if PROJECT_ROOT.name == "app" else ((Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime") if (Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime").exists() else (PROJECT_ROOT / "runtime"))
+DELIVERY_DIVIDER = "--------------------"
 
 
 def output(payload: object) -> None:
@@ -61,8 +62,13 @@ def resolve_session_arg(args: argparse.Namespace) -> str:
     raise SystemExit("either --session or both --channel and --target are required")
 
 
+def command_guide(agent: str | None) -> str:
+    return f"常用指令：打开 {agent or '<agent>'} 入口 / 已录入 / 状态 / 退出"
+
+
 def build_open_message(branch: dict[str, Any], agent_status: str) -> str:
     web_url = branch["meta"]["web_url"]
+    agent = branch["meta"].get("agent")
     branch_status = (branch.get("state") or {}).get("status")
     raw_channels = list((branch["meta"].get("default_delivery") or {}).get("channels") or [])
     delivery_channels = ["原始触发渠道"]
@@ -75,14 +81,18 @@ def build_open_message(branch: dict[str, Any], agent_status: str) -> str:
     )
     if agent_status == "ready":
         return (
-            f"{branch['meta']['agent']} 入口已打开。\n"
+            f"{agent} 入口已打开。\n"
+            f"{DELIVERY_DIVIDER}\n"
             f"网页入口：{web_url}\n"
+            f"{command_guide(agent)}\n"
             f"默认回传渠道：{channels}\n"
             f"{branch_note}"
         )
     return (
-        f"{branch['meta']['agent']} 入口已打开，但对象当前状态是 {agent_status}。\n"
+        f"{agent} 入口已打开，但对象当前状态是 {agent_status}。\n"
+        f"{DELIVERY_DIVIDER}\n"
         f"网页入口：{web_url}\n"
+        f"{command_guide(agent)}\n"
         f"默认回传渠道：{channels}\n"
         f"{branch_note}"
     )
@@ -111,9 +121,11 @@ def build_status_message(session: dict[str, Any]) -> str:
     return (
         f"当前对象：{meta.get('agent')}\n"
         f"{status_text}\n"
+        f"{DELIVERY_DIVIDER}\n"
         f"最近录入消息：{state.get('last_committed_user_message_id') or '暂无'}\n"
         f"最近对象回复：{state.get('last_agent_message_id') or '暂无'}\n"
-        f"网页入口：{meta.get('web_url')}"
+        f"网页入口：{meta.get('web_url')}\n"
+        f"{command_guide(meta.get('agent'))}"
     )
 
 

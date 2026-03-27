@@ -80,7 +80,7 @@ python3 install.py install-openclaw
 - 如果用户要求你参与 Relay Hub，就先按文档确认环境，再通过 agent_relay.py 接入。
 - 不要把“install.py 已跑通”误当成“已经完整接入”；只有当你已经在自己的环境里固化最小长期机制，并能持续接单时，才算完整接入。
 - 当用户对你说“接入 Relay Hub”时：
-  - 先查找或创建当前项目的 DEVELOPMENT_LOG.md
+  - 先复用当前项目已有的 DEVELOPMENT_LOG.md（默认项目根；如果宿主环境已有该项目自己的日志路径，就继续用那份）；只有没有时，才在项目根目录创建
   - 先写一条当前主线快照
   - 再把自己标记为 ready
   - 然后在你自己的环境里开启持续接单机制；最低要求是：只要自己是 ready，就周期性检查 queued branch，发现后立即 claim-next -> branch-context -> reply；如果你的环境做不到持续接单，就明确说明当前只能 manual-only

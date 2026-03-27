@@ -29,21 +29,6 @@ def parse_log_timestamp(header_line: str) -> datetime | None:
     return datetime.strptime(raw, "%Y-%m-%d %H:%M:%S%z")
 
 
-def find_development_log(start: str | Path | None) -> Path | None:
-    if not start:
-        return None
-    current = Path(start).expanduser().resolve()
-    if current.is_file():
-        if current.name == DEVELOPMENT_LOG_FILENAME:
-            return current
-        current = current.parent
-    for candidate in (current, *current.parents):
-        path = candidate / DEVELOPMENT_LOG_FILENAME
-        if path.exists():
-            return path
-    return None
-
-
 def ensure_development_log(path: str | Path) -> Path:
     log_path = Path(path).expanduser().resolve()
     log_path.parent.mkdir(parents=True, exist_ok=True)

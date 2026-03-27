@@ -8,12 +8,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-from .devlog import (
-    ensure_development_log,
-    find_development_log,
-    log_entries_since,
-    prepend_log_entry,
-)
+from .devlog import ensure_development_log, log_entries_since, prepend_log_entry
 
 
 DEFAULT_CONFIG = {
@@ -25,6 +20,7 @@ DEFAULT_CONFIG = {
     },
     "queue_ack_timeout_seconds": 15,
 }
+DELIVERY_DIVIDER = "--------------------"
 
 
 def now_iso() -> str:
@@ -263,13 +259,10 @@ class RelayHub:
             created = not explicit_path.exists()
             ensure_development_log(explicit_path)
             return project_path, explicit_path, created
-        existing = find_development_log(project_path)
-        if existing is not None:
-            return project_path, existing, False
-        created_path = project_path / "DEVELOPMENT_LOG.md"
-        created = not created_path.exists()
-        ensure_development_log(created_path)
-        return project_path, created_path, created
+        project_log_path = project_path / "DEVELOPMENT_LOG.md"
+        created = not project_log_path.exists()
+        ensure_development_log(project_log_path)
+        return project_path, project_log_path, created
 
     def enable_agent(
         self,
@@ -480,12 +473,21 @@ class RelayHub:
             ]
         valid_candidates = [candidate for candidate in candidates if candidate is not None]
         since_iso = max(valid_candidates).isoformat() if valid_candidates else None
-        entries = log_entries_since(log_path, since_iso, limit=limit)
+        try:
+            entries = log_entries_since(log_path, since_iso, limit=limit)
+            readable = True
+            error = None
+        except OSError as exc:
+            entries = []
+            readable = False
+            error = f"{type(exc).__name__}: {exc}"
         return {
             "attached": True,
             "path": log_path,
             "since": since_iso,
             "entries": entries,
+            "readable": readable,
+            "error": error,
         }
 
     def _format_context_packet_text(
@@ -901,7 +903,12 @@ class RelayHub:
                     continue
                 delivery_text = message["body"].rstrip()
                 if message_meta.get("append_web_url") and meta.get("web_url"):
-                    delivery_text = f"{delivery_text}\n\n网页入口：{meta['web_url']}"
+                    delivery_text = (
+                        f"{delivery_text}\n\n"
+                        f"{DELIVERY_DIVIDER}\n"
+                        f"网页入口：{meta['web_url']}\n"
+                        f"常用指令：打开 {meta.get('agent')} 入口 / 已录入 / 状态 / 退出"
+                    )
                 deliveries.append(
                     {
                         "session_key": current_session_key,

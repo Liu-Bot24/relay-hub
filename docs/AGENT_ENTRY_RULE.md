@@ -19,18 +19,20 @@
 - “接入 Relay Hub”
   1. 在自己的环境里创建或刷新一份最小长期规则 / skill / guide，使这些规则后续持续生效。
   2. 确定当前项目根目录。
-  3. 在项目中查找 DEVELOPMENT_LOG.md；如果没有，就在项目根目录创建一个。
+  3. 优先复用当前项目已有的 DEVELOPMENT_LOG.md（默认项目根；如果你的宿主环境已经明确维护了该项目自己的开发日志路径，就继续用那份）；只有没有时，才在项目根目录创建一个。
   4. 立即写入一条主线快照，作为 Relay Hub 启用时的上下文基线。
-  5. 把自己标记为 ready。
-  6. 记住当前项目根目录和开发日志路径，后续 branch 处理与合流优先参考它们。
-  7. 在自己的环境里开启持续接单机制；最低要求是：只要自己是 ready，就周期性检查 queued branch，发现后立即 claim-next -> branch-context -> reply；如果你的环境根本做不到持续接单，就明确告诉用户当前只能 manual-only。
+  5. 执行 `enable-relay`。
+  6. 为当前主对话执行 `start-pickup`，让持续接单机制真正启动。
+  7. 记住当前项目根目录和开发日志路径，后续 branch 处理与合流优先参考它们。
+  8. 只有在持续接单机制已经运行后，才能把自己视为完整 ready；如果你的环境根本做不到持续接单，就明确告诉用户当前只能 manual-only。
 
 - “Relay Hub 状态”
   1. 返回自己当前是否 ready。
-  2. 返回是否有待处理 branch、待合流 branch 或仅入口已打开但尚未开始的 entry。
+  2. 返回持续接单机制是否在运行。
+  3. 返回是否有待处理 branch、待合流 branch 或仅入口已打开但尚未开始的 entry。
 
 - “退出 Relay Hub”
-  1. 关闭持续接单机制。
+  1. 执行 `stop-pickup`。
   2. 把自己标记为 offline。
   3. 不要顺手改 OpenClaw 的渠道配置。
 
@@ -48,7 +50,7 @@
    - 绑定 main_session_ref
    - 绑定当前项目根目录 / 开发日志路径
    - 如果 branch 还没有主线摘要，就立刻补写
-4. 完整支持模式下，只要自己是 ready，就应持续监控并接走分配给自己的 queued branch；不能只会手动执行一次 claim-next。
+4. 完整支持模式下，只要自己是 ready，就应让持续接单机制保持运行并接走分配给自己的 queued branch；不能只会手动执行一次 claim-next。
 5. 处理前，先读取：
    - main_context
    - 自入口打开以来的开发日志增量
@@ -59,6 +61,7 @@
 优先使用仓库里的高层入口：
 
 - scripts/agent_relay.py
+- scripts/relay_agent_daemon.py
 
 只有在高层入口不够时，再调用：
 

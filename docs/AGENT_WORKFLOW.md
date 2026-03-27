@@ -61,10 +61,11 @@ AI 自己应把这些话映射成下面的内部动作。
 当用户说“接入 Relay Hub”时：
 
 1. 确定当前项目根目录
-2. 查找或创建 `DEVELOPMENT_LOG.md`
+2. 优先复用当前项目已有的 `DEVELOPMENT_LOG.md`（默认项目根；如果宿主环境已有该项目自己的日志路径，就继续用那份）；只有没有时，才在项目根目录创建
 3. 写入一条当前主线快照
-4. 把自己标记为 ready
-5. 在自己的环境里启动持续接单机制
+4. 先执行 `enable-relay`
+5. 再为当前主对话启动持续接单机制
+6. 只有在持续接单机制已经运行后，才算完整 ready
 
 推荐直接执行：
 
@@ -82,9 +83,19 @@ python3 scripts/agent_relay.py --agent agent_demo enable-relay \
 - 记住当前项目根目录和开发日志路径
 - 把当前对象状态标记为 `ready`
 
-然后还要做一件仓库不会替你做的事：
+然后立刻为当前主对话启动持续接单：
 
-- 在自己的环境里开启持续接单机制
+```bash
+cd /path/to/relay-hub
+python3 scripts/agent_relay.py --agent agent_demo start-pickup \
+  --main-session-ref main_demo_001 \
+  --backend codex-exec
+```
+
+如果不是 `codex`，则改用适合自己的后端配置。仓库提供两种通用路径：
+
+- 直接使用内置守护轮子：`scripts/relay_agent_daemon.py`
+- 通过 `start-pickup --backend command --backend-command '["your-cli", "..."]'` 启动通用命令后端
 
 如果宿主环境根本做不到持续接单，应明确告诉用户当前只能 `manual-only`。
 
@@ -97,7 +108,13 @@ python3 scripts/agent_relay.py --agent agent_demo enable-relay \
 5. 若 branch 缺少主线摘要，再立刻补写
 6. 再执行 `branch-context -> reply`
 
-是否用 skill、rule、automation 或宿主自己的 watcher，由接入方自己决定；但这套最小动作链不能缺。
+是否用 skill、rule、automation 或宿主自己的 watcher，由接入方自己决定；但这套最小动作链不能缺。当前仓库也已经提供了最小控制入口：
+
+```bash
+cd /path/to/relay-hub
+python3 scripts/agent_relay.py --agent agent_demo pickup-status --main-session-ref main_demo_001
+python3 scripts/agent_relay.py --agent agent_demo stop-pickup --main-session-ref main_demo_001
+```
 
 ## 2. 查询当前接入状态
 
@@ -109,6 +126,7 @@ python3 scripts/agent_relay.py --agent agent_demo agent-status
 重点看：
 
 - 是否 `ready`
+- 是否有活动中的 pickup
 - 是否有 `queued / processing / awaiting_user / entry_open`
 
 其中：
@@ -280,6 +298,7 @@ python3 scripts/agent_relay.py --agent agent_demo resume-main \
 
 ```bash
 cd /path/to/relay-hub
+python3 scripts/agent_relay.py --agent agent_demo stop-pickup --main-session-ref main_demo_001
 python3 scripts/agent_relay.py --agent agent_demo disable-relay
 ```
 

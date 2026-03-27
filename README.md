@@ -58,7 +58,7 @@ python3 install.py full --load-services
 完整接入标准：
 - 你已经在自己的环境里固化最小长期规则 / skill / guide
 - 你已经明确当前主对话如何稳定生成并复用 main_session_ref
-- 你已经进入 ready，并且能在自己的环境里持续接单；如果做不到，就明确说明当前只能 manual-only
+- 你已经进入 ready，并且持续接单机制已经真正启动；如果做不到，就明确说明当前只能 manual-only
 
 安装要求：
 - install.py 会自动探测本机局域网地址；只有探测失败时，才回头问我
@@ -70,12 +70,12 @@ python3 install.py full --load-services
 - 如果安装失败，就原样贴出失败点并停止，不要自创旁路方案
 - 当我对你说“接入 Relay Hub”时：
   1. 先确定当前项目根目录
-  2. 查找 DEVELOPMENT_LOG.md；如果没有，就在项目根目录创建
+  2. 优先复用当前项目已有的 DEVELOPMENT_LOG.md（默认项目根；如果你的宿主环境已经明确维护了该项目自己的开发日志路径，就继续用那份）；只有没有时，才在项目根目录创建
   3. 立即写入一条当前主线快照
-  4. 然后再把自己标记为 ready
-  5. 并在你自己的环境里开启持续接单机制；最低要求是：只要自己是 ready，就周期性检查 queued branch，发现后立即 claim-next -> branch-context -> reply；如果你的环境根本做不到持续接单，就明确告诉我当前只支持 manual-only，不要假装已经完整接入
-- 当我对你说“Relay Hub 状态”时，告诉我你当前是否 ready，以及是否有待处理 branch
-- 当我对你说“退出 Relay Hub”时，把自己标记为 offline，并关闭持续接单机制
+  4. 先执行 enable-relay，再为当前主对话启动持续接单机制
+  5. 然后再把自己标记为完整 ready；最低要求是：只要自己是 ready，就周期性检查 queued branch，发现后立即 claim-next -> branch-context -> reply；如果你的环境根本做不到持续接单，就明确告诉我当前只支持 manual-only，不要假装已经完整接入
+- 当我对你说“Relay Hub 状态”时，告诉我你当前是否 ready、持续接单机制是否在运行，以及是否有待处理 branch
+- 当我对你说“退出 Relay Hub”时，先关闭持续接单机制，再把自己标记为 offline
 - 当 OpenClaw 先帮我打开网页入口时，不要把那一刻当成 branch 已开始；用户第一次在网页里保存消息时，branch 才正式开始
 - 你必须为每条 AI 主对话稳定维护一个 main_session_ref：
   1. 优先使用宿主环境原生提供的 conversation / thread / session id
@@ -84,7 +84,7 @@ python3 install.py full --load-services
   1. main_session_ref
   2. 当前主线摘要
   3. 当前项目根目录 / 开发日志绑定
-- 当你已经是 ready 时，不能只会手动执行一次 claim-next；完整支持模式下，你应持续监控 queued branch，并在自己的环境里接单处理
+- 当你已经是 ready 时，不能只会手动执行一次 claim-next；完整支持模式下，你应启动并保持持续接单机制在运行
 - 当我回到当前主对话窗口说第一句话时，先执行一次 resume-main，把 branch 增量合流回主线，再继续回答我
 ```
 
