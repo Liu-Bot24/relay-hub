@@ -120,6 +120,10 @@ def message_id_int(message_id: str | None) -> int:
         return 0
 
 
+def is_relay_mode(state: dict[str, Any]) -> bool:
+    return state.get("mode") == "relay"
+
+
 class RelayHub:
     def __init__(self, root: str | Path):
         self.root = Path(root).expanduser().resolve()
@@ -384,6 +388,7 @@ class RelayHub:
 
     def build_context(self, session_key: str, limit: int = 50) -> dict[str, Any]:
         bundle = self.get_session(session_key)
+        main_context = bundle["main_context"]
         messages = bundle["messages"]
         if limit > 0:
             messages = messages[-limit:]
@@ -405,7 +410,8 @@ class RelayHub:
             "session_key": session_key,
             "meta": bundle["meta"],
             "state": bundle["state"],
-            "main_context": bundle["main_context"],
+            "main_context": main_context,
+            "main_context_present": bool(main_context.get("body")),
             "route": bundle["route"],
             "messages": branch_messages,
             "branch_messages": branch_messages,
@@ -533,6 +539,9 @@ class RelayHub:
         meta = self.get_meta(session_key)
         if not meta:
             raise FileNotFoundError(f"session {session_key} does not exist")
+        state = self.get_state(session_key)
+        if not is_relay_mode(state):
+            raise ValueError("relay branch is closed; reopen it from OpenClaw before writing new branch input")
         message_id = self._next_message_id(session_key)
         created_at = now_iso()
         payload = {
@@ -547,7 +556,6 @@ class RelayHub:
         }
         file_path = self.messages_dir(session_key) / f"{message_id}.user.md"
         atomic_write_text(file_path, format_front_matter(payload, body))
-        state = self.get_state(session_key)
         state["last_user_message_id"] = message_id
         state["last_committed_user_message_id"] = message_id
         state["status"] = "input_open"
@@ -565,6 +573,8 @@ class RelayHub:
         state = self.get_state(session_key)
         if not state:
             raise FileNotFoundError(f"session {session_key} does not exist")
+        if not is_relay_mode(state):
+            raise ValueError("relay branch is closed; reopen it from OpenClaw before dispatching new input")
         committed_id = state.get("last_committed_user_message_id")
         if not committed_id:
             raise ValueError("no committed user message found")
@@ -612,6 +622,7 @@ class RelayHub:
             "state": state,
             "last_user_message": last_message,
             "meta": self.get_meta(session_key),
+            "main_context_present": bool(self.get_main_context(session_key).get("body")),
         }
 
     def message_by_id(self, session_key: str, message_id: str | None) -> dict[str, Any] | None:

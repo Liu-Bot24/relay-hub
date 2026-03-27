@@ -165,6 +165,14 @@ def register_channel_aliases(
         target = channel_config.get("target")
         if target:
             candidates.append((channel, target))
+    candidate_keys = {alias_key(channel, target) for channel, target in candidates}
+    stale_keys = [
+        key
+        for key, record in aliases.items()
+        if record.get("session_key") == session_key and key not in candidate_keys
+    ]
+    for key in stale_keys:
+        aliases.pop(key, None)
     seen: set[str] = set()
     for channel, target in candidates:
         key = alias_key(channel, target)

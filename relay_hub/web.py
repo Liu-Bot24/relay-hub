@@ -115,6 +115,27 @@ def render_session(hub: RelayHub, session_key: str, notice: str | None = None) -
             """
         )
     notice_html = f'<div class="card"><strong>{escape(notice)}</strong></div>' if notice else ""
+    relay_open = state.get("mode") == "relay"
+    write_panel = (
+        f"""
+        <div class="card">
+          <strong>写入新消息</strong>
+          <form method="post" action="{escape(session_url(session_key))}/commit" style="margin-top: 12px;" onsubmit="const btn=this.querySelector('button'); btn.disabled=true; btn.textContent='正在保存...';">
+            <textarea name="body" placeholder="在这里写入本轮输入内容。"></textarea>
+            <div style="margin-top: 12px;">
+              <button type="submit">保存为 committed 用户消息</button>
+            </div>
+          </form>
+        </div>
+        """
+        if relay_open
+        else """
+        <div class="card">
+          <strong>写入新消息</strong>
+          <div class="muted" style="margin-top: 10px;">当前 branch 已关闭。请回到 OpenClaw 重新执行“打开 &lt;agent&gt; 入口”后，再继续在这里录入。</div>
+        </div>
+        """
+    )
     body = f"""
     <div style="margin-bottom: 18px;"><a href="/">返回全部 session</a></div>
     <h1>{escape(session_key)}</h1>
@@ -135,15 +156,7 @@ def render_session(hub: RelayHub, session_key: str, notice: str | None = None) -
       <div class="muted" style="margin: 8px 0 10px;">branch 不是主对话本身；这里显示的是它继承下来的主线快照。</div>
       <pre>{escape(main_context.get('body') or '当前还没有记录主对话快照。')}</pre>
     </div>
-    <div class="card">
-      <strong>写入新消息</strong>
-      <form method="post" action="{escape(session_url(session_key))}/commit" style="margin-top: 12px;" onsubmit="const btn=this.querySelector('button'); btn.disabled=true; btn.textContent='正在保存...';">
-        <textarea name="body" placeholder="在这里写入本轮输入内容。"></textarea>
-        <div style="margin-top: 12px;">
-          <button type="submit">保存为 committed 用户消息</button>
-        </div>
-      </form>
-    </div>
+    {write_panel}
     <div class="card">
       <strong>消息历史</strong>
       {''.join(messages_html) if messages_html else '<p class="muted">还没有消息。</p>'}
@@ -208,7 +221,11 @@ def create_handler(root: Path):
             if not body:
                 self._redirect(session_url(session_key, "内容为空，未写入"))
                 return
-            self._hub().commit_user_message(session_key, body)
+            try:
+                self._hub().commit_user_message(session_key, body)
+            except (FileNotFoundError, ValueError) as exc:
+                self._redirect(session_url(session_key, str(exc)))
+                return
             self._redirect(session_url(session_key, "已写入一条 committed 用户消息"))
 
         def log_message(self, format: str, *args) -> None:  # noqa: A003

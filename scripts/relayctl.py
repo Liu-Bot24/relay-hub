@@ -20,6 +20,11 @@ def output(payload: object) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
 
+def fail(message: str, exit_code: int = 1) -> None:
+    print(message, file=sys.stderr)
+    raise SystemExit(exit_code)
+
+
 def resolve_root(value: str | None) -> Path:
     return Path(value).expanduser().resolve() if value else DEFAULT_ROOT
 
@@ -145,101 +150,103 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
     hub = RelayHub(resolve_root(args.root))
+    try:
+        if args.command == "init":
+            payload = hub.init_layout(
+                web_base_url=args.web_base_url,
+                queue_ack_timeout_seconds=args.ack_timeout,
+                default_channels=args.default_channels,
+            )
+            output({"ok": True, "config": payload, "root": str(hub.root)})
+            return
 
-    if args.command == "init":
-        payload = hub.init_layout(
-            web_base_url=args.web_base_url,
-            queue_ack_timeout_seconds=args.ack_timeout,
-            default_channels=args.default_channels,
-        )
-        output({"ok": True, "config": payload, "root": str(hub.root)})
-        return
+        hub.init_layout()
 
-    hub.init_layout()
-
-    if args.command == "set-agent":
-        output({"ok": True, "agent": hub.set_agent(args.agent, args.status)})
-        return
-    if args.command == "open-session":
-        main_context_body = args.main_context_body
-        if args.main_context_file:
-            main_context_body = Path(args.main_context_file).read_text(encoding="utf-8")
-        payload = hub.open_session(
-            args.agent,
-            args.channel,
-            args.target,
-            delivery_mode=args.delivery_mode,
-            delivery_channels=args.delivery_channels,
-            main_context_body=main_context_body,
-            main_context_source=args.main_context_source,
-        )
-        output({"ok": True, **payload})
-        return
-    if args.command == "list-sessions":
-        output({"ok": True, "sessions": hub.list_sessions()})
-        return
-    if args.command == "show-session":
-        output({"ok": True, "session": hub.get_session(args.session)})
-        return
-    if args.command == "set-main-context":
-        output({"ok": True, "main_context": hub.set_main_context(args.session, read_body(args), source=args.source)})
-        return
-    if args.command == "show-main-context":
-        output({"ok": True, "main_context": hub.get_main_context(args.session)})
-        return
-    if args.command == "commit-user":
-        output({"ok": True, **hub.commit_user_message(args.session, read_body(args), source=args.source)})
-        return
-    if args.command == "dispatch":
-        output({"ok": True, **hub.dispatch_session(args.session)})
-        return
-    if args.command == "claim-next":
-        payload = hub.claim_next(args.agent)
-        output({"ok": payload is not None, "claim": payload})
-        return
-    if args.command == "write-reply":
-        output(
-            {
-                "ok": True,
-                **hub.write_agent_message(
-                    args.session,
-                    args.agent,
-                    args.kind,
-                    read_body(args),
-                    source_user_message_id=args.source_user_message_id,
-                    deliver_via_openclaw=not args.no_deliver_via_openclaw,
-                    append_web_url=not args.no_append_web_url,
-                ),
-            }
-        )
-        return
-    if args.command == "build-context":
-        output({"ok": True, "context": hub.build_context(args.session, limit=args.limit)})
-        return
-    if args.command == "build-merge-back":
-        output(
-            {
-                "ok": True,
-                "merge_back": hub.build_merge_back(
-                    args.session,
-                    since_message_id=args.since_message_id,
-                    limit=args.limit,
-                ),
-            }
-        )
-        return
-    if args.command == "list-pending-delivery":
-        output({"ok": True, "deliveries": hub.pending_deliveries(session_key=args.session)})
-        return
-    if args.command == "mark-delivered":
-        output({"ok": True, **hub.mark_delivered(args.session, args.message_id)})
-        return
-    if args.command == "mark-merged-back":
-        output({"ok": True, **hub.mark_merged_back(args.session, args.message_id)})
-        return
-    if args.command == "set-normal":
-        output({"ok": True, **hub.set_normal_mode(args.session)})
-        return
+        if args.command == "set-agent":
+            output({"ok": True, "agent": hub.set_agent(args.agent, args.status)})
+            return
+        if args.command == "open-session":
+            main_context_body = args.main_context_body
+            if args.main_context_file:
+                main_context_body = Path(args.main_context_file).read_text(encoding="utf-8")
+            payload = hub.open_session(
+                args.agent,
+                args.channel,
+                args.target,
+                delivery_mode=args.delivery_mode,
+                delivery_channels=args.delivery_channels,
+                main_context_body=main_context_body,
+                main_context_source=args.main_context_source,
+            )
+            output({"ok": True, **payload})
+            return
+        if args.command == "list-sessions":
+            output({"ok": True, "sessions": hub.list_sessions()})
+            return
+        if args.command == "show-session":
+            output({"ok": True, "session": hub.get_session(args.session)})
+            return
+        if args.command == "set-main-context":
+            output({"ok": True, "main_context": hub.set_main_context(args.session, read_body(args), source=args.source)})
+            return
+        if args.command == "show-main-context":
+            output({"ok": True, "main_context": hub.get_main_context(args.session)})
+            return
+        if args.command == "commit-user":
+            output({"ok": True, **hub.commit_user_message(args.session, read_body(args), source=args.source)})
+            return
+        if args.command == "dispatch":
+            output({"ok": True, **hub.dispatch_session(args.session)})
+            return
+        if args.command == "claim-next":
+            payload = hub.claim_next(args.agent)
+            output({"ok": payload is not None, "claim": payload})
+            return
+        if args.command == "write-reply":
+            output(
+                {
+                    "ok": True,
+                    **hub.write_agent_message(
+                        args.session,
+                        args.agent,
+                        args.kind,
+                        read_body(args),
+                        source_user_message_id=args.source_user_message_id,
+                        deliver_via_openclaw=not args.no_deliver_via_openclaw,
+                        append_web_url=not args.no_append_web_url,
+                    ),
+                }
+            )
+            return
+        if args.command == "build-context":
+            output({"ok": True, "context": hub.build_context(args.session, limit=args.limit)})
+            return
+        if args.command == "build-merge-back":
+            output(
+                {
+                    "ok": True,
+                    "merge_back": hub.build_merge_back(
+                        args.session,
+                        since_message_id=args.since_message_id,
+                        limit=args.limit,
+                    ),
+                }
+            )
+            return
+        if args.command == "list-pending-delivery":
+            output({"ok": True, "deliveries": hub.pending_deliveries(session_key=args.session)})
+            return
+        if args.command == "mark-delivered":
+            output({"ok": True, **hub.mark_delivered(args.session, args.message_id)})
+            return
+        if args.command == "mark-merged-back":
+            output({"ok": True, **hub.mark_merged_back(args.session, args.message_id)})
+            return
+        if args.command == "set-normal":
+            output({"ok": True, **hub.set_normal_mode(args.session)})
+            return
+    except (FileNotFoundError, ValueError) as exc:
+        fail(str(exc))
 
     parser.error(f"unknown command: {args.command}")
 

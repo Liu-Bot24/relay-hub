@@ -76,6 +76,8 @@ def build_open_message(branch: dict[str, Any], agent_status: str) -> str:
 def build_status_message(session: dict[str, Any]) -> str:
     meta = session["meta"]
     state = session["state"]
+    if state.get("mode") != "relay":
+        return "当前不在 Relay Hub 模式，OpenClaw 已恢复正常。"
     status = state.get("status") or "unknown"
     if status == "queued":
         status_text = "已排队，等待对象接手。"

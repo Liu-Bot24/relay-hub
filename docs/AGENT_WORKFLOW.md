@@ -125,9 +125,11 @@ python3 scripts/agent_relay.py branch-context --session channel_a__target_demo
 这条命令返回：
 
 - `main_context`
+- `main_context_present`
 - `branch_messages`
 
-处理 branch 时，应把这两部分一起看。
+处理 branch 时，应把这两部分一起看。  
+如果 `main_context_present = false`，说明这条 branch 目前还没有继承到主线快照；外部对象应谨慎处理，不要假装自己天然拥有主线完整上下文。
 
 ## 6. 写回进度或最终结果
 
