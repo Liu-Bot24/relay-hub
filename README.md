@@ -47,6 +47,8 @@ Relay Hub 把三件事连到一起：
 cd [本包所在路径]
 python3 install.py full --load-services
 
+如果 `docs/COMPATIBILITY.md` 明确写了“当前宿主需要额外 host adapter”，再按那份文档追加对应参数；否则不要自行追加宿主专属参数。
+
 安装完成后，再执行：
 1. python3 install.py doctor
 2. python3 install.py status
@@ -54,38 +56,25 @@ python3 install.py full --load-services
 安装完成标准：
 - doctor 返回 ok=true
 - status 能看到 openclaw bridge、skill、heartbeat、web plist
+- 如果你额外安装了当前宿主的 host adapter，status 里还应能看到对应宿主侧产物
 
 完整接入标准：
 - 你已经在自己的环境里固化最小长期规则 / skill / guide
 - 你已经明确当前主对话如何稳定生成并复用 main_session_ref
+- 你已经把“显式开启一次、随后跟随当前活跃主会话切换、同一时间只保留一个活跃主会话、主窗口精确镜像”都落好
 - 你已经进入 ready，并且持续接单机制已经真正启动；如果做不到，就明确说明当前只能 manual-only
 
 安装要求：
 - install.py 会自动探测本机局域网地址；只有探测失败时，才回头问我
-- 默认不要求你先配置额外消息渠道；如果没有显式配置，回包默认走原始触发渠道
-- 如果我后面明确要求“除原始触发渠道外，还要额外镜像到别的渠道”，那时你再执行：
+- 默认不要求你先配置额外消息渠道；branch 回包默认走原始触发渠道，主窗口提醒优先复用当前主会话已绑定的来源渠道
+- 如果我后面明确要求“除当前来源渠道外，还要额外镜像到别的渠道”，那时你再执行：
   python3 install.py install-openclaw --delivery-channel channel=target --delivery-account channel=accountId
 - 不要直接读取原始消息渠道或 OpenClaw 插件内部实现
 - 不要自行做业务对话测试，除非我明确要求
 - 如果安装失败，就原样贴出失败点并停止，不要自创旁路方案
-- 当我对你说“接入 Relay Hub”时：
-  1. 先确定当前项目根目录
-  2. 优先复用当前项目已有的 DEVELOPMENT_LOG.md（默认项目根；如果你的宿主环境已经明确维护了该项目自己的开发日志路径，就继续用那份）；只有没有时，才在项目根目录创建
-  3. 立即写入一条当前主线快照
-  4. 先执行 enable-relay，再为当前主对话启动持续接单机制
-  5. 然后再把自己标记为完整 ready；最低要求是：只要自己是 ready，就周期性检查 queued branch，发现后立即 claim-next -> branch-context -> reply；如果你的环境根本做不到持续接单，就明确告诉我当前只支持 manual-only，不要假装已经完整接入
-- 当我对你说“Relay Hub 状态”时，告诉我你当前是否 ready、持续接单机制是否在运行，以及是否有待处理 branch
-- 当我对你说“退出 Relay Hub”时，先关闭持续接单机制，再把自己标记为 offline
-- 当 OpenClaw 先帮我打开网页入口时，不要把那一刻当成 branch 已开始；用户第一次在网页里保存消息时，branch 才正式开始
-- 你必须为每条 AI 主对话稳定维护一个 main_session_ref：
-  1. 优先使用宿主环境原生提供的 conversation / thread / session id
-  2. 如果宿主没有提供，就在当前主对话第一次接入 Relay Hub 时生成一个稳定 ref，并把它固化到当前主对话可持续复用的宿主载体里，再在该主对话范围内持续复用；不能只把它留在单条回复里
-- 当你第一次正式接 OpenClaw 打开的 branch 时，必须补齐：
-  1. main_session_ref
-  2. 当前主线摘要
-  3. 当前项目根目录 / 开发日志绑定
-- 当你已经是 ready 时，不能只会手动执行一次 claim-next；完整支持模式下，你应启动并保持持续接单机制在运行
-- 当我回到当前主对话窗口说第一句话时，先执行一次 resume-main，把 branch 增量合流回主线，再继续回答我
+- 安装完成后，不要在这段安装约束里继续脑补运行期行为。
+- 当用户后续对你说“接入 Relay Hub”“Relay Hub 状态”“消息提醒状态”“开启<渠道>消息提醒”“关闭<渠道>消息提醒”“合流上下文”“退出 Relay Hub”时，严格按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 执行。
+- Relay Hub 运行期通过 OpenClaw 发出的固定尾注、网页入口、以及产品操作提示，都是代码内置行为；不要在安装 prompt 里重写、删改或自定义它们。
 ```
 
 ### 发给 OpenClaw 的话
@@ -99,7 +88,7 @@ python3 install.py full --load-services
 5. docs/COMPATIBILITY.md
 
 你只负责这 5 件事：
-1. 当我说“打开 <agent> 入口”时，调用已安装的 relay bridge 打开入口
+1. 当我说“打开 <agent> 入口”时，调用已安装的 relay bridge 打开或重发入口；如果已有 branch，则主动询问“复用入口 / 新建入口”
 2. 当我说“已录入”时，把 branch 入队，并在需要时等待 claim
 3. 当我说“状态”时，查询当前 branch 状态
 4. 当有待发送回包时，把它发到消息渠道并 ack-delivery
@@ -117,18 +106,23 @@ python3 install.py full --load-services
 
 ## 用户实际会说的话
 
-对 AI 编程工具：
+### 命令大全
 
-- `接入 Relay Hub`
-- `Relay Hub 状态`
-- `退出 Relay Hub`
-
-对 OpenClaw：
-
-- `打开 <agent> 入口`
-- `已录入`
-- `状态`
-- `退出`
+| 使用位置 | 命令 | 作用 | 备注 |
+| --- | --- | --- | --- |
+| AI 编程工具主窗口 | `接入 Relay Hub` | 把当前主会话接入 Relay Hub，并启动当前会话的持续接单/镜像 | 这是主窗口侧的开启命令 |
+| AI 编程工具主窗口 | `Relay Hub 状态` | 查看当前主会话是否 ready、是否有待处理 branch、是否有未合流旧 branch | 只查当前主会话 |
+| AI 编程工具主窗口 | `消息提醒状态` | 查看当前所有已配置 OpenClaw 提醒渠道的开关状态 | 只显示已经配置到 `relay_hub_openclaw.json` 的提醒渠道 |
+| AI 编程工具主窗口 | `开启<渠道>消息提醒` | 开启某一个 OpenClaw 提醒渠道 | 例如：`开启飞书消息提醒` / `开启telegram消息提醒` |
+| AI 编程工具主窗口 | `关闭<渠道>消息提醒` | 关闭某一个 OpenClaw 提醒渠道 | 例如：`关闭微信消息提醒` / `关闭telegram消息提醒` |
+| AI 编程工具主窗口 | `合流上下文` | 把当前主会话下尚未合流的旧 branch 增量接回主窗口 | 如果有多个待合流 branch，会先提示选择 |
+| AI 编程工具主窗口 | `退出 Relay Hub` | 关闭当前主会话的 Relay Hub | 只关闭当前主会话 |
+| OpenClaw | `打开 <agent> 入口` | 打开网页入口，或在已有 branch 时让用户选择“复用入口 / 新建入口” | `<agent>` 应使用稳定的 `agent_id`；常见别名如 `codex / claude / gemini / cursor / opencode` 会自动归一化，但不限于这些 |
+| OpenClaw | `已录入` | 把网页里刚保存的输入正式入队 | 只有网页已经保存过输入时才有效 |
+| OpenClaw | `状态` | 查看当前入口 / branch 状态 | 面向当前渠道对象 |
+| OpenClaw | `退出` | 退出当前 relay branch | 是 branch 侧退出，不是主会话侧退出 |
+| OpenClaw | `relay help` | 查看这份命令大全 | 用于快速回看全部命令 |
+| OpenClaw | `复用入口` / `新建入口` | 在 OpenClaw 追问时，明确选择继续旧 branch 还是创建新 branch | 这是对 `打开 <agent> 入口` 的追问回答，不是首选主命令 |
 
 ## 一条命令完成安装
 
@@ -143,8 +137,9 @@ python3 install.py full --load-services
 
 - `install.py` 会自动探测局域网可访问地址，生成网页入口地址
 - `--load-services` 会把 Web 服务直接装进 `launchd`
-- 默认不要求先填写消息渠道目标；回包默认走原始触发渠道
-- 如果后面配置了额外回传渠道，那些渠道只是额外镜像；原始触发渠道仍然保留
+- 只有当当前宿主就是 Codex，才需要追加 `--install-codex-host`
+- 默认不要求先填写消息渠道目标；branch 回包默认走原始触发渠道，主窗口提醒优先复用当前主会话已绑定的来源渠道
+- 如果后面配置了额外回传渠道，那些渠道只是额外镜像；不会替代当前来源渠道
 - 如果这台机器之前已经配置过额外回传渠道，重装时不显式传参也会保留原配置
 - 如果你只想先装文件，不想立即加载服务，可以去掉 `--load-services`
 
@@ -174,20 +169,29 @@ python3 install.py status
 7. 写入并加载 Web 服务：
    - `com.relayhub.web`
 
+如果额外追加了 `--install-codex-host`，还会把 Codex 宿主入口装到：
+
+- `~/.codex/skills/relay-hub/SKILL.md`
+- `~/.codex/AGENTS.md`
+
 程序副本和默认 runtime 放在 `Application Support`，是为了避开 macOS 对 `Desktop/Documents` 后台服务的权限限制。
 
 ## 安装后怎么用
 
 装完以后，正常流程是：
 
-1. 用户在 OpenClaw 里说：`打开 <agent> 入口`
-2. OpenClaw 返回网页入口
-3. 用户第一次在网页里保存消息，branch 才正式开始
-4. 用户继续在网页里写 branch 内容
-5. 用户回到 OpenClaw 说：`已录入`
-6. 外部 AI 按协议接手 branch
-7. 处理结果通过 OpenClaw 发回原消息渠道
-8. 用户回到 AI 主窗口说第一句话时，AI 先做一次 merge-back，再继续主线对话
+1. 用户在当前 AI 主对话里说一次：`接入 Relay Hub`
+2. 这会开启 Relay Hub，并给当前活跃主对话建立接单能力
+3. 用户收到 OpenClaw 同步消息，消息里自带网页入口和产品指令
+4. 只要 Relay Hub 还没退出，用户切回旧主对话就继续旧主对话，切到新主对话就切到新主对话；不需要再重复说“接入 Relay Hub”
+5. 用户如果只是继续在当前主窗口对话，不需要额外动作；当前主窗口回复仍可继续同步到 OpenClaw
+6. 用户如果要调整哪些 OpenClaw 渠道继续收到提醒，直接在主窗口说：`消息提醒状态`、`开启<渠道>消息提醒`、`关闭<渠道>消息提醒`
+7. 用户如果要离机接管，直接点网页入口并保存第一条消息；这一刻 branch 才正式开始
+8. 用户回到 OpenClaw 说：`已录入`
+9. 外部 AI 按协议接手 branch
+10. 处理结果通过 OpenClaw 发回原消息渠道
+11. 用户如需显式重发入口，或在已有 branch 上选择“复用/新建”，再说：`打开 <agent> 入口`
+12. 用户回到当前 AI 主窗口说第一句话时，AI 先做一次 merge-back，再继续主线对话
 
 ## 仓库结构
 
@@ -269,8 +273,9 @@ python3 install.py install-launchd --load-services
 - 当前仓库现成提供的是 `macOS + launchd` 的安装和服务托管
 - Relay Hub 依赖 `OpenClaw` 做消息网关，不直接对接别的渠道网关
 - Relay Hub 的网页 branch 不是主对话本身，而是主线分支
-- 当前主对话窗口仍然是主线
+- 当前活跃主对话窗口仍然是主线
 - 项目开发日志是 branch 上下文和主线合流的重要参考
+- `project_root` 只负责定位代码目录、开发日志和工作区；主会话切换只认当前活跃 AI 会话
 - 如果项目里没有 `DEVELOPMENT_LOG.md`，启用 Relay Hub 时应自动创建，并把第一条写成主线快照
 - OpenClaw 不负责主线快照和 merge-back
 - 外部对象不应直接读取原始消息渠道

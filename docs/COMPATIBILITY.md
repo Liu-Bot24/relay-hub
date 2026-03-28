@@ -29,6 +29,7 @@
 - `docs/AGENT_ENTRY_RULE.md`
 - `docs/AGENT_WORKFLOW.md`
 - `scripts/agent_relay.py`
+- `scripts/relay_agent_daemon.py`
 - `scripts/relayctl.py`
 
 ### 默认安装会不会替 AI 自动接单
@@ -44,16 +45,28 @@
 
 - `Codex / Claude Code / Gemini CLI / Cursor CLI / Opencode`：协议层都可用
 - 但接单、处理、回包这一步，需要它们自己按协议参与
+- 默认 `install.py full --load-services` 不会顺手改写某个特定 AI 的宿主目录；例如 Codex 宿主入口只有在显式追加 `--install-codex-host` 时才会安装
 
 这不代表它们不能接入，只代表：
 
 - 可以通过 `scripts/agent_relay.py` 手动参与
 - 或者各自在自己的环境里做一层很薄的自动化封装
 
+对“主窗口回复如何精确镜像到 OpenClaw”这件事，当前仓库提供的是两层：
+
+- `Codex`：原生 rollout 捕获，直接读取最终正文
+- 其他宿主：通用精确正文兜底，先把已经产出的最终正文写入文件，再执行 `scripts/agent_relay.py capture-main-output --body-file ...`
+
 更准确地说：
 
 - 能按协议手动参与：属于 `manual-only`
 - 能在自己的环境里建立持续接单机制：才属于“完整支持”
+
+仓库当前提供的是：
+
+- 一个通用控制入口：`scripts/agent_relay.py`
+- 一个通用持续接单守护轮子：`scripts/relay_agent_daemon.py`
+- 多种 backend 接法，其中 `command` 是面向任意 CLI 的通用方式，`codex-exec` 只是其中一个内置便捷 backend
 
 ## 2. 消息渠道通用性
 
@@ -80,7 +93,10 @@ python3 install.py full \
   --load-services
 ```
 
-这些额外渠道是镜像渠道，不会替代原始触发渠道；原始触发渠道仍然保留。
+这些额外渠道是镜像渠道，不会替代当前来源渠道：
+
+- branch 回包仍保留原始触发渠道
+- 主窗口提醒优先复用当前主会话已绑定的来源渠道
 
 ### 当前渠道层真正的边界
 

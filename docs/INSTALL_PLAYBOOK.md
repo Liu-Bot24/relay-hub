@@ -32,16 +32,23 @@ cd /path/to/relay-hub
 python3 install.py full --load-services
 ```
 
+如果当前宿主就是 Codex，并且你要把“当前 Codex 主窗口”也一起接进 Relay Hub，再在这条命令后追加：
+
+```bash
+--install-codex-host
+```
+
 这表示：
 
 - Relay Hub 本身会先装好
 - OpenClaw 桥接和网页入口会一起装好
-- 默认回包走原始触发渠道，不要求先配置额外渠道
-- 如果后面配置了额外回传渠道，那些渠道只是额外镜像；原始触发渠道仍然保留
+- 只有在显式追加 `--install-codex-host` 时，才会改写 `~/.codex`
+- branch 回包默认走原始触发渠道，主窗口提醒优先复用当前主会话已绑定的来源渠道；不要求先配置额外渠道
+- 如果后面配置了额外回传渠道，那些渠道只是额外镜像；不会替代当前来源渠道
 - 如果机器上已经配过额外回传渠道，重装时不显式传参也会保留原配置
 - 外部对象后续再按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 接入
 
-如果你后面明确要“除原始触发渠道外，还要额外镜像到别的渠道”，再单独执行：
+如果你后面明确要“除当前来源渠道外，还要额外镜像到别的渠道”，再单独执行：
 
 ```bash
 cd /path/to/relay-hub
@@ -79,22 +86,12 @@ python3 install.py install-openclaw
 - 当前 AI 对话窗口是主线，网页 / md 是 branch。
 - 如果用户要求你参与 Relay Hub，就先按文档确认环境，再通过 agent_relay.py 接入。
 - 不要把“install.py 已跑通”误当成“已经完整接入”；只有当你已经在自己的环境里固化最小长期机制，并能持续接单时，才算完整接入。
-- 当用户对你说“接入 Relay Hub”时：
-  - 先复用当前项目已有的 DEVELOPMENT_LOG.md（默认项目根；如果宿主环境已有该项目自己的日志路径，就继续用那份）；只有没有时，才在项目根目录创建
-  - 先写一条当前主线快照
-  - 再把自己标记为 ready
-  - 然后在你自己的环境里开启持续接单机制；最低要求是：只要自己是 ready，就周期性检查 queued branch，发现后立即 claim-next -> branch-context -> reply；如果你的环境做不到持续接单，就明确说明当前只能 manual-only
-- 当用户对你说“Relay Hub 状态”时，返回你当前是否 ready，以及是否有待处理 branch。
-- 当用户对你说“退出 Relay Hub”时，把自己标记为 offline，并关闭持续接单机制。
-- 当 OpenClaw 先帮用户打开网页入口时，不要把那一刻当成 branch 已开始；用户第一次在网页里保存消息时，branch 才正式开始。
-- 你必须为每条 AI 主对话稳定维护一个 main_session_ref：优先使用宿主原生会话标识；如果宿主没有提供，就在当前主对话第一次接入 Relay Hub 时生成一个稳定 ref，并把它放进当前主对话可持续复用的宿主载体里，再在该主对话范围内持续复用。
-- 当你第一次正式接 OpenClaw 打开的 branch 时，必须同时补齐 main_session_ref、当前主线摘要、当前项目根目录和开发日志绑定。
-- 当用户回到主对话窗口说第一句话时，先做一次 resume-main，再继续回答当前新消息。
-- 如果仓库尚未安装完成，先按 README 和 docs/INSTALL_PLAYBOOK.md 执行安装。
 - 安装完成后，只汇报是否进入“可用状态”，不要自行替用户做完整业务测试，除非用户明确要求。
+- 当用户后续对你说“接入 Relay Hub”“Relay Hub 状态”“消息提醒状态”“开启<渠道>消息提醒”“关闭<渠道>消息提醒”“合流上下文”“退出 Relay Hub”时，严格按 docs/AGENT_ENTRY_RULE.md 和 docs/AGENT_WORKFLOW.md 执行。
+- Relay Hub 运行期通过 OpenClaw 发出的固定尾注、网页入口、以及产品操作提示，都是代码内置行为；不要在这段安装话术里重写、删改或自定义它们。
 ```
 
-例如：
+例如（不限于此）：
 
 - `claude-code`
 - `codex`

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import secrets
@@ -13,8 +14,37 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_CONFIG_PATH = Path.home() / ".openclaw" / "workspace" / "data" / "relay_hub_openclaw.json"
+RECENT_SEND_DEDUPE_SECONDS = 2.0
+RECENT_NOTIFY_DEDUPE_SECONDS = 60.0
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+
+
+def bootstrap_import_paths() -> None:
+    candidates: list[Path] = [PROJECT_ROOT]
+    config_path = DEFAULT_CONFIG_PATH
+    try:
+        if config_path.exists():
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+            app_root = Path(((config.get("relayHub") or {}).get("appRoot") or "")).expanduser()
+            if app_root:
+                candidates.append(app_root.resolve())
+    except Exception:
+        # Keep import bootstrapping best-effort; runtime argument validation will surface
+        # any real configuration issues later.
+        pass
+    for candidate in candidates:
+        text = str(candidate)
+        if text and text not in sys.path:
+            sys.path.insert(0, text)
+
+
+bootstrap_import_paths()
+
+from relay_hub import RelayHub
+from relay_hub.message_text import delivery_footer, relay_help_text
 
 AGENT_ALIASES = {
     "codex": "codex",
@@ -25,6 +55,12 @@ AGENT_ALIASES = {
     "cursor": "cursor-cli",
     "cursor-cli": "cursor-cli",
     "opencode": "opencode",
+}
+
+INVALID_MAIN_SESSION_REFS = {
+    "main-current",
+    "current-main",
+    "current-session",
 }
 
 
@@ -69,9 +105,24 @@ def alias_map_path(config: dict[str, Any]) -> Path:
     return Path(config["aliases"]["path"]).expanduser().resolve()
 
 
+def send_trace_path(config: dict[str, Any]) -> Path:
+    return alias_map_path(config).with_name("relay_hub_send_trace.jsonl")
+
+
 def normalize_agent(raw: str) -> str:
     key = raw.strip().lower()
     return AGENT_ALIASES.get(key, key)
+
+
+def sanitize_main_session_ref(value: str | None) -> str | None:
+    if value is None:
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if text.lower() in INVALID_MAIN_SESSION_REFS:
+        return None
+    return text
 
 
 def output(payload: dict[str, Any], as_json: bool) -> None:
@@ -104,6 +155,14 @@ def resolve_channel_target(
     if not resolved_target:
         raise SystemExit(f"missing target for channel {channel_key}")
     return channel_key, resolved_target
+
+
+def read_optional_text(body: str | None, body_file: str | None) -> str | None:
+    if body is not None:
+        return body
+    if body_file is not None:
+        return Path(body_file).read_text(encoding="utf-8")
+    return None
 
 
 def delivery_account_for_channel(config: dict[str, Any], channel: str) -> str | None:
@@ -152,6 +211,20 @@ def load_alias_map(config: dict[str, Any]) -> dict[str, Any]:
 def save_alias_map(config: dict[str, Any], payload: dict[str, Any]) -> None:
     payload["updated_at"] = now_iso()
     atomic_write_json(alias_map_path(config), payload)
+
+
+def append_send_trace(config: dict[str, Any], payload: dict[str, Any]) -> None:
+    path = send_trace_path(config)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "recorded_at": now_iso(),
+        "pid": os.getpid(),
+        "ppid": os.getppid(),
+        "argv": sys.argv,
+        **payload,
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
 def register_channel_aliases(
@@ -251,6 +324,17 @@ def run_command(cmd: list[str]) -> subprocess.CompletedProcess[str]:
 
 
 def summarize_error_text(text: str) -> str:
+    stripped = text.strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            payload = None
+        if isinstance(payload, dict):
+            for key in ("user_message", "message", "error"):
+                value = payload.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     if not lines:
         return "command failed"
@@ -300,29 +384,352 @@ def send_message(channel: str, target: str, message: str, account_id: str | None
         raise SystemExit(extract_openclaw_error(result))
 
 
-def requested_delivery_channels(delivery: dict[str, Any]) -> list[str]:
+def build_notify_text(agent: str, kind: str, body: str | None = None) -> str:
+    raise RuntimeError("build_notify_text requires an ensured entry and should not be called directly")
+
+
+def build_notify_text_without_entry(agent: str, kind: str, body: str | None = None) -> str:
+    if kind != "shutdown":
+        raise RuntimeError("build_notify_text_without_entry only supports shutdown")
+    lines = [
+        f"{agent} 已退出 Relay Hub。",
+        "当前主窗口回复不再同步到 OpenClaw。",
+        "如需重新接入，请回主窗口说：接入 Relay Hub。",
+    ]
+    if body:
+        lines.extend(
+            [
+                "",
+                body.rstrip(),
+            ]
+        )
+    return "\n".join(lines)
+
+
+def build_notify_text_with_entry(agent: str, web_url: str, kind: str, body: str | None = None) -> str:
+    if kind == "startup":
+        lines = [
+            f"{agent} 已接入 Relay Hub。",
+            "当前主窗口会继续正常对话；如果你暂时离开电脑，直接点下面网页录入即可。",
+        ]
+        if body:
+            lines.extend(
+                [
+                    "",
+                    body.rstrip(),
+                ]
+            )
+        lines.extend(
+            [
+            delivery_footer(web_url, agent),
+            "第一次在网页里保存消息时，branch 才正式开始。",
+            ]
+        )
+        return "\n".join(lines)
+    lines = [
+        (body or "").rstrip(),
+        "",
+        delivery_footer(web_url, agent),
+    ]
+    return "\n".join(lines).strip()
+
+
+def configured_delivery_channels(config: dict[str, Any]) -> list[tuple[str, str, str | None]]:
+    results: list[tuple[str, str, str | None]] = []
+    channels_config = (config.get("delivery") or {}).get("channels") or {}
+    for channel, channel_config in channels_config.items():
+        target = channel_config.get("target")
+        if not target:
+            continue
+        results.append((channel, target, channel_config.get("accountId")))
+    return results
+
+
+def notify_entry_strategy(
+    config: dict[str, Any],
+    agent: str,
+    channel: str,
+    target: str,
+    aliased_session: str | None,
+    *,
+    preferred_main_session_ref: str | None = None,
+) -> dict[str, Any]:
+    hub = RelayHub(relay_runtime_root(config))
+    hub.init_layout()
+    current_main_session_ref = sanitize_main_session_ref(preferred_main_session_ref) or sanitize_main_session_ref((hub.get_agent(agent) or {}).get("current_main_session_ref"))
+    if not aliased_session:
+        return {
+            "current_main_session_ref": current_main_session_ref,
+            "reuse_session_key": None,
+            "branch_ref": new_branch_ref() if current_main_session_ref else None,
+            "reason": "no_existing_alias",
+        }
+    session = hub.get_session(aliased_session)
+    existing_main_session_ref = ((session.get("meta") or {}).get("main_session_ref"))
+    if current_main_session_ref and existing_main_session_ref and existing_main_session_ref != current_main_session_ref:
+        return {
+            "current_main_session_ref": current_main_session_ref,
+            "reuse_session_key": None,
+            "branch_ref": new_branch_ref(),
+            "reason": "alias_bound_to_different_main_session",
+            "previous_session_key": aliased_session,
+            "previous_main_session_ref": existing_main_session_ref,
+        }
+    return {
+        "current_main_session_ref": current_main_session_ref,
+        "reuse_session_key": aliased_session,
+        "branch_ref": None,
+        "reason": "reuse_existing_alias",
+        "previous_session_key": aliased_session,
+        "previous_main_session_ref": existing_main_session_ref,
+    }
+
+
+def ensure_notify_entry(
+    config: dict[str, Any],
+    agent: str,
+    *,
+    main_session_ref: str | None = None,
+    project_root: str | None = None,
+    development_log_path: str | None = None,
+) -> dict[str, Any]:
+    ensure_runtime_config(config)
+    web_started = ensure_web_running(config)
+    origin = resolve_notify_origin(
+        config,
+        agent=agent,
+        preferred_main_session_ref=main_session_ref,
+    )
+    channel = str(origin.get("channel") or "").strip()
+    target = str(origin.get("target") or "").strip()
+    if not channel or not target:
+        return {
+            "ok": True,
+            "skipped": True,
+            "reason": "no_notify_origin",
+            "notify_origin": origin,
+            "user_message": "当前还没有可复用的 OpenClaw 渠道对象，也没有配置默认提醒渠道，已跳过提醒发送。",
+        }
+    relay_args = [
+        "open-entry",
+        "--agent",
+        agent,
+        "--channel",
+        channel,
+        "--target",
+        target,
+    ]
+    if origin.get("reuse_session_key"):
+        strategy = {
+            "current_main_session_ref": origin.get("current_main_session_ref"),
+            "reuse_session_key": origin.get("reuse_session_key"),
+            "branch_ref": None,
+            "reason": origin.get("source"),
+        }
+        relay_args.extend(["--session-key", str(origin["reuse_session_key"])])
+    else:
+        aliased_session = resolve_session_alias(config, channel, target)
+        strategy = notify_entry_strategy(
+            config,
+            agent,
+            channel,
+            target,
+            aliased_session,
+            preferred_main_session_ref=main_session_ref,
+        )
+        if strategy.get("reuse_session_key"):
+            relay_args.extend(["--session-key", str(strategy["reuse_session_key"])])
+        elif strategy.get("branch_ref"):
+            relay_args.extend(["--branch-ref", str(strategy["branch_ref"])])
+    if strategy.get("current_main_session_ref"):
+        main_session_ref_source = "notify-explicit-session" if main_session_ref else "agent-active-session"
+        relay_args.extend(
+            [
+                "--main-session-ref",
+                str(strategy["current_main_session_ref"]),
+                "--main-session-ref-source",
+                main_session_ref_source,
+            ]
+        )
+    if project_root:
+        relay_args.extend(["--project-root", project_root])
+    if development_log_path:
+        relay_args.extend(["--development-log-path", development_log_path])
+    payload = run_openclaw_relay(config, relay_args)
+    payload["aliases"] = register_channel_aliases(
+        config,
+        session_key=payload["branch"]["session_key"],
+        origin_channel=channel,
+        origin_target=target,
+        delivery_channels=list((payload["branch"]["meta"].get("default_delivery") or {}).get("channels") or []),
+    )
+    payload["resolved"] = {"channel": channel, "target": target}
+    if origin.get("session") and origin["session"].get("session_key"):
+        payload["resolved"]["previous_session"] = origin["session"]["session_key"]
+    payload["notify_entry_strategy"] = strategy
+    payload["notify_origin"] = origin
+    payload["web_started"] = web_started
+    return payload
+
+
+def original_delivery_destination(
+    config: dict[str, Any],
+    delivery: dict[str, Any],
+) -> tuple[str, str, str | None] | None:
+    channel = str(delivery.get("channel") or "").strip()
+    target = str(delivery.get("target") or "").strip()
+    if not channel or not target:
+        return None
+    return channel, target, delivery_account_for_channel(config, channel)
+
+
+def configured_mirror_destinations(
+    config: dict[str, Any],
+    delivery: dict[str, Any],
+) -> list[tuple[str, str, str | None]]:
     default_delivery = delivery.get("default_delivery") or {}
-    channels = [delivery["channel"]]
-    channels.extend(default_delivery.get("channels") or [])
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for channel in channels:
-        if channel not in seen:
-            seen.add(channel)
-            ordered.append(channel)
+    destinations: list[tuple[str, str, str | None]] = []
+    for channel in default_delivery.get("channels") or []:
+        channel_key = str(channel or "").strip()
+        if not channel_key:
+            continue
+        channel_config = (config.get("delivery") or {}).get("channels", {}).get(channel_key, {})
+        target = str(channel_config.get("target") or "").strip()
+        if not target:
+            continue
+        destinations.append((channel_key, target, channel_config.get("accountId")))
+    return destinations
+
+
+def dedupe_delivery_destinations(
+    destinations: list[tuple[str, str, str | None]],
+) -> list[tuple[str, str, str | None]]:
+    ordered: list[tuple[str, str, str | None]] = []
+    seen: set[tuple[str, str, str | None]] = set()
+    for destination in destinations:
+        if destination in seen:
+            continue
+        seen.add(destination)
+        ordered.append(destination)
     return ordered
 
 
-def resolve_delivery_destination(config: dict[str, Any], delivery: dict[str, Any], channel: str) -> tuple[str, str | None]:
-    original_channel = delivery.get("channel")
-    original_target = delivery.get("target")
-    if channel == original_channel and original_target:
-        return original_target, delivery_account_for_channel(config, channel)
-    channel_config = (config.get("delivery") or {}).get("channels", {}).get(channel, {})
-    target = channel_config.get("target")
-    if not target:
-        raise SystemExit(f"missing configured delivery target for channel {channel}")
-    return target, channel_config.get("accountId")
+def parse_timestamp(value: Any) -> datetime:
+    text = str(value or "").strip()
+    if not text:
+        return datetime.fromtimestamp(0).astimezone()
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return datetime.fromtimestamp(0).astimezone()
+
+
+def sessions_for_main_session(
+    hub: RelayHub,
+    *,
+    agent: str,
+    main_session_ref: str,
+) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    for session in hub.list_sessions():
+        if session.get("agent") != agent:
+            continue
+        if session.get("main_session_ref") != main_session_ref:
+            continue
+        if not session.get("channel") or not session.get("target"):
+            continue
+        candidates.append(session)
+    candidates.sort(
+        key=lambda session: (
+            1 if session.get("mode") == "relay" else 0,
+            parse_timestamp((session.get("route") or {}).get("updated_at")),
+            parse_timestamp(session.get("last_merged_back_at")),
+            parse_timestamp(session.get("branch_started_at")),
+            parse_timestamp(session.get("entry_opened_at")),
+        ),
+        reverse=True,
+    )
+    return candidates
+
+
+def resolve_notify_origin(
+    config: dict[str, Any],
+    *,
+    agent: str,
+    preferred_main_session_ref: str | None = None,
+) -> dict[str, Any]:
+    hub = RelayHub(relay_runtime_root(config))
+    hub.init_layout()
+    current_main_session_ref = sanitize_main_session_ref(preferred_main_session_ref) or sanitize_main_session_ref(
+        (hub.get_agent(agent) or {}).get("current_main_session_ref")
+    )
+    if current_main_session_ref:
+        sessions = sessions_for_main_session(
+            hub,
+            agent=agent,
+            main_session_ref=current_main_session_ref,
+        )
+        if sessions:
+            chosen = sessions[0]
+            return {
+                "source": "main_session_session",
+                "current_main_session_ref": current_main_session_ref,
+                "channel": chosen.get("channel"),
+                "target": chosen.get("target"),
+                "reuse_session_key": chosen.get("session_key"),
+                "session": chosen,
+            }
+    configured = configured_delivery_channels(config)
+    if configured:
+        channel, target, _account_id = configured[0]
+        return {
+            "source": "configured_fallback",
+            "current_main_session_ref": current_main_session_ref,
+            "channel": channel,
+            "target": target,
+            "reuse_session_key": None,
+            "session": None,
+        }
+    return {
+        "source": "unavailable",
+        "current_main_session_ref": current_main_session_ref,
+        "channel": None,
+        "target": None,
+        "reuse_session_key": None,
+        "session": None,
+    }
+
+
+def notify_destinations(
+    config: dict[str, Any],
+    *,
+    agent: str,
+    origin_channel: str | None,
+    origin_target: str | None,
+) -> list[tuple[str, str, str | None]]:
+    hub = RelayHub(relay_runtime_root(config))
+    hub.init_layout()
+    configured = configured_delivery_channels(config)
+    channels_to_check: list[str] = []
+    if origin_channel:
+        channels_to_check.append(origin_channel)
+    channels_to_check.extend(channel for channel, _target, _account_id in configured if channel not in channels_to_check)
+    enabled = set(hub.effective_notification_channels(agent, channels_to_check))
+    destinations: list[tuple[str, str, str | None]] = []
+    if origin_channel and origin_target and origin_channel in enabled:
+        destinations.append(
+            (
+                origin_channel,
+                origin_target,
+                delivery_account_for_channel(config, origin_channel),
+            )
+        )
+    destinations.extend(
+        (channel, target, account_id)
+        for channel, target, account_id in configured
+        if channel in enabled
+    )
+    return dedupe_delivery_destinations(destinations)
 
 
 def add_locator_args(parser: argparse.ArgumentParser, require_channel: bool = True) -> None:
@@ -358,6 +765,19 @@ def build_parser() -> argparse.ArgumentParser:
     pump_parser = subparsers.add_parser("pump-deliveries", help="Send pending relay deliveries via OpenClaw channels")
     pump_parser.add_argument("--channel")
     pump_parser.add_argument("--target")
+
+    notify_parser = subparsers.add_parser("notify", help="Send a reminder-only message via configured OpenClaw channels")
+    notify_parser.add_argument("--agent", required=True)
+    notify_parser.add_argument("--kind", choices=["startup", "message", "shutdown"], default="message")
+    notify_parser.add_argument("--main-session-ref")
+    notify_parser.add_argument("--project-root")
+    notify_parser.add_argument("--development-log-path")
+    notify_group = notify_parser.add_mutually_exclusive_group()
+    notify_group.add_argument("--body")
+    notify_group.add_argument("--body-file")
+
+    help_parser = subparsers.add_parser("relay-help", help="Return the fixed Relay Hub command catalog")
+    help_parser.add_argument("--agent")
 
     return parser
 
@@ -497,12 +917,46 @@ def handle_pump(config: dict[str, Any], args: argparse.Namespace) -> dict[str, A
     deliveries = deliveries_payload.get("deliveries") or []
     if not deliveries:
         return {"ok": True, "message": "RELAY_PUMP_IDLE", "sent_count": 0, "deliveries": []}
+    hub = RelayHub(relay_runtime_root(config))
+    hub.init_layout()
     sent_count = 0
     sent_items: list[dict[str, Any]] = []
     for delivery in deliveries:
-        used_channels = requested_delivery_channels(delivery)
-        for delivery_channel in used_channels:
-            target, account_id = resolve_delivery_destination(config, delivery, delivery_channel)
+        mirror_destinations = configured_mirror_destinations(config, delivery)
+        allowed_mirror_channels = set(
+            hub.effective_notification_channels(
+                delivery["agent"],
+                [channel for channel, _target, _account_id in mirror_destinations],
+            )
+        )
+        destinations: list[tuple[str, str, str | None]] = []
+        original_destination = original_delivery_destination(config, delivery)
+        if original_destination is not None:
+            # The original trigger channel is the minimum guaranteed return path.
+            destinations.append(original_destination)
+        destinations.extend(
+            destination
+            for destination in mirror_destinations
+            if destination[0] in allowed_mirror_channels
+        )
+        destinations = dedupe_delivery_destinations(destinations)
+        if not destinations:
+            raise SystemExit(
+                "no delivery destination available for this branch message; "
+                "the original trigger channel is missing and all mirror channels are disabled"
+            )
+        for delivery_channel, target, account_id in destinations:
+            append_send_trace(
+                config,
+                {
+                    "event": "pump_send",
+                    "channel": delivery_channel,
+                    "target": target,
+                    "account_id": account_id,
+                    "session_key": delivery["session_key"],
+                    "message_id": delivery["message_id"],
+                },
+            )
             send_message(
                 channel=delivery_channel,
                 target=target,
@@ -524,7 +978,16 @@ def handle_pump(config: dict[str, Any], args: argparse.Namespace) -> dict[str, A
             {
                 "session_key": delivery["session_key"],
                 "message_id": delivery["message_id"],
-                "channels": used_channels,
+                "channels": [channel for channel, _target, _account_id in destinations],
+                "destinations": [
+                    {
+                        "channel": channel,
+                        "target": target,
+                        "account_id": account_id,
+                    }
+                    for channel, target, account_id in destinations
+                ],
+                "requested_mirror_channels": [channel for channel, _target, _account_id in mirror_destinations],
             }
         )
     return {
@@ -532,6 +995,148 @@ def handle_pump(config: dict[str, Any], args: argparse.Namespace) -> dict[str, A
         "message": f"RELAY_PUMP_SENT: {sent_count}",
         "sent_count": sent_count,
         "deliveries": sent_items,
+    }
+
+
+def handle_notify(config: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+    agent = normalize_agent(args.agent)
+    body = read_optional_text(getattr(args, "body", None), getattr(args, "body_file", None))
+    if args.kind == "shutdown":
+        origin = resolve_notify_origin(
+            config,
+            agent=agent,
+            preferred_main_session_ref=args.main_session_ref,
+        )
+        destinations = notify_destinations(
+            config,
+            agent=agent,
+            origin_channel=str(origin.get("channel") or "").strip() or None,
+            origin_target=str(origin.get("target") or "").strip() or None,
+        )
+        if not destinations:
+            return {
+                "ok": True,
+                "kind": args.kind,
+                "agent": agent,
+                "skipped": True,
+                "reason": "no_enabled_notification_destinations",
+                "notify_origin": origin,
+                "user_message": "当前没有可用的 OpenClaw 消息提醒渠道，已跳过提醒发送。",
+            }
+        message = build_notify_text_without_entry(agent, args.kind, body=body)
+        sent: list[dict[str, Any]] = []
+        for channel, target, account_id in destinations:
+            append_send_trace(
+                config,
+                {
+                    "event": "notify_send",
+                    "agent": agent,
+                    "kind": args.kind,
+                    "main_session_ref": args.main_session_ref,
+                    "channel": channel,
+                    "target": target,
+                    "account_id": account_id,
+                    "body_sha256": hashlib.sha256(message.encode("utf-8")).hexdigest(),
+                },
+            )
+            send_message(
+                channel=channel,
+                target=target,
+                message=message,
+                account_id=account_id,
+            )
+            sent.append({"channel": channel, "target": target})
+        return {
+            "ok": True,
+            "kind": args.kind,
+            "agent": agent,
+            "entry_session_key": None,
+            "web_url": None,
+            "sent_count": len(sent),
+            "deliveries": sent,
+            "delivery_text": message,
+            "notify_origin": origin,
+            "user_message": f"已通过 OpenClaw 渠道发送 {agent} 的退出提醒。",
+        }
+    entry = ensure_notify_entry(
+        config,
+        agent,
+        main_session_ref=args.main_session_ref,
+        project_root=args.project_root,
+        development_log_path=args.development_log_path,
+    )
+    if entry.get("skipped"):
+        return {
+            "ok": True,
+            "kind": args.kind,
+            "agent": agent,
+            **entry,
+        }
+    web_url = ((entry.get("branch") or {}).get("meta") or {}).get("web_url")
+    if not web_url:
+        raise SystemExit("failed to prepare relay web entry")
+    if args.kind == "message" and not body:
+        raise SystemExit("--body or --body-file is required when kind=message")
+    destinations = notify_destinations(
+        config,
+        agent=agent,
+        origin_channel=((entry.get("branch") or {}).get("meta") or {}).get("channel"),
+        origin_target=((entry.get("branch") or {}).get("meta") or {}).get("target"),
+    )
+    if not destinations:
+        return {
+            "ok": True,
+            "kind": args.kind,
+            "agent": agent,
+            "skipped": True,
+            "reason": "no_enabled_notification_destinations",
+            "entry_session_key": (entry.get("branch") or {}).get("session_key"),
+            "web_url": web_url,
+            "notify_origin": entry.get("notify_origin"),
+            "user_message": "当前所有 OpenClaw 消息提醒渠道都已关闭，已跳过提醒发送。",
+        }
+    message = build_notify_text_with_entry(agent, web_url, args.kind, body=body)
+    sent: list[dict[str, Any]] = []
+    for channel, target, account_id in destinations:
+        append_send_trace(
+            config,
+            {
+                "event": "notify_send",
+                "agent": agent,
+                "kind": args.kind,
+                "main_session_ref": args.main_session_ref,
+                "channel": channel,
+                "target": target,
+                "account_id": account_id,
+                "body_sha256": hashlib.sha256(message.encode("utf-8")).hexdigest(),
+            },
+        )
+        send_message(
+            channel=channel,
+            target=target,
+            message=message,
+            account_id=account_id,
+        )
+        sent.append({"channel": channel, "target": target})
+    return {
+        "ok": True,
+        "kind": args.kind,
+        "agent": agent,
+        "entry_session_key": (entry.get("branch") or {}).get("session_key"),
+        "web_url": web_url,
+        "sent_count": len(sent),
+        "deliveries": sent,
+        "delivery_text": message,
+        "notify_origin": entry.get("notify_origin"),
+        "user_message": f"已通过 OpenClaw 渠道发送 {agent} 的提醒消息。",
+    }
+
+
+def handle_relay_help(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "agent": normalize_agent(args.agent) if args.agent else None,
+        "user_message": relay_help_text(normalize_agent(args.agent) if args.agent else None),
     }
 
 
@@ -558,6 +1163,14 @@ def main() -> None:
             return
         if args.command == "pump-deliveries":
             payload = handle_pump(config, args)
+            output(payload, args.json)
+            return
+        if args.command == "notify":
+            payload = handle_notify(config, args)
+            output(payload, args.json)
+            return
+        if args.command == "relay-help":
+            payload = handle_relay_help(args)
             output(payload, args.json)
             return
     except SystemExit as exc:

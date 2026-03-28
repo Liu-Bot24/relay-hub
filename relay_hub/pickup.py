@@ -54,6 +54,10 @@ def pickup_log_path(root: str | Path, agent: str, main_session_ref: str) -> Path
     return Path(root).expanduser().resolve() / "logs" / f"{pickup_key(agent, main_session_ref)}.pickup.log"
 
 
+def pickup_capture_queue_dir(root: str | Path, agent: str, main_session_ref: str) -> Path:
+    return pickup_dir(root) / f"{pickup_key(agent, main_session_ref)}.capture-queue"
+
+
 def load_pickup_state(root: str | Path, agent: str, main_session_ref: str) -> dict[str, Any]:
     return load_json(
         pickup_state_path(root, agent, main_session_ref),
@@ -74,6 +78,13 @@ def load_pickup_state(root: str | Path, agent: str, main_session_ref: str) -> di
             "last_reply_message_id": None,
             "last_error": None,
             "last_pump_result": None,
+            "host_kind": None,
+            "host_thread_id": None,
+            "host_rollout_path": None,
+            "mirror_read_offset": 0,
+            "last_mirrored_turn_id": None,
+            "last_mirrored_at": None,
+            "last_mirrored_body_preview": None,
         },
     )
 

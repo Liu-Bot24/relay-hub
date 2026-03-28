@@ -14,12 +14,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from relay_hub import RelayHub
+from relay_hub.message_text import delivery_footer, relay_help_text
 from relay_hub.store import make_session_key
 
 DEFAULT_ROOT = (PROJECT_ROOT.parent / "runtime") if PROJECT_ROOT.name == "app" else ((Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime") if (Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime").exists() else (PROJECT_ROOT / "runtime"))
-DELIVERY_DIVIDER = "--------------------"
-
-
 def output(payload: object) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
@@ -62,10 +60,6 @@ def resolve_session_arg(args: argparse.Namespace) -> str:
     raise SystemExit("either --session or both --channel and --target are required")
 
 
-def command_guide(agent: str | None) -> str:
-    return f"常用指令：打开 {agent or '<agent>'} 入口 / 已录入 / 状态 / 退出"
-
-
 def build_open_message(branch: dict[str, Any], agent_status: str) -> str:
     web_url = branch["meta"]["web_url"]
     agent = branch["meta"].get("agent")
@@ -82,17 +76,13 @@ def build_open_message(branch: dict[str, Any], agent_status: str) -> str:
     if agent_status == "ready":
         return (
             f"{agent} 入口已打开。\n"
-            f"{DELIVERY_DIVIDER}\n"
-            f"网页入口：{web_url}\n"
-            f"{command_guide(agent)}\n"
+            f"{delivery_footer(web_url, agent)}\n"
             f"默认回传渠道：{channels}\n"
             f"{branch_note}"
         )
     return (
         f"{agent} 入口已打开，但对象当前状态是 {agent_status}。\n"
-        f"{DELIVERY_DIVIDER}\n"
-        f"网页入口：{web_url}\n"
-        f"{command_guide(agent)}\n"
+        f"{delivery_footer(web_url, agent)}\n"
         f"默认回传渠道：{channels}\n"
         f"{branch_note}"
     )
@@ -121,11 +111,9 @@ def build_status_message(session: dict[str, Any]) -> str:
     return (
         f"当前对象：{meta.get('agent')}\n"
         f"{status_text}\n"
-        f"{DELIVERY_DIVIDER}\n"
         f"最近录入消息：{state.get('last_committed_user_message_id') or '暂无'}\n"
         f"最近对象回复：{state.get('last_agent_message_id') or '暂无'}\n"
-        f"网页入口：{meta.get('web_url')}\n"
-        f"{command_guide(meta.get('agent'))}"
+        f"{delivery_footer(meta.get('web_url'), meta.get('agent'))}"
     )
 
 
@@ -164,6 +152,10 @@ def build_parser() -> argparse.ArgumentParser:
     open_main_group = open_parser.add_mutually_exclusive_group()
     open_main_group.add_argument("--main-context-body")
     open_main_group.add_argument("--main-context-file")
+    open_parser.add_argument("--main-session-ref")
+    open_parser.add_argument("--main-session-ref-source", default="agent-session")
+    open_parser.add_argument("--project-root")
+    open_parser.add_argument("--development-log-path")
     open_key_group = open_parser.add_mutually_exclusive_group()
     open_key_group.add_argument("--session-key")
     open_key_group.add_argument("--branch-ref")
@@ -192,6 +184,9 @@ def build_parser() -> argparse.ArgumentParser:
     resolve_parser.add_argument("--channel", required=True)
     resolve_parser.add_argument("--target", required=True)
 
+    help_parser = subparsers.add_parser("relay-help", help="Return the fixed Relay Hub command catalog")
+    help_parser.add_argument("--agent")
+
     return parser
 
 
@@ -211,14 +206,26 @@ def main() -> None:
                 delivery_channels=args.delivery_channels,
                 main_context_body=main_context_body,
                 main_context_source=args.main_context_source,
+                main_session_ref=args.main_session_ref,
+                main_session_ref_source=args.main_session_ref_source,
                 session_key_override=args.session_key,
                 branch_ref=args.branch_ref if args.branch_mode != "reuse" else None,
             )
+            attached_project = None
+            if args.project_root or args.development_log_path:
+                attached_project = hub.attach_project(
+                    branch["session_key"],
+                    project_root=args.project_root,
+                    development_log_path=args.development_log_path,
+                    snapshot_body=main_context_body,
+                    author=args.agent,
+                )
             agent = hub.get_agent(args.agent)
             output(
                 {
                     "ok": True,
                     "branch": branch,
+                    "attached_project": attached_project,
                     "agent_status": agent.get("status"),
                     "user_message": build_open_message(branch, agent.get("status", "offline")),
                 }
@@ -280,6 +287,9 @@ def main() -> None:
             session_key = make_session_key(args.channel, args.target)
             exists = hub.session_dir(session_key).exists()
             output({"ok": True, "session_key": session_key, "exists": exists})
+            return
+        if args.command == "relay-help":
+            output({"ok": True, "user_message": relay_help_text(getattr(args, "agent", None))})
             return
     except (FileNotFoundError, ValueError) as exc:
         fail(str(exc))

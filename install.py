@@ -22,12 +22,15 @@ DEFAULT_RUNTIME_ROOT = DEFAULT_INSTALL_ROOT / "runtime"
 DEFAULT_OPENCLAW_WORKSPACE = Path.home() / ".openclaw" / "workspace"
 DEFAULT_LAUNCHAGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
 DEFAULT_APP_ROOT = DEFAULT_INSTALL_ROOT / "app"
+DEFAULT_CODEX_HOME = Path.home() / ".codex"
 DEFAULT_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 DEFAULT_WEB_HOST = "0.0.0.0"
 DEFAULT_WEB_PORT = 4317
 VERSION = "0.1.0"
 HEARTBEAT_BEGIN = "<!-- RELAY_HUB_BEGIN -->"
 HEARTBEAT_END = "<!-- RELAY_HUB_END -->"
+CODEX_AGENTS_BEGIN = "<!-- RELAY_HUB_CODEX_BEGIN -->"
+CODEX_AGENTS_END = "<!-- RELAY_HUB_CODEX_END -->"
 
 
 def output(payload: object) -> None:
@@ -92,6 +95,7 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--web-port", type=int, default=DEFAULT_WEB_PORT)
     parser.add_argument("--web-base-url", help="Public base URL for Relay web.")
     parser.add_argument("--queue-ack-timeout", type=int, default=15)
+    parser.add_argument("--codex-home", help="Codex home directory. Defaults to ~/.codex.")
     parser.add_argument(
         "--delivery-channel",
         action="append",
@@ -104,6 +108,11 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--launchagents-dir", help="launchd plist destination. Defaults to ~/Library/LaunchAgents.")
     parser.add_argument("--load-services", action="store_true", help="Bootstrap launchd services after writing plists.")
+    parser.add_argument(
+        "--install-codex-host",
+        action="store_true",
+        help="Also install the Codex host adapter into ~/.codex. Use only when the current AI host is Codex.",
+    )
     parser.add_argument("--skip-heartbeat-patch", action="store_true")
 
 
@@ -190,6 +199,14 @@ def skill_path(openclaw_workspace: Path) -> Path:
     return openclaw_workspace / "skills" / "relay-hub-openclaw" / "SKILL.md"
 
 
+def codex_skill_path(codex_home: Path) -> Path:
+    return codex_home / "skills" / "relay-hub" / "SKILL.md"
+
+
+def codex_agents_path(codex_home: Path) -> Path:
+    return codex_home / "AGENTS.md"
+
+
 def stage_app_bundle(app_root: Path) -> dict[str, Any]:
     ensure_dir(app_root)
     scripts_root = app_root / "scripts"
@@ -253,7 +270,7 @@ def build_openclaw_config(args: argparse.Namespace, runtime_root: Path, openclaw
 def build_skill_text(script_path: Path) -> str:
     return f"""---
 name: relay-hub-openclaw
-description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 codex/claude/gemini/cursor/opencode 入口”“已录入”“状态”“退出 relay”这类请求，并把外部 agent 的回包通过 OpenClaw 已配置消息渠道发回用户。
+description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 <agent> 入口”“已录入”“状态”“退出 relay”“relay help”这类请求，并把外部 agent 的回包优先发回当前会话来源渠道；若配置了额外镜像渠道，再一起发回用户。
 ---
 
 # relay-hub-openclaw
@@ -264,18 +281,17 @@ description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 codex/c
 - 只调用固定脚本：`python3 {script_path} ...`
 - 不要自己读取 `routes.json`、`config.json`、`messages/*.md`。
 - 对桥接脚本的返回内容，优先原样发给用户，不要总结，不要改写，不要脑补成功。
-- 当前主对话窗口不在 OpenClaw 里。OpenClaw 只负责“开入口、收已录入、查状态、退出、发回包”。
+- 当前主对话窗口不在 OpenClaw 里。OpenClaw 只负责“开入口、收已录入、查状态、退出、relay help、发回包”。
 - 网页链接发出去时只是入口已打开；用户第一次在网页里保存消息时，branch 才正式开始。
 - 只有当当前实例已经为该渠道配置了默认 target 时，才能省略 `--target`；否则必须传当前渠道目标。
 - 当前渠道和当前目标，默认必须从当前入站消息上下文里获取；如果宿主没有直接给出，再用宿主可查询的当前会话信息补取；只有真的拿不到时才回问用户。
 - 不要使用文档示例值，不要沿用别的会话的渠道或目标。
+- 提醒与主窗口镜像默认优先复用当前主会话已经绑定过的 OpenClaw 渠道对象；只有没有可复用来源时，才回退到额外配置的默认提醒渠道；两者都没有时才明确告诉用户“提醒已跳过”。
 
-支持的对象名
-- `codex`
-- `claude` / `claude-code`
-- `gemini` / `gemini-cli`
-- `cursor` / `cursor-cli`
-- `opencode`
+对象名规则
+- `--agent` 应传用户当前说到的对象名，或该对象稳定使用的 `agent_id`
+- 常见别名例如：`codex`、`claude` / `claude-code`、`gemini` / `gemini-cli`、`cursor` / `cursor-cli`、`opencode`
+- 未命中的对象名不要拒绝；桥接脚本会对常见别名做归一化，未知 `agent_id` 会原样透传
 
 对象名映射由桥接脚本处理；只要把用户提到的对象名传给 `--agent` 即可。
 
@@ -315,7 +331,13 @@ python3 {script_path} session-status --channel "<当前渠道>" --target "<当�
 python3 {script_path} exit-relay --channel "<当前渠道>" --target "<当前目标>"
 ```
 
-## 5. 外部回包发送
+## 5. relay help
+
+```bash
+python3 {script_path} relay-help --agent "<agent>"
+```
+
+## 6. 外部回包发送
 
 外部 agent 的回包由 heartbeat 里的发送泵统一处理：
 
@@ -323,6 +345,187 @@ python3 {script_path} exit-relay --channel "<当前渠道>" --target "<当前目
 python3 {script_path} pump-deliveries
 ```
 """
+
+
+def build_codex_skill_text(app_root: Path) -> str:
+    script_path = app_root / "scripts" / "agent_relay.py"
+    return f"""---
+name: relay-hub
+description: Use when the user says “接入 Relay Hub”, “Relay Hub 状态”, “合流上下文”, or “退出 Relay Hub”, or when a Relay Hub-enabled Codex conversation should mirror its replies to OpenClaw channels.
+---
+
+# relay-hub
+
+This skill gives Codex a Relay Hub control surface for the current Codex conversation.
+
+Use the installed script:
+
+- `python3 {script_path} ...`
+
+Treat these as product commands, not ordinary chat:
+
+- `接入 Relay Hub`
+- `Relay Hub 状态`
+- `消息提醒状态`
+- `开启<渠道>消息提醒`
+- `关闭<渠道>消息提醒`
+- `合流上下文`
+- `退出 Relay Hub`
+
+Current supported scope for Codex is simple:
+
+1. Relay Hub is installed on this machine.
+2. The user explicitly turns Relay Hub on once by saying `接入 Relay Hub` in a Codex conversation.
+3. After that, Relay Hub stays enabled for Codex until the user says `退出 Relay Hub`, or the attached Codex conversation is closed / archived.
+4. While Relay Hub remains enabled, the active main conversation follows the current Codex thread:
+   - if the current thread already has Relay Hub history, reuse its existing `main_session_ref`
+   - if the current thread has no Relay Hub history yet, start a new thread-bound `main_session_ref`
+   - keep exactly one active main conversation at a time
+5. This switch follows the current Codex conversation / thread, not `project_root`.
+
+Do not monitor projects or guess future conversations. `project_root` only locates code, development log and workspace; the active main conversation follows the current Codex thread.
+
+When the user says `接入 Relay Hub`:
+
+1. Determine the current project root. Prefer the current workspace root unless the user clearly specifies another project.
+2. Reuse an existing `DEVELOPMENT_LOG.md` for that project if present; otherwise create one at the project root.
+3. Write a concise main-window snapshot before enabling Relay Hub.
+   - Prefer the actual user task / topic immediately before `接入 Relay Hub`.
+   - If there was already an ongoing discussion, summarize that discussion; do not make the snapshot mainly about “I am enabling Relay Hub”.
+   - Only fall back to an enable-flow summary when there truly is no meaningful prior main-window topic.
+4. Maintain one stable `main_session_ref` for this Codex main conversation:
+   - Prefer a host-provided conversation/session/thread id if available.
+   - Otherwise generate one once for this conversation and keep reusing it for later Relay Hub commands in the same conversation.
+5. Run:
+
+```bash
+python3 {script_path} --agent codex enable-relay \\
+  --project-root "<project_root>" \\
+  --start-pickup
+```
+
+Notes:
+- For Codex, `enable-relay --start-pickup` auto-resolves the current conversation's `main_session_ref` and auto-derives the current main-window snapshot from the rollout; only pass `--main-session-ref` or `--snapshot-body` if host auto-resolution is unavailable.
+- `enable-relay` sends the startup OpenClaw reminder by default.
+- For Codex host conversations, once pickup is running, normal main-window replies are mirrored to OpenClaw automatically from the current Codex rollout log. Do not manually regenerate or paraphrase a second copy for OpenClaw.
+- For other hosts, use exact-body capture instead of regeneration: after the host has already produced the final reply, pass that exact body to `capture-main-output --body-file <exact final body file>` (preferred, daemon will mirror it) or `mirror-main-output --body-file <exact final body file>` if you need immediate direct notify.
+
+Before a normal non-product reply while Relay Hub is already enabled, prepare the current Codex conversation for reply:
+
+```bash
+python3 {script_path} --agent codex prepare-main-reply
+```
+
+Notes:
+- `prepare-main-reply` 会先对齐到当前 Codex 线程。
+- 如果当前主会话下正好有 1 条待合流 branch，它会自动执行 `resume-main --keep-relay-open`，把 branch 增量并回主窗口，再继续正常回复。
+- 如果当前主会话下有多条待合流 branch，它会返回 `resume_candidates`；此时不要猜，让用户明确选择要先合哪一条。
+- 如果当前 Codex 线程没有 Relay Hub 历史，它会像 `sync-current-main` 一样创建/复用当前线程的 `main_session_ref` 和主线快照。
+
+When the user says `Relay Hub 状态`:
+
+First align Relay Hub to the current Codex conversation:
+
+```bash
+python3 {script_path} --agent codex sync-current-main
+```
+
+Then inspect agent status:
+
+```bash
+python3 {script_path} --agent codex agent-status
+```
+
+If you already know the current `main_session_ref`, also inspect that pickup:
+
+```bash
+python3 {script_path} --agent codex pickup-status --main-session-ref "<main_session_ref>"
+```
+
+If the status output shows `resume_candidates`, tell the user plainly that old branch context has not yet been merged back into the main conversation.
+
+When the user says `消息提醒状态`:
+
+```bash
+python3 {script_path} --agent codex notification-status
+```
+
+When the user says `开启<渠道>消息提醒`:
+
+```bash
+python3 {script_path} --agent codex enable-notification-channel --channel "<channel>"
+```
+
+When the user says `关闭<渠道>消息提醒`:
+
+```bash
+python3 {script_path} --agent codex disable-notification-channel --channel "<channel>"
+```
+
+Accepted channel tokens include exact configured channel ids plus common aliases such as the examples below; if the configured channel id is different, pass that exact id through directly:
+- `飞书` / `feishu`
+- `微信` / `weixin` / `wechat` / `openclaw-weixin`
+- `telegram` / `tg`
+
+When the user says `合流上下文`:
+
+1. First align Relay Hub to the current Codex conversation:
+
+```bash
+python3 {script_path} --agent codex sync-current-main
+```
+
+2. Reuse the current attached `main_session_ref`.
+3. Run:
+
+```bash
+python3 {script_path} --agent codex resume-main --main-session-ref "<main_session_ref>"
+```
+
+4. If the script returns multiple `resume_candidates`, do not guess. Tell the user there are multiple old branches still waiting to be merged, and ask which one to merge.
+5. If the script succeeds, continue the current main-window conversation on top of the merged result.
+
+When the user says `退出 Relay Hub`:
+
+```bash
+python3 {script_path} --agent codex disable-relay
+```
+
+Rules:
+- Do not read Relay Hub runtime files directly if the script can answer.
+- Branch starts only when the user first saves a message in the webpage.
+- OpenClaw remains the channel gateway; Codex remains the main conversation.
+"""
+
+
+def build_codex_agents_block(codex_home: Path, app_root: Path) -> str:
+    skill = codex_skill_path(codex_home)
+    script_path = app_root / "scripts" / "agent_relay.py"
+    return f"""{CODEX_AGENTS_BEGIN}
+When the user says `接入 Relay Hub`, `Relay Hub 状态`, `消息提醒状态`, `开启<渠道>消息提醒`, `关闭<渠道>消息提醒`, `合流上下文`, or `退出 Relay Hub`, treat those as Relay Hub product commands, not ordinary chat. Follow the installed Codex skill at:
+
+- `{skill}`
+
+If Relay Hub is already enabled for Codex, the active main conversation should follow the current Codex conversation / thread, not `project_root`. Before a normal main-window reply in this conversation, run:
+
+- `python3 {script_path} --agent codex prepare-main-reply`
+
+If this Codex conversation is attached to Relay Hub, normal main-window replies should by default be mirrored to OpenClaw channels unless the user explicitly says不要同步 or has already exited Relay Hub.
+For Codex host conversations, this mirror must come from the exact final output captured by code, not from a second prompt-generated paraphrase or another model pass.
+{CODEX_AGENTS_END}
+"""
+
+
+def merge_codex_agents(existing: str, block: str) -> str:
+    existing = existing.rstrip() + "\n" if existing else ""
+    if CODEX_AGENTS_BEGIN in existing and CODEX_AGENTS_END in existing:
+        before, rest = existing.split(CODEX_AGENTS_BEGIN, 1)
+        _, after = rest.split(CODEX_AGENTS_END, 1)
+        merged = before.rstrip() + "\n\n" + block.rstrip() + "\n" + after.lstrip("\n")
+        return merged.rstrip() + "\n"
+    if not existing.strip():
+        return block.rstrip() + "\n"
+    return existing.rstrip() + "\n\n" + block.rstrip() + "\n"
 
 
 def build_heartbeat_block(script_path: Path) -> str:
@@ -385,6 +588,19 @@ def install_openclaw(args: argparse.Namespace, runtime_root: Path, openclaw_work
         "skill_path": str(skill_path(openclaw_workspace)),
         "heartbeat_path": str(heartbeat_file),
         "delivery_channels": config["delivery"]["channels"],
+    }
+
+
+def install_codex(args: argparse.Namespace, codex_home: Path, app_root: Path) -> dict[str, Any]:
+    skill_file = codex_skill_path(codex_home)
+    write_text(skill_file, build_codex_skill_text(app_root))
+    agents_file = codex_agents_path(codex_home)
+    existing_agents = agents_file.read_text(encoding="utf-8") if agents_file.exists() else ""
+    write_text(agents_file, merge_codex_agents(existing_agents, build_codex_agents_block(codex_home, app_root)))
+    return {
+        "codex_home": str(codex_home),
+        "skill_path": str(skill_file),
+        "agents_path": str(agents_file),
     }
 
 
@@ -455,7 +671,7 @@ def install_launchd(args: argparse.Namespace, runtime_root: Path, launchagents_d
     }
 
 
-def install_status(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, launchagents_dir: Path, app_root: Path) -> dict[str, Any]:
+def install_status(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, launchagents_dir: Path, app_root: Path, codex_home: Path) -> dict[str, Any]:
     bridge_config = openclaw_config_path(openclaw_workspace)
     git_branch = None
     git_head = None
@@ -484,6 +700,9 @@ def install_status(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
         "bridge_config_installed": bridge_config.exists(),
         "skill_installed": skill_path(openclaw_workspace).exists(),
         "heartbeat_installed": heartbeat_path(openclaw_workspace).exists(),
+        "codex_home": str(codex_home),
+        "codex_skill_installed": codex_skill_path(codex_home).exists(),
+        "codex_agents_installed": codex_agents_path(codex_home).exists(),
         "launchagents_dir": str(launchagents_dir),
         "web_plist_installed": (launchagents_dir / "com.relayhub.web.plist").exists(),
         "legacy_agent_plists_installed": sorted(str(path) for path in launchagents_dir.glob("com.relayhub.worker.*.plist")),
@@ -498,7 +717,7 @@ def launchd_loaded(label: str) -> bool:
     return result.returncode == 0
 
 
-def install_doctor(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, launchagents_dir: Path, app_root: Path) -> dict[str, Any]:
+def install_doctor(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, launchagents_dir: Path, app_root: Path, codex_home: Path) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
 
     def add_check(name: str, ok: bool, detail: str) -> None:
@@ -514,11 +733,16 @@ def install_doctor(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
         True,
         f"{openclaw_workspace} (will be created if missing)",
     )
+    add_check(
+        "codex_home",
+        True,
+        f"{codex_home} (will be created if missing)",
+    )
     add_check("launchagents_dir_parent", launchagents_dir.parent.exists(), str(launchagents_dir.parent))
     add_check("app_root_parent", app_root.parent.exists(), str(app_root.parent))
     add_check("repo_runtime_parent", runtime_root.parent.exists(), str(runtime_root.parent))
 
-    status = install_status(args, runtime_root, openclaw_workspace, launchagents_dir, app_root)
+    status = install_status(args, runtime_root, openclaw_workspace, launchagents_dir, app_root, codex_home)
     add_check(
         "git_repo",
         True,
@@ -557,12 +781,13 @@ def main() -> None:
     openclaw_workspace = resolve_path(args.openclaw_workspace, DEFAULT_OPENCLAW_WORKSPACE)
     launchagents_dir = resolve_path(args.launchagents_dir, DEFAULT_LAUNCHAGENTS_DIR)
     app_root = resolve_path(args.app_root, DEFAULT_APP_ROOT)
+    codex_home = resolve_path(args.codex_home, DEFAULT_CODEX_HOME)
 
     if args.command == "status":
-        output(install_status(args, runtime_root, openclaw_workspace, launchagents_dir, app_root))
+        output(install_status(args, runtime_root, openclaw_workspace, launchagents_dir, app_root, codex_home))
         return
     if args.command == "doctor":
-        output(install_doctor(args, runtime_root, openclaw_workspace, launchagents_dir, app_root))
+        output(install_doctor(args, runtime_root, openclaw_workspace, launchagents_dir, app_root, codex_home))
         return
 
     runtime_payload = bootstrap_runtime(args, runtime_root)
@@ -573,6 +798,9 @@ def main() -> None:
 
     if args.command in {"install-openclaw", "full"}:
         payload["openclaw"] = install_openclaw(args, runtime_root, openclaw_workspace, app_root)
+
+    if args.command == "full" and args.install_codex_host:
+        payload["codex"] = install_codex(args, codex_home, app_root)
 
     if args.command in {"install-launchd", "full"}:
         payload["launchd"] = install_launchd(args, runtime_root, launchagents_dir, app_root)

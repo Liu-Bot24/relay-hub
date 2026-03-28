@@ -52,6 +52,7 @@ Relay Hub 仓库不会替某一家 AI 内置专属后台接单器；接单机制
 
 - `接入 Relay Hub`
 - `Relay Hub 状态`
+- `合流上下文`
 - `退出 Relay Hub`
 
 AI 自己应把这些话映射成下面的内部动作。
@@ -66,6 +67,7 @@ AI 自己应把这些话映射成下面的内部动作。
 4. 先执行 `enable-relay`
 5. 再为当前主对话启动持续接单机制
 6. 只有在持续接单机制已经运行后，才算完整 ready
+7. 这一步建立的是“Relay Hub 已开启，并已绑定当前活跃主对话”的状态
 
 推荐直接执行：
 
@@ -83,21 +85,72 @@ python3 scripts/agent_relay.py --agent agent_demo enable-relay \
 - 记住当前项目根目录和开发日志路径
 - 把当前对象状态标记为 `ready`
 
-然后立刻为当前主对话启动持续接单：
+然后立刻为当前主对话启动持续接单。对仓库外的接入方，优先使用通用 `command` backend：
 
 ```bash
 cd /path/to/relay-hub
 python3 scripts/agent_relay.py --agent agent_demo start-pickup \
   --main-session-ref main_demo_001 \
-  --backend codex-exec
+  --backend command \
+  --backend-command '["your-cli", "your-subcommand", "..."]'
 ```
 
-如果不是 `codex`，则改用适合自己的后端配置。仓库提供两种通用路径：
+如果你的宿主环境恰好就是 `Codex`，也可以使用仓库内置的 `codex-exec` backend。仓库当前提供两种 backend 路径：
 
-- 直接使用内置守护轮子：`scripts/relay_agent_daemon.py`
-- 通过 `start-pickup --backend command --backend-command '["your-cli", "..."]'` 启动通用命令后端
+- `command`：通用命令后端，适合 `Claude Code / Gemini CLI / Cursor CLI / Opencode / 自定义 CLI`
+- `codex-exec`：仓库内置的 Codex 便捷后端
 
 如果宿主环境根本做不到持续接单，应明确告诉用户当前只能 `manual-only`。
+
+`enable-relay` 默认会立刻发一条启动提醒到 OpenClaw 渠道；这条提醒不创建 branch，但会自动附带网页入口和固定产品操作提示：
+
+```bash
+cd /path/to/relay-hub
+python3 scripts/agent_relay.py --agent agent_demo enable-relay \
+  --project-root /path/to/project \
+  --snapshot-body "这里放当前主线的简洁快照。"
+```
+
+如果当前主会话还没有任何可复用的 OpenClaw 渠道对象，且当前实例也没有配置额外默认提醒渠道，这一步应明确告诉用户“提醒已跳过”，而不是假装发送成功。只有你明确知道当前不该发启动提醒时，才额外加上：
+
+```bash
+--no-notify-openclaw
+```
+
+只要当前仍处于 Relay Hub 已接入状态，主窗口后续的正常回复默认也应镜像成提醒消息；只有用户明确说不要同步，或你已经执行了“退出 Relay Hub”，才停止。
+
+只要 Relay Hub 还没退出，活跃主会话也应跟随用户当前正在使用的 AI 主对话切换：
+
+1. 回到旧主对话时，复用那条主对话已有的 `main_session_ref`
+2. 去到此前没有 Relay Hub 历史的新主对话时，为它建立新的 `main_session_ref`
+3. 同一时间只保留一个活跃主会话
+4. `project_root` 只用于定位代码目录、开发日志和工作区；不要拿它去猜测未来主对话
+
+如果 `enable-relay` 返回里带了 `resume_candidates`，说明当前主会话下还有未合流的旧 branch。此时要明确提醒用户：
+
+- 可以先说 `合流上下文`，把旧 branch 接回主窗口
+- 也可以稍后直接通过网页继续远程处理
+
+优先级规则：
+
+1. 如果宿主能代码级拿到“刚刚发给主窗口的最终正文”，就直接用这份原文镜像。
+2. 如果宿主拿不到原文，再退回保底方案：先把同一份最终正文写进临时文件，再执行：
+
+```bash
+cd /path/to/relay-hub
+python3 scripts/agent_relay.py --agent agent_demo capture-main-output \
+  --main-session-ref main_demo_001 \
+  --body-file /path/to/exact_final_body.txt
+```
+
+注意：
+
+- 这份文件必须就是主窗口最终正文本身，不允许重新组织一版“差不多意思”的文案。
+- `capture-main-output` 是通用精确镜像队列入口：pickup 守护会按原文顺序把它转发到 OpenClaw。
+- `mirror-main-output` 仍可用于“需要立即直发”的补救场景，但也必须传入同一份最终正文。
+- `notify-openclaw` 仍保留给 startup / 显式提醒场景；主窗口镜像默认不要再手动拼 `--body "<reply body>"`。
+
+这类提醒消息不创建 branch；用户如果真的要远程接管，默认直接点消息里的网页入口即可。`打开 agent_demo 入口` 仍然保留，用于显式重发入口，或在已有 branch 上选择“复用/新建”。
 
 最简单、最通用的最低实现可以是：
 
@@ -141,7 +194,7 @@ python3 scripts/agent_relay.py --agent agent_demo agent-status
 优先级从高到低：
 
 1. 优先用宿主环境原生提供的 conversation / thread / session id
-2. 如果宿主没有暴露原生会话标识，就在该主对话第一次“接入 Relay Hub”时生成一个稳定 ref，并把它存进当前主对话可持续复用的宿主载体
+2. 如果宿主没有暴露原生会话标识，就在该主对话第一次被 Relay Hub 接管时生成一个稳定 ref，并把它存进当前主对话可持续复用的宿主载体
 
 要求：
 
@@ -267,12 +320,15 @@ python3 scripts/agent_relay.py --agent agent_demo reply \
 
 这一步不要等用户手动去 OpenClaw 说“退出”。
 
+如果用户直接对你说 `合流上下文`，也走这一节。
+
 当用户回到当前 AI 主窗口，并发送第一句话时：
 
 1. 先执行 `resume-main`
 2. 读取 `merge_back_text`
-3. 把它视为“刚刚发生过的 branch 增量”
-4. 再继续回答当前这句新消息
+3. 把它视为“当前主会话最后一句之后、当前这条新输入之前发生的 branch 增量”
+4. 先按顺序吸收进当前统一上下文
+5. 再继续回答当前这句新消息
 
 ```bash
 cd /path/to/relay-hub

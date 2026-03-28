@@ -33,19 +33,18 @@ python3 scripts/openclaw_relay.py
 - OpenClaw 只知道 `channel + target`，不知道外部 AI 当前是哪条主会话
 - 所以 OpenClaw 打开的 branch 初始可能是“未绑定主会话”的状态
 - OpenClaw 打开的链接只是“入口已打开”；用户第一次在网页里保存消息时，branch 才正式开始
+- 当 OpenClaw 或外部 AI 发同步提醒时，提醒消息会自动附带网页入口和固定产品操作提示；提醒默认优先复用当前主会话已绑定的 OpenClaw 渠道对象，若额外配置了镜像渠道再一并发送；`打开 <agent> 入口` 仍保留为显式重发入口或会话管理动作
 - `main_context.md` 的生成与 `merge-back` 的消费，原则上不由 OpenClaw 负责
 - OpenClaw 只管理 branch 的打开、触发、发送和退出
 - 当前渠道和当前目标，默认应从当前入站消息上下文里获取；不要使用文档示例值，也不要静默沿用无关会话的渠道或目标
 
 ## 1. 打开入口
 
-当用户说：
+当用户显式要求重发入口，或要求在已有 branch 上重新做“复用/新建”选择时说：
 
-- `打开 codex 入口`
-- `打开 claude 入口`
-- `打开 gemini 入口`
-- `打开 cursor 入口`
-- `打开 opencode 入口`
+- `打开 <agent> 入口`
+
+其中 `<agent>` 应使用该外部工具稳定使用的 `agent_id`。常见别名如 `codex / claude / gemini / cursor / opencode` 会由桥接层归一化，但并不限于这些固定名称。
 
 OpenClaw 应调用：
 
@@ -174,7 +173,7 @@ python3 scripts/openclaw_relay.py \
   --message-id 000002
 ```
 
-这样下一次 `list-pending-delivery` 就不会重复返回它。
+这样下一次 `pull-deliveries` 就不会重复返回它。
 
 ## 6. 恢复正常模式
 

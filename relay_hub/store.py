@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import fcntl
 import json
 import os
 from datetime import datetime
@@ -9,6 +10,7 @@ from typing import Any
 from urllib.parse import quote
 
 from .devlog import ensure_development_log, log_entries_since, prepend_log_entry
+from .message_text import delivery_footer
 
 
 DEFAULT_CONFIG = {
@@ -20,9 +22,6 @@ DEFAULT_CONFIG = {
     },
     "queue_ack_timeout_seconds": 15,
 }
-DELIVERY_DIVIDER = "--------------------"
-
-
 def now_iso() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
 
@@ -142,6 +141,18 @@ def parse_iso_datetime(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value)
 
 
+def normalize_notification_channel_overrides(raw: Any) -> dict[str, bool]:
+    if not isinstance(raw, dict):
+        return {}
+    normalized: dict[str, bool] = {}
+    for key, value in raw.items():
+        channel = str(key).strip()
+        if not channel:
+            continue
+        normalized[channel] = bool(value)
+    return normalized
+
+
 class RelayHub:
     def __init__(self, root: str | Path):
         self.root = Path(root).expanduser().resolve()
@@ -194,7 +205,7 @@ class RelayHub:
                 self.routes_path,
                 {"version": 1, "updated_at": now_iso(), "routes": {}},
             )
-        return config
+        return self.config()
 
     def config(self) -> dict[str, Any]:
         default = {
@@ -229,9 +240,11 @@ class RelayHub:
                     "write_error": True,
                 },
                 "relay_enabled_at": None,
+                "current_main_session_ref": None,
                 "current_project_root": None,
                 "current_development_log_path": None,
                 "last_snapshot_at": None,
+                "notification_channel_overrides": {},
             },
         )
 
@@ -239,8 +252,104 @@ class RelayHub:
         payload = self.get_agent(agent)
         payload["status"] = status
         payload["last_seen_at"] = now_iso()
+        payload["notification_channel_overrides"] = normalize_notification_channel_overrides(
+            payload.get("notification_channel_overrides")
+        )
         atomic_write_json(self.agent_path(agent), payload)
         return payload
+
+    def set_active_main_session(
+        self,
+        agent: str,
+        main_session_ref: str | None,
+        *,
+        project_root: str | Path | None = None,
+        development_log_path: str | Path | None = None,
+    ) -> dict[str, Any]:
+        payload = self.get_agent(agent)
+        payload["current_main_session_ref"] = main_session_ref
+        if project_root is not None:
+            payload["current_project_root"] = str(Path(project_root).expanduser().resolve())
+        if development_log_path is not None:
+            payload["current_development_log_path"] = str(Path(development_log_path).expanduser().resolve())
+        payload["last_seen_at"] = now_iso()
+        payload["notification_channel_overrides"] = normalize_notification_channel_overrides(
+            payload.get("notification_channel_overrides")
+        )
+        atomic_write_json(self.agent_path(agent), payload)
+        return payload
+
+    def disable_agent(self, agent: str) -> dict[str, Any]:
+        payload = self.get_agent(agent)
+        payload["status"] = "offline"
+        payload["last_seen_at"] = now_iso()
+        payload["current_main_session_ref"] = None
+        payload["current_project_root"] = None
+        payload["current_development_log_path"] = None
+        payload["notification_channel_overrides"] = normalize_notification_channel_overrides(
+            payload.get("notification_channel_overrides")
+        )
+        atomic_write_json(self.agent_path(agent), payload)
+        return payload
+
+    def notification_channel_status(
+        self,
+        agent: str,
+        configured_channels: list[str],
+    ) -> dict[str, Any]:
+        payload = self.get_agent(agent)
+        overrides = normalize_notification_channel_overrides(payload.get("notification_channel_overrides"))
+        channels: list[dict[str, Any]] = []
+        enabled_channels: list[str] = []
+        disabled_channels: list[str] = []
+        for channel in configured_channels:
+            enabled = overrides.get(channel, True)
+            channels.append(
+                {
+                    "channel": channel,
+                    "enabled": enabled,
+                    "source": "override" if channel in overrides else "default",
+                }
+            )
+            if enabled:
+                enabled_channels.append(channel)
+            else:
+                disabled_channels.append(channel)
+        return {
+            "channels": channels,
+            "enabled_channels": enabled_channels,
+            "disabled_channels": disabled_channels,
+            "all_enabled": bool(channels) and not disabled_channels,
+            "all_disabled": bool(channels) and not enabled_channels,
+            "overrides": overrides,
+        }
+
+    def effective_notification_channels(
+        self,
+        agent: str,
+        configured_channels: list[str],
+    ) -> list[str]:
+        status = self.notification_channel_status(agent, configured_channels)
+        return list(status["enabled_channels"])
+
+    def set_notification_channel_enabled(
+        self,
+        agent: str,
+        channel: str,
+        enabled: bool,
+    ) -> dict[str, Any]:
+        payload = self.get_agent(agent)
+        overrides = normalize_notification_channel_overrides(payload.get("notification_channel_overrides"))
+        overrides[channel] = enabled
+        payload["notification_channel_overrides"] = overrides
+        payload["last_seen_at"] = now_iso()
+        atomic_write_json(self.agent_path(agent), payload)
+        return {
+            "agent": payload,
+            "channel": channel,
+            "enabled": enabled,
+            "status": self.notification_channel_status(agent, [channel]),
+        }
 
     def _resolve_development_log(
         self,
@@ -264,6 +373,28 @@ class RelayHub:
         ensure_development_log(project_log_path)
         return project_path, project_log_path, created
 
+    def _write_main_session_snapshot(
+        self,
+        log_path: Path,
+        *,
+        author: str,
+        goal: str,
+        key_operations: list[str],
+        verification_results: list[str],
+        next_steps: list[str],
+        snapshot_body: str,
+    ) -> None:
+        prepend_log_entry(
+            log_path,
+            author=author,
+            goal=goal,
+            key_operations=key_operations,
+            changed_files=["无代码文件变更，记录主线状态快照。"],
+            verification_results=verification_results,
+            next_steps=next_steps,
+            snapshot_body=snapshot_body,
+        )
+
     def enable_agent(
         self,
         *,
@@ -271,13 +402,14 @@ class RelayHub:
         project_root: str | Path,
         snapshot_body: str,
         development_log_path: str | Path | None = None,
+        main_session_ref: str | None = None,
         author: str | None = None,
     ) -> dict[str, Any]:
         project_path, log_path, created = self._resolve_development_log(
             project_root=project_root,
             development_log_path=development_log_path,
         )
-        prepend_log_entry(
+        self._write_main_session_snapshot(
             log_path,
             author=author or agent,
             goal="Relay Hub 主线快照",
@@ -285,7 +417,6 @@ class RelayHub:
                 "开启 Relay Hub 能力并记录当前主对话窗口摘要。",
                 "后续 branch 处理与主线合流优先参考开发日志。",
             ],
-            changed_files=["无代码文件变更，记录主线状态快照。"],
             verification_results=["开发日志已更新，可供后续 branch 上下文和合流参考。"],
             next_steps=["继续在主线工作时，按项目规则持续更新开发日志。"],
             snapshot_body=snapshot_body,
@@ -295,6 +426,7 @@ class RelayHub:
         payload["status"] = "ready"
         payload["last_seen_at"] = enabled_at
         payload["relay_enabled_at"] = enabled_at
+        payload["current_main_session_ref"] = main_session_ref
         payload["current_project_root"] = str(project_path)
         payload["current_development_log_path"] = str(log_path)
         payload["last_snapshot_at"] = enabled_at
@@ -305,6 +437,54 @@ class RelayHub:
             "development_log_path": str(log_path),
             "development_log_created": created,
             "snapshot_written": True,
+        }
+
+    def switch_active_main_session(
+        self,
+        *,
+        agent: str,
+        project_root: str | Path,
+        main_session_ref: str,
+        development_log_path: str | Path | None = None,
+        snapshot_body: str | None = None,
+        author: str | None = None,
+    ) -> dict[str, Any]:
+        project_path, log_path, created = self._resolve_development_log(
+            project_root=project_root,
+            development_log_path=development_log_path,
+        )
+        snapshot_written = False
+        if snapshot_body is not None:
+            self._write_main_session_snapshot(
+                log_path,
+                author=author or agent,
+                goal="Relay Hub 主线切换快照",
+                key_operations=[
+                    "切换到当前活跃主会话，并记录这条主会话的当前窗口摘要。",
+                    "如果这条主会话此前没有 Relay Hub 历史，就从这里开始作为主线快照。",
+                ],
+                verification_results=["当前主会话的开发日志上下文已就位，可供 branch 和 merge-back 继续使用。"],
+                next_steps=["继续在当前主会话工作时，按项目规则持续更新开发日志。"],
+                snapshot_body=snapshot_body,
+            )
+            snapshot_written = True
+        payload = self.get_agent(agent)
+        switched_at = now_iso()
+        payload["status"] = "ready"
+        payload["last_seen_at"] = switched_at
+        payload["relay_enabled_at"] = payload.get("relay_enabled_at") or switched_at
+        payload["current_main_session_ref"] = main_session_ref
+        payload["current_project_root"] = str(project_path)
+        payload["current_development_log_path"] = str(log_path)
+        if snapshot_written:
+            payload["last_snapshot_at"] = switched_at
+        atomic_write_json(self.agent_path(agent), payload)
+        return {
+            "agent": payload,
+            "project_root": str(project_path),
+            "development_log_path": str(log_path),
+            "development_log_created": created,
+            "snapshot_written": snapshot_written,
         }
 
     def attach_project(
@@ -371,6 +551,16 @@ class RelayHub:
 
     def main_context_path(self, session_key: str) -> Path:
         return self.session_dir(session_key) / "main_context.md"
+
+    def session_lock_path(self, session_key: str) -> Path:
+        return self.session_dir(session_key) / ".session.lock"
+
+    def _lock_session(self, session_key: str):
+        ensure_dir(self.session_dir(session_key))
+        lock_path = self.session_lock_path(session_key)
+        handle = lock_path.open("a+", encoding="utf-8")
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        return handle
 
     def get_meta(self, session_key: str) -> dict[str, Any]:
         return load_json(self.meta_path(session_key), {})
@@ -591,7 +781,10 @@ class RelayHub:
             status = previous_state.get("status") or "entry_open"
             entry_opened_at = previous_state.get("entry_opened_at") or now_iso()
             branch_started_at = previous_state.get("branch_started_at")
-            cycle_floor_message_id = previous_state.get("cycle_floor_message_id") or current_max_message_id
+            if "cycle_floor_message_id" in previous_state:
+                cycle_floor_message_id = previous_state.get("cycle_floor_message_id")
+            else:
+                cycle_floor_message_id = current_max_message_id
         else:
             status = "entry_open"
             entry_opened_at = now_iso()
@@ -828,24 +1021,31 @@ class RelayHub:
         development_log: dict[str, Any],
         branch_messages: list[dict[str, Any]],
     ) -> str:
-        lines = [f"[Relay branch merge-back: {session_key}]"]
+        lines = [
+            f"[Relay merge-back: {session_key}]",
+            "下面这些内容发生在你当前主会话窗口最后一句已知消息之后、以及你现在要回复的这条新输入之前。",
+            "请先按顺序吸收并合并进当前主会话的统一上下文，再继续回答用户当前输入。",
+            "不要把下面内容当成新的独立用户消息，也不要原样转述这段说明。",
+        ]
         if development_log.get("attached"):
-            lines.append("下面先给出自上次合流以来的开发日志增量：")
+            lines.append("")
+            lines.append("先补充自上次合流以来的开发日志增量：")
             entries = development_log.get("entries") or []
             if entries:
                 for entry in entries:
                     lines.append("")
                     lines.append(entry.get("raw", "").rstrip())
             else:
-                lines.append("（无新的开发日志条目）")
+                lines.append("（这段时间没有新的开发日志条目）")
         else:
-            lines.append("当前未附加开发日志。")
+            lines.append("")
+            lines.append("当前没有附加开发日志。")
         if not branch_messages:
             lines.append("")
-            lines.append("没有新的分支增量。")
+            lines.append("这次没有新的 branch 增量需要并回。")
             return "\n".join(lines).rstrip()
         lines.append("")
-        lines.append("下面是需要并回主对话窗口的分支增量：")
+        lines.append("下面是按发生顺序需要并回主会话的 branch 增量：")
         for message in branch_messages:
             role = message.get("role") or "unknown"
             kind = message.get("kind") or role
@@ -903,12 +1103,7 @@ class RelayHub:
                     continue
                 delivery_text = message["body"].rstrip()
                 if message_meta.get("append_web_url") and meta.get("web_url"):
-                    delivery_text = (
-                        f"{delivery_text}\n\n"
-                        f"{DELIVERY_DIVIDER}\n"
-                        f"网页入口：{meta['web_url']}\n"
-                        f"常用指令：打开 {meta.get('agent')} 入口 / 已录入 / 状态 / 退出"
-                    )
+                    delivery_text = f"{delivery_text}\n\n{delivery_footer(meta['web_url'], meta.get('agent'))}"
                 deliveries.append(
                     {
                         "session_key": current_session_key,
@@ -928,50 +1123,55 @@ class RelayHub:
         return deliveries
 
     def commit_user_message(self, session_key: str, body: str, source: str = "web-ui") -> dict[str, Any]:
-        meta = self.get_meta(session_key)
-        if not meta:
-            raise FileNotFoundError(f"session {session_key} does not exist")
-        state = self.get_state(session_key)
-        if not is_relay_mode(state):
-            raise ValueError("relay branch is closed; reopen it from OpenClaw before writing new branch input")
-        message_id = self._next_message_id(session_key)
-        created_at = now_iso()
-        payload = {
-            "id": message_id,
-            "role": "user",
-            "source": source,
-            "status": "committed",
-            "agent": meta["agent"],
-            "created_at": created_at,
-            "committed_at": created_at,
-            "reply_expected": True,
-        }
-        file_path = self.messages_dir(session_key) / f"{message_id}.user.md"
-        atomic_write_text(file_path, format_front_matter(payload, body))
-        state["last_user_message_id"] = message_id
-        state["last_committed_user_message_id"] = message_id
-        branch_started_now = False
-        if source == "web-ui" and not state.get("branch_started_at"):
-            state["branch_started_at"] = created_at
-            branch_started_now = True
-        if source == "web-ui":
-            state["last_branch_user_message_id"] = message_id
-        state["status"] = "input_open" if state.get("branch_started_at") else "entry_open"
-        self.save_state(session_key, state)
-        routes = self.routes()
-        route = routes["routes"].get(session_key, {})
-        route["last_user_commit_id"] = message_id
-        route["status"] = state["status"]
-        route["updated_at"] = now_iso()
-        routes["routes"][session_key] = route
-        self.save_routes(routes)
-        return {
-            "message_id": message_id,
-            "path": str(file_path),
-            "source": source,
-            "branch_started_now": branch_started_now,
-            "branch_started_at": state.get("branch_started_at"),
-        }
+        with self._lock_session(session_key) as session_lock:
+            try:
+                meta = self.get_meta(session_key)
+                if not meta:
+                    raise FileNotFoundError(f"session {session_key} does not exist")
+                state = self.get_state(session_key)
+                if not is_relay_mode(state):
+                    raise ValueError("relay branch is closed; reopen it from OpenClaw before writing new branch input")
+                message_id = self._next_message_id(session_key)
+                created_at = now_iso()
+                payload = {
+                    "id": message_id,
+                    "role": "user",
+                    "source": source,
+                    "status": "committed",
+                    "agent": meta["agent"],
+                    "created_at": created_at,
+                    "committed_at": created_at,
+                    "reply_expected": True,
+                }
+                file_path = self.messages_dir(session_key) / f"{message_id}.user.md"
+                atomic_write_text(file_path, format_front_matter(payload, body))
+                state["last_user_message_id"] = message_id
+                state["last_committed_user_message_id"] = message_id
+                branch_started_now = False
+                if source == "web-ui" and not state.get("branch_started_at"):
+                    state["branch_started_at"] = created_at
+                    branch_started_now = True
+                if source == "web-ui":
+                    state["last_branch_user_message_id"] = message_id
+                state["status"] = "input_open" if state.get("branch_started_at") else "entry_open"
+                self.save_state(session_key, state)
+                routes = self.routes()
+                route = routes["routes"].get(session_key, {})
+                route["last_user_commit_id"] = message_id
+                route["status"] = state["status"]
+                route["updated_at"] = now_iso()
+                routes["routes"][session_key] = route
+                self.save_routes(routes)
+                return {
+                    "message_id": message_id,
+                    "path": str(file_path),
+                    "source": source,
+                    "branch_started_now": branch_started_now,
+                    "branch_started_at": state.get("branch_started_at"),
+                }
+            finally:
+                fcntl.flock(session_lock.fileno(), fcntl.LOCK_UN)
+                session_lock.close()
 
     def dispatch_session(self, session_key: str) -> dict[str, Any]:
         state = self.get_state(session_key)
@@ -1068,6 +1268,37 @@ class RelayHub:
         )
         return sessions
 
+    def resume_candidates(self, agent: str, main_session_ref: str) -> list[dict[str, Any]]:
+        candidates: list[dict[str, Any]] = []
+        for session in self._sessions_for_main_session(agent, main_session_ref):
+            session_key = session["session_key"]
+            state = self.get_state(session_key)
+            max_message_id = message_id_int(self._current_max_message_id(session_key))
+            merge_floor = max(
+                self._current_cycle_floor_id(state),
+                message_id_int(state.get("last_merged_back_message_id")),
+            )
+            branch_messages = self.list_messages(session_key)
+            pending_messages = [
+                message
+                for message in branch_messages
+                if message_id_int(message["meta"].get("id")) > merge_floor
+            ]
+            last_pending = pending_messages[-1]["meta"].get("id") if pending_messages else None
+            candidates.append(
+                {
+                    "session_key": session_key,
+                    "status": state.get("status"),
+                    "web_url": session.get("web_url"),
+                    "entry_opened_at": state.get("entry_opened_at"),
+                    "branch_started_at": state.get("branch_started_at"),
+                    "last_merged_back_message_id": state.get("last_merged_back_message_id"),
+                    "pending_message_count": len(pending_messages),
+                    "last_pending_message_id": last_pending,
+                }
+            )
+        return candidates
+
     def resume_main(
         self,
         *,
@@ -1130,51 +1361,56 @@ class RelayHub:
         deliver_via_openclaw: bool = True,
         append_web_url: bool = True,
     ) -> dict[str, Any]:
-        meta = self.get_meta(session_key)
-        if not meta:
-            raise FileNotFoundError(f"session {session_key} does not exist")
-        if agent != meta.get("agent"):
-            raise ValueError(f"session {session_key} belongs to {meta.get('agent')}, not {agent}")
-        if kind not in {"progress", "final", "error"}:
-            raise ValueError(f"unsupported kind: {kind}")
-        state = self.get_state(session_key)
-        source_id = source_user_message_id or state.get("last_queued_user_message_id") or state.get("last_committed_user_message_id")
-        message_id = self._next_message_id(session_key)
-        created_at = now_iso()
-        payload = {
-            "id": message_id,
-            "role": "assistant",
-            "kind": kind,
-            "agent": agent,
-            "source_user_message_id": source_id,
-            "created_at": created_at,
-            "deliver_via_openclaw": deliver_via_openclaw,
-            "append_web_url": append_web_url,
-        }
-        file_path = self.messages_dir(session_key) / f"{message_id}.{kind}.{agent}.md"
-        atomic_write_text(file_path, format_front_matter(payload, body))
-        state["last_agent_message_id"] = message_id
-        if kind == "progress":
-            state["status"] = "processing"
-        elif kind == "final":
-            state["status"] = "awaiting_user"
-        else:
-            state["status"] = "error"
-        self.save_state(session_key, state)
-        routes = self.routes()
-        route = routes["routes"].get(session_key, {})
-        route["status"] = state["status"]
-        route["last_agent_message_id"] = message_id
-        route["updated_at"] = now_iso()
-        routes["routes"][session_key] = route
-        self.save_routes(routes)
-        return {
-            "message_id": message_id,
-            "path": str(file_path),
-            "status": state["status"],
-            "deliver_via_openclaw": deliver_via_openclaw,
-            "append_web_url": append_web_url,
-        }
+        with self._lock_session(session_key) as session_lock:
+            try:
+                meta = self.get_meta(session_key)
+                if not meta:
+                    raise FileNotFoundError(f"session {session_key} does not exist")
+                if agent != meta.get("agent"):
+                    raise ValueError(f"session {session_key} belongs to {meta.get('agent')}, not {agent}")
+                if kind not in {"progress", "final", "error"}:
+                    raise ValueError(f"unsupported kind: {kind}")
+                state = self.get_state(session_key)
+                source_id = source_user_message_id or state.get("last_queued_user_message_id") or state.get("last_committed_user_message_id")
+                message_id = self._next_message_id(session_key)
+                created_at = now_iso()
+                payload = {
+                    "id": message_id,
+                    "role": "assistant",
+                    "kind": kind,
+                    "agent": agent,
+                    "source_user_message_id": source_id,
+                    "created_at": created_at,
+                    "deliver_via_openclaw": deliver_via_openclaw,
+                    "append_web_url": append_web_url,
+                }
+                file_path = self.messages_dir(session_key) / f"{message_id}.{kind}.{agent}.md"
+                atomic_write_text(file_path, format_front_matter(payload, body))
+                state["last_agent_message_id"] = message_id
+                if kind == "progress":
+                    state["status"] = "processing"
+                elif kind == "final":
+                    state["status"] = "awaiting_user"
+                else:
+                    state["status"] = "error"
+                self.save_state(session_key, state)
+                routes = self.routes()
+                route = routes["routes"].get(session_key, {})
+                route["status"] = state["status"]
+                route["last_agent_message_id"] = message_id
+                route["updated_at"] = now_iso()
+                routes["routes"][session_key] = route
+                self.save_routes(routes)
+                return {
+                    "message_id": message_id,
+                    "path": str(file_path),
+                    "status": state["status"],
+                    "deliver_via_openclaw": deliver_via_openclaw,
+                    "append_web_url": append_web_url,
+                }
+            finally:
+                fcntl.flock(session_lock.fileno(), fcntl.LOCK_UN)
+                session_lock.close()
 
     def mark_delivered(self, session_key: str, message_id: str) -> dict[str, Any]:
         state = self.get_state(session_key)
