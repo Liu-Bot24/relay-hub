@@ -445,6 +445,10 @@ def configured_delivery_channels(config: dict[str, Any]) -> list[tuple[str, str,
     return results
 
 
+def configured_delivery_channel_names(config: dict[str, Any]) -> list[str]:
+    return [channel for channel, _target, _account_id in configured_delivery_channels(config)]
+
+
 def notify_entry_strategy(
     config: dict[str, Any],
     agent: str,
@@ -519,6 +523,9 @@ def ensure_notify_entry(
         "--target",
         target,
     ]
+    configured_channels = configured_delivery_channel_names(config)
+    if configured_channels:
+        relay_args.extend(["--delivery-mode", "all", "--delivery-channels", *configured_channels])
     if origin.get("reuse_session_key"):
         strategy = {
             "current_main_session_ref": origin.get("current_main_session_ref"),
@@ -828,6 +835,9 @@ def handle_open_entry(config: dict[str, Any], args: argparse.Namespace) -> dict[
         "--target",
         target,
     ]
+    configured_channels = configured_delivery_channel_names(config)
+    if configured_channels:
+        relay_args.extend(["--delivery-mode", "all", "--delivery-channels", *configured_channels])
     if aliased_session and args.branch_mode == "reuse":
         relay_args.extend(["--session-key", aliased_session])
     elif args.branch_mode == "new":

@@ -72,8 +72,8 @@ python3 install.py install-host --load-services
 
 安装要求：
 - install.py 会自动探测本机局域网地址；只有探测失败时，才回头问我
-- 默认不要求你先配置额外消息渠道；branch 回包默认走原始触发渠道，主窗口提醒优先复用当前主会话已绑定的来源渠道
-- 如果我后面明确要求“除当前来源渠道外，还要额外镜像到别的渠道”，那时你再执行：
+- 默认不要求你手工配置额外消息渠道；`install-openclaw` 应自动发现当前已启用的 OpenClaw 消息渠道，并把它们设为首次主窗口开启时的默认提醒渠道；branch 回包仍默认走原始触发渠道
+- 如果我后面明确要求覆盖默认发现结果，或额外指定某个固定目标，那时你再执行：
   python3 install.py install-openclaw --delivery-channel channel=target --delivery-account channel=accountId
 - 你当前是 AI 宿主，只负责执行 `install-host` 和当前宿主自举；不要代替 OpenClaw 执行 `install-openclaw`，也不要使用 `full` 这种跨侧组合安装，除非我明确要求
 - `install-openclaw` 现在要求共享层已经存在；如果 OpenClaw 侧后续安装时报“请先执行 install-host”，那是正确行为，不要自己改成跨侧代装

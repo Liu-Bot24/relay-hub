@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import plistlib
+import re
 import shutil
 import socket
 import subprocess
@@ -31,6 +32,8 @@ HEARTBEAT_BEGIN = "<!-- RELAY_HUB_BEGIN -->"
 HEARTBEAT_END = "<!-- RELAY_HUB_END -->"
 CODEX_AGENTS_BEGIN = "<!-- RELAY_HUB_CODEX_BEGIN -->"
 CODEX_AGENTS_END = "<!-- RELAY_HUB_CODEX_END -->"
+DEFAULT_OPENCLAW_LOGS_DIR = Path.home() / ".openclaw" / "logs"
+DISCOVERY_LOG_TAIL_BYTES = 512 * 1024
 
 
 def output(payload: object) -> None:
@@ -176,6 +179,173 @@ def delivery_channels(args: argparse.Namespace) -> dict[str, Any]:
     return channels
 
 
+def clean_delivery_channels(payload: dict[str, Any] | None) -> dict[str, Any]:
+    cleaned: dict[str, Any] = {}
+    for channel, raw_entry in (payload or {}).items():
+        entry = raw_entry or {}
+        target = str(entry.get("target") or "").strip()
+        if not target:
+            continue
+        normalized: dict[str, Any] = {"target": target}
+        account_id = str(entry.get("accountId") or "").strip()
+        if account_id:
+            normalized["accountId"] = account_id
+        cleaned[channel] = normalized
+    return cleaned
+
+
+def merge_delivery_channel_maps(*payloads: dict[str, Any] | None) -> dict[str, Any]:
+    merged: dict[str, Any] = {}
+    for payload in payloads:
+        for channel, entry in clean_delivery_channels(payload).items():
+            current = dict(merged.get(channel, {}))
+            current.update(entry)
+            current["target"] = entry["target"]
+            merged[channel] = current
+    return merged
+
+
+def run_json_command(cmd: list[str]) -> Any | None:
+    result = subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
+    if result.returncode != 0:
+        return None
+    stdout = result.stdout.strip()
+    if not stdout:
+        return None
+    try:
+        return json.loads(stdout)
+    except json.JSONDecodeError:
+        return None
+
+
+def read_recent_log_text(path: Path, max_bytes: int = DISCOVERY_LOG_TAIL_BYTES) -> str:
+    if not path.exists():
+        return ""
+    with path.open("rb") as handle:
+        size = handle.seek(0, os.SEEK_END)
+        handle.seek(max(0, size - max_bytes))
+        return handle.read().decode("utf-8", errors="replace")
+
+
+def discover_feishu_target_from_directory() -> str | None:
+    payload = run_json_command(["openclaw", "directory", "peers", "list", "--channel", "feishu", "--json"])
+    if not isinstance(payload, list):
+        return None
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        if item.get("kind") == "user" and item.get("id"):
+            return str(item["id"]).strip()
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        if item.get("id"):
+            return str(item["id"]).strip()
+    return None
+
+
+def discover_channel_target_from_gateway_log(channel: str) -> str | None:
+    text = read_recent_log_text(DEFAULT_OPENCLAW_LOGS_DIR / "gateway.log")
+    if not text:
+        return None
+    patterns: list[re.Pattern[str]] = []
+    if channel == "openclaw-weixin":
+        patterns.append(re.compile(r"\[openclaw-weixin\] \[weixin\] config (?:cached|refreshed) for ([^\s]+)"))
+    if channel == "feishu":
+        patterns.append(re.compile(r"\[feishu\][^\n]*received message from ([^ ]+) in "))
+    patterns.append(
+        re.compile(
+            rf'message params=\{{[^\n]*"channel":"{re.escape(channel)}"[^\n]*"target":"([^"]+)"'
+        )
+    )
+    for pattern in patterns:
+        matches = pattern.findall(text)
+        if matches:
+            return str(matches[-1]).strip()
+    return None
+
+
+def discover_channel_target(channel: str) -> str | None:
+    if channel == "feishu":
+        return discover_feishu_target_from_directory() or discover_channel_target_from_gateway_log(channel)
+    return discover_channel_target_from_gateway_log(channel)
+
+
+def channel_default_account_id(status_payload: dict[str, Any], channel: str) -> str | None:
+    default_account = str(((status_payload.get("channelDefaultAccountId") or {}).get(channel)) or "").strip()
+    if default_account:
+        return default_account
+    accounts = (status_payload.get("channelAccounts") or {}).get(channel) or []
+    for account in accounts:
+        if not isinstance(account, dict):
+            continue
+        if account.get("configured") and account.get("enabled") and account.get("accountId"):
+            return str(account["accountId"]).strip()
+    return None
+
+
+def channel_can_deliver(status_payload: dict[str, Any], channel: str, account_id: str | None) -> bool:
+    channel_state = ((status_payload.get("channels") or {}).get(channel)) or {}
+    if not channel_state.get("configured"):
+        return False
+    accounts = (status_payload.get("channelAccounts") or {}).get(channel) or []
+    if not accounts:
+        return True
+    for account in accounts:
+        if not isinstance(account, dict):
+            continue
+        if account_id and str(account.get("accountId") or "").strip() != account_id:
+            continue
+        if account.get("configured") and account.get("enabled"):
+            return True
+    return False
+
+
+def discover_openclaw_delivery_channels() -> tuple[dict[str, Any], list[str]]:
+    payload = run_json_command(["openclaw", "channels", "status", "--json"])
+    if not isinstance(payload, dict):
+        return {}, []
+    order = list(payload.get("channelOrder") or [])
+    if not order:
+        order = list((payload.get("channels") or {}).keys())
+    discovered: dict[str, Any] = {}
+    unresolved: list[str] = []
+    for channel in order:
+        account_id = channel_default_account_id(payload, channel)
+        if not channel_can_deliver(payload, channel, account_id):
+            continue
+        target = discover_channel_target(channel)
+        if not target:
+            unresolved.append(channel)
+            continue
+        entry: dict[str, Any] = {"target": target}
+        if account_id:
+            entry["accountId"] = account_id
+        discovered[str(channel)] = entry
+    return discovered, unresolved
+
+
+def resolved_delivery_channels(args: argparse.Namespace, openclaw_workspace: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    explicit = clean_delivery_channels(delivery_channels(args))
+    existing = clean_delivery_channels(existing_delivery_channels(openclaw_workspace))
+    auto_discovered, unresolved = discover_openclaw_delivery_channels()
+    merged = merge_delivery_channel_maps(auto_discovered, existing, explicit)
+    sources: list[str] = []
+    if auto_discovered:
+        sources.append("auto_discovered")
+    if existing:
+        sources.append("existing_config")
+    if explicit:
+        sources.append("explicit_args")
+    return merged, {
+        "source": "+".join(sources) if sources else "none",
+        "auto_discovered_channels": auto_discovered,
+        "existing_channels": existing,
+        "explicit_channels": explicit,
+        "unresolved_channels": unresolved,
+    }
+
+
 def bridge_script_repo_path() -> Path:
     return SCRIPTS_DIR / "relay_openclaw_bridge.py"
 
@@ -190,7 +360,7 @@ def openclaw_config_path(openclaw_workspace: Path) -> Path:
 
 def existing_delivery_channels(openclaw_workspace: Path) -> dict[str, Any]:
     existing = load_json(openclaw_config_path(openclaw_workspace), {}) or {}
-    return ((existing.get("delivery") or {}).get("channels") or {})
+    return clean_delivery_channels((existing.get("delivery") or {}).get("channels") or {})
 
 
 def alias_map_path(openclaw_workspace: Path) -> Path:
@@ -250,8 +420,13 @@ def stage_app_bundle(app_root: Path) -> dict[str, Any]:
     }
 
 
-def build_openclaw_config(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, app_root: Path) -> dict[str, Any]:
-    channels = delivery_channels(args) or existing_delivery_channels(openclaw_workspace)
+def build_openclaw_config(
+    args: argparse.Namespace,
+    runtime_root: Path,
+    openclaw_workspace: Path,
+    app_root: Path,
+    channels: dict[str, Any],
+) -> dict[str, Any]:
     base_url = resolved_web_base_url(args)
     return {
         "version": 1,
@@ -284,7 +459,7 @@ def build_openclaw_config(args: argparse.Namespace, runtime_root: Path, openclaw
 def build_skill_text(script_path: Path) -> str:
     return f"""---
 name: relay-hub-openclaw
-description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 <agent> 入口”“已录入”“状态”“退出 relay”“relay help”这类请求，并把外部 agent 的回包优先发回当前会话来源渠道；若配置了额外镜像渠道，再一起发回用户。
+description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 <agent> 入口”“已录入”“状态”“退出 relay”“relay help”这类请求，并把外部 agent 的回包优先发回当前会话来源渠道；首次从宿主侧开启时，默认提醒会发到当前已启用的 OpenClaw 渠道。
 ---
 
 # relay-hub-openclaw
@@ -300,8 +475,9 @@ description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 <agent>
 - 只有当当前实例已经为该渠道配置了默认 target 时，才能省略 `--target`；否则必须传当前渠道目标。
 - 当前渠道和当前目标，默认必须从当前入站消息上下文里获取；如果宿主没有直接给出，再用宿主可查询的当前会话信息补取；只有真的拿不到时才回问用户。
 - 不要使用文档示例值，不要沿用别的会话的渠道或目标。
-- 提醒与主窗口镜像默认优先复用当前主会话已经绑定过的 OpenClaw 渠道对象；只有没有可复用来源时，才回退到额外配置的默认提醒渠道；两者都没有时才明确告诉用户“提醒已跳过”。
-- 当你汇报安装结果或当前状态时，如果没有配置额外镜像渠道，只需要说明“未配置额外镜像渠道，默认仍走原始触发渠道”；不要主动建议用户现在去加渠道，也不要把“加哪个渠道”说成当前对话里的下一步。
+- branch 回包始终优先发回原始触发渠道。
+- 首次从 AI 宿主主窗口开启 Relay Hub 时，如果当前主会话还没有已绑定的 OpenClaw 来源对象，默认提醒应发送到当前 OpenClaw 已启用的所有默认消息渠道；后续用户可再通过主窗口命令关闭某些渠道提醒。
+- 当你汇报安装结果或当前状态时，如果已经自动发现了默认提醒渠道，就直接如实列出；如果当前确实一个可用默认提醒渠道都没有，再说明“默认仍走原始触发渠道”，不要主动建议用户现在去加渠道。
 
 对象名规则
 - `--agent` 应传用户当前说到的对象名，或该对象稳定使用的 `agent_id`
@@ -603,7 +779,17 @@ def ensure_shared_install_ready(runtime_root: Path, app_root: Path) -> None:
 
 def install_openclaw(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, app_root: Path) -> dict[str, Any]:
     ensure_shared_install_ready(runtime_root, app_root)
-    config = build_openclaw_config(args, runtime_root, openclaw_workspace, app_root)
+    channels, channel_meta = resolved_delivery_channels(args, openclaw_workspace)
+    unresolved_missing = [channel for channel in channel_meta["unresolved_channels"] if channel not in channels]
+    if unresolved_missing:
+        joined = ", ".join(unresolved_missing)
+        raise SystemExit(
+            "install-openclaw could not determine default targets for all enabled OpenClaw channels. "
+            f"Unresolved channels: {joined}. "
+            "Make those channels addressable in OpenClaw first, or pass explicit "
+            "`--delivery-channel channel=target` / `--delivery-account channel=accountId` values."
+        )
+    config = build_openclaw_config(args, runtime_root, openclaw_workspace, app_root, channels)
     config_file = openclaw_config_path(openclaw_workspace)
     bridge_target = bridge_script_workspace_path(openclaw_workspace)
     ensure_dir(bridge_target.parent)
@@ -620,8 +806,15 @@ def install_openclaw(args: argparse.Namespace, runtime_root: Path, openclaw_work
         "config_path": str(config_file),
         "skill_path": str(skill_path(openclaw_workspace)),
         "heartbeat_path": str(heartbeat_file),
-        "configured_extra_delivery_channels": config["delivery"]["channels"],
-        "delivery_channels_note": "Empty means no extra mirror channels are configured; branch replies still default to the original trigger channel. Do not proactively ask the user to configure more channels unless they explicitly request it.",
+        "configured_default_notification_channels": config["delivery"]["channels"],
+        "delivery_channels_source": channel_meta["source"],
+        "auto_discovered_notification_channels": channel_meta["auto_discovered_channels"],
+        "unresolved_notification_channels": channel_meta["unresolved_channels"],
+        "delivery_channels_note": (
+            "Branch replies still default to the original trigger channel. "
+            "When Relay Hub is first enabled from an AI host main window, startup reminders and host-opened entries "
+            "fan out to every configured default notification channel unless the user later disables some of them."
+        ),
     }
 
 
@@ -800,7 +993,10 @@ def install_doctor(
         True,
         "at least one explicit delivery target provided"
         if configured_delivery_channels
-        else "no explicit delivery target provided; replies will default to the original trigger channel",
+        else (
+            "no explicit delivery target provided; install-openclaw will auto-discover enabled OpenClaw channels when possible, "
+            "and branch replies still default to the original trigger channel"
+        ),
     )
 
     web_label = "com.relayhub.web"
