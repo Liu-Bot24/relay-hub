@@ -1,5 +1,26 @@
 # DEVELOPMENT_LOG.md
 
+## 2026-04-04 01:07:41 UTC+08:00 | 作者: GPT-5-Codex
+- 目标: 修掉“宿主可以用 `echo pickup-ready` 这种假 backend 把 pickup 伪装成 running”的严重验收漏洞。
+- 关键操作:
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/scripts/agent_relay.py` 与 `/Users/liuqi/Desktop/code/codex/relay-hub/scripts/relay_agent_daemon.py`：
+    - 为 `backend=command` 新增 JSON 解析与有效性校验；
+    - 显式拒绝 `echo`、`printf`、`true`、`false`、`sleep` 这类假命令；
+    - 显式拒绝仍带 `<...>` 占位符的 backend 命令。
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AI_INSTALL_PROMPT.md`、`docs/GENERIC_HOST_BOOTSTRAP.md`、`docs/GENERIC_HOST_RULE_TEMPLATE.md`、`docs/INTEGRATION_CONTRACT.md`，把“placeholder / no-op backend 不算完成接入”写成硬规则。
+- 变更文件:
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/scripts/agent_relay.py`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/scripts/relay_agent_daemon.py`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AI_INSTALL_PROMPT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_BOOTSTRAP.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_RULE_TEMPLATE.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INTEGRATION_CONTRACT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/DEVELOPMENT_LOG.md`
+- 验证结果:
+  - 待执行 `py_compile`、假 backend 拒绝测试、`git diff --check`。
+- 后续事项:
+  - 若验证通过，应推送远端，避免后续宿主继续用假 pickup 冒充 ready。
+
 ## 2026-04-03 23:08:52 UTC+08:00 | 作者: GPT-5-Codex
 - 目标: 修掉“Claude Code 安装时被 status 里的 codex 线索带偏，并继续把长期机制 / pickup 未启动报成缺项”的设计问题，让当前安装 AI 默认只关注自己，并在安装阶段真正完成宿主自举。
 - 关键操作:

@@ -120,6 +120,7 @@ python3 scripts/agent_relay.py --agent <agent_id> start-pickup \
 - 当前宿主自己的非交互 CLI 调用
 - 能从 stdin 读取 prompt，或等价地接受传入上下文
 - 能把最终正文输出到 stdout，或写入 `RELAY_OUTPUT_FILE`
+- 不能是占位符、`echo`、`printf`、`true`、`false`、`sleep` 之类的假命令
 
 这一步由当前 AI 宿主自己根据自己的 CLI 形态补齐，不要因为仓库没点名当前工具就停在“还不能用”。
 

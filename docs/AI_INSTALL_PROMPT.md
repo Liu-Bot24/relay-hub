@@ -52,6 +52,7 @@ python3 install.py install-host --load-services
 - 你已经明确将来用户说“接入 Relay Hub”时要执行的完整启动链路：
   - 先写主线快照
   - 再执行带 `--project-root` 与 `--snapshot-body/--snapshot-file` 的 `enable-relay --start-pickup`
+- 你给 `--backend-command` 填的必须是真实可工作的宿主 CLI；占位符、`echo`、`printf`、`true`、`false`、`sleep` 这类假命令都不算完成
 - 如果仓库没有当前宿主的原生 adapter，但你已经按 `docs/GENERIC_HOST_BOOTSTRAP.md` 完成以上步骤，就不要再把自己报告成“宿主未完整接入”
 
 安装完成后的汇报格式：

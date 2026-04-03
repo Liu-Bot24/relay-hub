@@ -78,6 +78,30 @@ def read_optional_text(body: str | None, body_file: str | None) -> str | None:
     return None
 
 
+def parse_backend_command_json(raw: str) -> list[str]:
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"--backend-command must be a JSON string array: {exc.msg}") from exc
+    if not isinstance(payload, list) or not payload or not all(isinstance(item, str) and item for item in payload):
+        raise SystemExit("--backend-command must be a non-empty JSON string array")
+    return payload
+
+
+def validate_command_backend(raw: str) -> None:
+    command = parse_backend_command_json(raw)
+    executable = Path(command[0]).name
+    disallowed = {"echo", "printf", "true", "false", "sleep"}
+    if executable in disallowed:
+        raise SystemExit(
+            "--backend-command must launch the real host CLI, not a placeholder or no-op command "
+            f"like `{executable}`"
+        )
+    joined = " ".join(command)
+    if "<" in joined and ">" in joined:
+        raise SystemExit("--backend-command still contains placeholder markers; replace them with the real host CLI command")
+
+
 def load_seed_text(root: Path, agent: str, main_session_ref: str) -> str | None:
     path = pickup_context_seed_path(root, agent, main_session_ref)
     if not path.exists():
@@ -720,6 +744,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.backend == "command" and not args.backend_command:
         raise SystemExit("--backend-command is required when --backend=command")
+    if args.backend == "command" and args.backend_command:
+        validate_command_backend(args.backend_command)
     root = resolve_root(args.root)
     hub = RelayHub(root)
     hub.init_layout()

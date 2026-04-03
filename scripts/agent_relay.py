@@ -86,6 +86,30 @@ def read_body(body: str | None, body_file: str | None) -> str | None:
     return None
 
 
+def parse_backend_command_json(raw: str) -> list[str]:
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"--backend-command must be a JSON string array: {exc.msg}") from exc
+    if not isinstance(payload, list) or not payload or not all(isinstance(item, str) and item for item in payload):
+        raise SystemExit("--backend-command must be a non-empty JSON string array")
+    return payload
+
+
+def validate_command_backend(raw: str) -> None:
+    command = parse_backend_command_json(raw)
+    executable = Path(command[0]).name
+    disallowed = {"echo", "printf", "true", "false", "sleep"}
+    if executable in disallowed:
+        raise SystemExit(
+            "--backend-command must launch the real host CLI, not a placeholder or no-op command "
+            f"like `{executable}`"
+        )
+    joined = " ".join(command)
+    if "<" in joined and ">" in joined:
+        raise SystemExit("--backend-command still contains placeholder markers; replace them with the real host CLI command")
+
+
 def resolve_agent(value: str | None, default_agent: str | None) -> str:
     agent = value or default_agent or os.environ.get("RELAY_AGENT_ID")
     if agent:
@@ -651,6 +675,8 @@ def start_pickup_process(
         raise SystemExit(f"{agent} is not ready; run enable-relay first")
     if backend == "command" and not backend_command:
         raise SystemExit("--backend-command is required when backend=command")
+    if backend == "command" and backend_command:
+        validate_command_backend(backend_command)
     existing = load_pickup_state(root, agent, main_session_ref)
     existing_pid = existing.get("pid")
     if process_alive(existing_pid):
