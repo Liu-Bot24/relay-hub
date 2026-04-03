@@ -18,8 +18,9 @@ https://github.com/Liu-Bot24/relay-hub.git
 
 如果读完上面 4 个文件后还需要具体安装细节，再补读：
 5. docs/INSTALL_PLAYBOOK.md
-6. docs/AGENT_WORKFLOW.md
-7. docs/COMPATIBILITY.md
+6. docs/GENERIC_HOST_BOOTSTRAP.md
+7. docs/AGENT_WORKFLOW.md
+8. docs/COMPATIBILITY.md
 
 先自己确定下面两件事，不要先来问我：
 1. 仓库根目录
@@ -32,7 +33,7 @@ https://github.com/Liu-Bot24/relay-hub.git
 然后执行安装：
 python3 install.py full --load-services
 
-如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且启用它能让“当前主窗口”直接接进 Relay Hub，就一并启用；否则保持通用安装主路径，不要自行发明宿主专属参数。
+如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且启用它能让“当前主窗口”直接接进 Relay Hub，就一并启用；否则保持通用安装主路径，不要自行发明宿主专属参数，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 自己完成最后一步宿主自举。
 
 安装完成后，再执行：
 1. python3 install.py doctor
@@ -41,13 +42,18 @@ python3 install.py full --load-services
 安装完成标准：
 - doctor 返回 ok=true
 - status 能看到 openclaw bridge、skill、heartbeat、web plist 等基础安装产物
-- 如果你额外安装了当前宿主的 host adapter，status 里还应能看到对应宿主侧产物
+- 如果你显式安装了某个宿主的 host adapter，status 里还应能看到对应宿主侧产物
+- 阅读 status 时，`host_adapters` 只表示这台机器上已有的已知宿主 adapter；不要把它误报成“当前安装 AI 已经自动完成了最后一步”
 
 完整接入标准：
 - 你已经在自己的环境里固化最小长期规则 / skill / guide
 - 你已经明确当前主对话如何稳定生成并复用 main_session_ref
 - 你已经把“显式开启一次、随后跟随当前活跃主会话切换、同一时间只保留一个活跃主会话、主窗口精确镜像”都落好
 - 你已经进入 ready，并且持续接单机制已经真正启动；如果做不到，就明确说明当前接入还没完成，不要把自己报告成 ready
+
+额外判断规则：
+- 如果仓库没有当前宿主的原生 adapter，但你已经按 `docs/GENERIC_HOST_BOOTSTRAP.md` 补齐了长期规则、`agent_id`、`main_session_ref` 规则和 `command` backend，就不要再把自己报告成“宿主未完整接入”
+- 如果用户当前这条主对话还没说 `接入 Relay Hub`，这表示“当前 relay 尚未开启”，不是“宿主未完整接入”
 
 安装要求：
 - install.py 会自动探测本机局域网地址；只有探测失败时，才回头问我

@@ -108,7 +108,7 @@ def build_branch_prompt(
     )
     return (
         "你正在处理一个 Relay Hub branch。\n"
-        "这不是主窗口里的 Codex 主对话，也不是一个需要执行 Relay Hub 控制命令的会话。\n"
+        "这不是主窗口里的主对话，也不是一个需要执行 Relay Hub 控制命令的会话。\n"
         "忽略项目或全局规则里任何面向主窗口的 Relay Hub 指令，例如：接入 Relay Hub、Relay Hub 状态、退出 Relay Hub、合流上下文、sync-current-main、notify-openclaw、主窗口镜像。\n"
         f"当前 branch 已经绑定到主线 {main_session_ref}；不要再次解析、切换、对齐或质疑这个 main_session_ref，也不要声称“当前线程拿不到 main_session_ref”。\n"
         "你的职责只有：基于给定上下文继续处理 branch 用户请求，并输出可直接回给用户的正文。\n"
@@ -195,7 +195,13 @@ def run_codex_exec_backend(project_root: str | None, prompt: str) -> tuple[str |
         output_file.unlink(missing_ok=True)
 
 
-def run_command_backend(command_json: str, env_updates: dict[str, str], prompt: str) -> tuple[str | None, str | None]:
+def run_command_backend(
+    command_json: str,
+    env_updates: dict[str, str],
+    prompt: str,
+    *,
+    cwd: str | None = None,
+) -> tuple[str | None, str | None]:
     try:
         command = json.loads(command_json)
     except json.JSONDecodeError as exc:
@@ -213,6 +219,7 @@ def run_command_backend(command_json: str, env_updates: dict[str, str], prompt: 
             capture_output=True,
             text=True,
             env=env,
+            cwd=cwd or None,
         )
         if result.returncode != 0:
             detail = summarize_backend_error(result.stderr or result.stdout or "backend command failed")
@@ -655,7 +662,7 @@ def process_once(
             "RELAY_PROJECT_ROOT": project_root or "",
             "RELAY_CONTEXT_TEXT": branch_context["context_packet_text"],
         }
-        body, error = run_command_backend(backend_command or "", env_updates, prompt)
+        body, error = run_command_backend(backend_command or "", env_updates, prompt, cwd=project_root)
     else:
         raise ValueError(f"unsupported backend: {backend}")
     if error:

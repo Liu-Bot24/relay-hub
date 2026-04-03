@@ -32,7 +32,7 @@ cd /path/to/relay-hub
 python3 install.py full --load-services
 ```
 
-如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且启用它能让“当前主窗口”也一起接进 Relay Hub，就在这条命令后追加对应参数；否则保持通用安装主路径，不要自行发明宿主专属参数。
+如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且启用它能让“当前主窗口”也一起接进 Relay Hub，就在这条命令后追加对应参数；否则保持通用安装主路径，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 让当前宿主自己完成最后一步自举，不要自行发明宿主专属参数。
 
 这表示：
 
@@ -131,6 +131,7 @@ python3 install.py install-openclaw
 1. `python3 install.py doctor ...` 返回 `"ok": true`
 2. `python3 install.py status` 能看到 OpenClaw 桥接、skill、heartbeat 和 Web 服务等基础安装产物
    - 如果你显式安装了某个宿主 adapter，status 里还应额外看到对应宿主侧产物
+   - `host_adapters` 只表示这台机器上已经存在的已知宿主 adapter，不代表“当前安装 AI”已经自动完成最后一步
 3. `OpenClaw` 能响应：
    - `打开 <agent> 入口`
    - `已录入`

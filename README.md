@@ -59,7 +59,7 @@ python3 install.py doctor
 python3 install.py status
 ```
 
-默认安装命令适用于通用安装路径；如果当前宿主还需要额外接入步骤，请按对应环境继续完成。
+默认安装先落通用层；如果当前宿主没有仓库内置 adapter，就按 `docs/GENERIC_HOST_BOOTSTRAP.md` 用通用轮子完成最后一步自举。
 
 ### 交给 AI 编程工具安装
 
@@ -124,9 +124,9 @@ https://github.com/Liu-Bot24/relay-hub.git
 2. 安装 OpenClaw 侧桥接与相关配置
 3. 安装网页入口并加载 Web 服务
 4. 写入后续检查所需的基础状态
-5. 如果你额外启用了某个宿主接入项，再补充对应宿主侧产物
+5. 如果你显式启用了某个宿主 adapter，再补充对应宿主侧产物
 
-如果你只想确认安装结果，直接运行 `python3 install.py status` 即可。
+如果你只想确认安装结果，直接运行 `python3 install.py status` 即可。`status` 里的 `host_adapters` 只表示这台机器上已经存在的已知宿主 adapter，不代表“当前安装 AI”已经自动完成了最后一步自举。
 
 程序文件会安装到 macOS 的 `Application Support` 目录。
 
@@ -213,6 +213,7 @@ python3 install.py install-launchd --load-services
 - 通用协议：`RELAY_PROTOCOL.md`
 - 给 AI 编程工具的安装提示：`docs/AI_INSTALL_PROMPT.md`
 - 安装章程：`docs/INSTALL_PLAYBOOK.md`
+- 通用宿主自举：`docs/GENERIC_HOST_BOOTSTRAP.md`
 - 接入硬章程：`docs/INTEGRATION_CONTRACT.md`
 - 通用性审计：`docs/COMPATIBILITY.md`
 - 给 OpenClaw 的安装提示：`docs/OPENCLAW_INSTALL_PROMPT.md`

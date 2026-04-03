@@ -671,7 +671,14 @@ def install_launchd(args: argparse.Namespace, runtime_root: Path, launchagents_d
     }
 
 
-def install_status(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, launchagents_dir: Path, app_root: Path, codex_home: Path) -> dict[str, Any]:
+def install_status(
+    args: argparse.Namespace,
+    runtime_root: Path,
+    openclaw_workspace: Path,
+    launchagents_dir: Path,
+    app_root: Path,
+    codex_home: Path,
+) -> dict[str, Any]:
     bridge_config = openclaw_config_path(openclaw_workspace)
     git_branch = None
     git_head = None
@@ -706,6 +713,13 @@ def install_status(args: argparse.Namespace, runtime_root: Path, openclaw_worksp
         "launchagents_dir": str(launchagents_dir),
         "web_plist_installed": (launchagents_dir / "com.relayhub.web.plist").exists(),
         "legacy_agent_plists_installed": sorted(str(path) for path in launchagents_dir.glob("com.relayhub.worker.*.plist")),
+        "host_adapters": {
+            "codex": {
+                "supported": True,
+                "installed": codex_skill_path(codex_home).exists() and codex_agents_path(codex_home).exists(),
+            },
+        },
+        "host_adapters_note": "host_adapters only describes known machine-level adapter artifacts; it does not identify the current AI host or prove that the current host has finished self-bootstrap",
     }
     if bridge_config.exists():
         payload["bridge_config"] = json.loads(bridge_config.read_text(encoding="utf-8"))
@@ -717,7 +731,14 @@ def launchd_loaded(label: str) -> bool:
     return result.returncode == 0
 
 
-def install_doctor(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, launchagents_dir: Path, app_root: Path, codex_home: Path) -> dict[str, Any]:
+def install_doctor(
+    args: argparse.Namespace,
+    runtime_root: Path,
+    openclaw_workspace: Path,
+    launchagents_dir: Path,
+    app_root: Path,
+    codex_home: Path,
+) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
 
     def add_check(name: str, ok: bool, detail: str) -> None:

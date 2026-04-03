@@ -18,13 +18,12 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from relay_hub import RelayHub
 from relay_hub.codex_host import (
-    conversation_rounds,
+    conversation_rounds as codex_conversation_rounds,
     fallback_rounds_summary,
     format_rounds_snapshot,
-    recent_conversation_snapshot,
     resolve_active_user_thread_record,
     resolve_rollout_record,
-    rounds_before_last_relay_enable,
+    rounds_before_last_relay_enable as codex_rounds_before_last_relay_enable,
     thread_id_from_main_session_ref,
 )
 from relay_hub.pickup import (
@@ -269,7 +268,7 @@ def resolve_codex_conversation_binding(
     }
 
 
-def auto_switch_snapshot_body(project_root: str | None, thread_id: str) -> str:
+def auto_codex_switch_snapshot_body(project_root: str | None, thread_id: str) -> str:
     recent = build_codex_snapshot_body(
         project_root=project_root,
         thread_id=thread_id,
@@ -287,7 +286,7 @@ def auto_switch_snapshot_body(project_root: str | None, thread_id: str) -> str:
     )
 
 
-def auto_enable_snapshot_body(
+def auto_codex_enable_snapshot_body(
     *,
     project_root: str | None,
     thread_id: str,
@@ -358,12 +357,12 @@ def build_codex_snapshot_body(
     heading: str,
     exclude_history_after_last_relay_enable: bool = False,
 ) -> str | None:
-    rounds = conversation_rounds(
+    rounds = codex_conversation_rounds(
         thread_id=thread_id,
         trim_trailing_relay_enable=trim_trailing_relay_enable,
     )
     if exclude_history_after_last_relay_enable:
-        rounds = rounds_before_last_relay_enable(rounds)
+        rounds = codex_rounds_before_last_relay_enable(rounds)
     if not rounds:
         return None
     summary_text = None
@@ -461,7 +460,7 @@ def sync_codex_main_session(
     )
     snapshot_seed = snapshot_body
     if bootstrap_needed and snapshot_seed is None:
-        snapshot_seed = auto_switch_snapshot_body(target_project_root, str(binding["thread_id"]))
+        snapshot_seed = auto_codex_switch_snapshot_body(target_project_root, str(binding["thread_id"]))
     context_payload = hub.switch_active_main_session(
         agent=agent,
         project_root=target_project_root,
@@ -1051,7 +1050,7 @@ def main(default_agent: str | None = None, label: str = "Agent") -> None:
                     project_root=args.project_root,
                     explicit_main_session_ref=args.main_session_ref,
                 )
-                snapshot_body = auto_enable_snapshot_body(
+                snapshot_body = auto_codex_enable_snapshot_body(
                     project_root=binding.get("project_root") or args.project_root,
                     thread_id=str(binding["thread_id"]),
                 )
