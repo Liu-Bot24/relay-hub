@@ -201,6 +201,14 @@ def heartbeat_path(openclaw_workspace: Path) -> Path:
     return openclaw_workspace / "HEARTBEAT.md"
 
 
+def heartbeat_block_installed(openclaw_workspace: Path) -> bool:
+    heartbeat_file = heartbeat_path(openclaw_workspace)
+    if not heartbeat_file.exists():
+        return False
+    content = heartbeat_file.read_text(encoding="utf-8")
+    return HEARTBEAT_BEGIN in content and HEARTBEAT_END in content
+
+
 def skill_path(openclaw_workspace: Path) -> Path:
     return openclaw_workspace / "skills" / "relay-hub-openclaw" / "SKILL.md"
 
@@ -574,8 +582,26 @@ def bootstrap_runtime(args: argparse.Namespace, runtime_root: Path) -> dict[str,
     return {"runtime_root": str(runtime_root), "config": config}
 
 
+def app_bundle_installed(app_root: Path) -> bool:
+    return (app_root / "scripts" / "relay_web.py").exists() and (app_root / "relay_hub").exists()
+
+
+def ensure_shared_install_ready(runtime_root: Path, app_root: Path) -> None:
+    missing: list[str] = []
+    if not runtime_root.exists():
+        missing.append(str(runtime_root))
+    if not app_bundle_installed(app_root):
+        missing.append(str(app_root))
+    if missing:
+        raise SystemExit(
+            "OpenClaw-side install requires shared Relay Hub files to already exist. "
+            "Please run `python3 install.py install-host --load-services` first. "
+            f"Missing: {', '.join(missing)}"
+        )
+
+
 def install_openclaw(args: argparse.Namespace, runtime_root: Path, openclaw_workspace: Path, app_root: Path) -> dict[str, Any]:
-    app_bundle = stage_app_bundle(app_root)
+    ensure_shared_install_ready(runtime_root, app_root)
     config = build_openclaw_config(args, runtime_root, openclaw_workspace, app_root)
     config_file = openclaw_config_path(openclaw_workspace)
     bridge_target = bridge_script_workspace_path(openclaw_workspace)
@@ -588,7 +614,7 @@ def install_openclaw(args: argparse.Namespace, runtime_root: Path, openclaw_work
     if not args.skip_heartbeat_patch:
         write_text(heartbeat_file, merge_heartbeat(heartbeat_existing, build_heartbeat_block(bridge_target)))
     return {
-        "app_bundle": app_bundle,
+        "shared_install_verified": True,
         "bridge_script": str(bridge_target),
         "config_path": str(config_file),
         "skill_path": str(skill_path(openclaw_workspace)),
@@ -707,12 +733,12 @@ def install_status(
         "runtime_root": str(runtime_root),
         "runtime_exists": runtime_root.exists(),
         "app_root": str(app_root),
-        "app_bundle_installed": (app_root / "scripts" / "relay_web.py").exists() and (app_root / "relay_hub").exists(),
+        "app_bundle_installed": app_bundle_installed(app_root),
         "openclaw_workspace": str(openclaw_workspace),
         "bridge_script_installed": bridge_script_workspace_path(openclaw_workspace).exists(),
         "bridge_config_installed": bridge_config.exists(),
         "skill_installed": skill_path(openclaw_workspace).exists(),
-        "heartbeat_installed": heartbeat_path(openclaw_workspace).exists(),
+        "heartbeat_installed": heartbeat_block_installed(openclaw_workspace),
         "launchagents_dir": str(launchagents_dir),
         "web_plist_installed": (launchagents_dir / "com.relayhub.web.plist").exists(),
         "legacy_agent_plists_installed": sorted(str(path) for path in launchagents_dir.glob("com.relayhub.worker.*.plist")),
@@ -803,11 +829,10 @@ def main() -> None:
         output(install_doctor(args, runtime_root, openclaw_workspace, launchagents_dir, app_root, codex_home))
         return
 
-    runtime_payload = bootstrap_runtime(args, runtime_root)
-    payload: dict[str, Any] = {
-        "ok": True,
-        "runtime": runtime_payload,
-    }
+    payload: dict[str, Any] = {"ok": True}
+
+    if args.command in {"install-host", "full"}:
+        payload["runtime"] = bootstrap_runtime(args, runtime_root)
 
     if args.command in {"install-openclaw", "full"}:
         payload["openclaw"] = install_openclaw(args, runtime_root, openclaw_workspace, app_root)

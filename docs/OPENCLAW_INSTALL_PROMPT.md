@@ -31,6 +31,7 @@ python3 install.py install-openclaw
 - 你是渠道网关，不是主记忆体
 - main_context 和 merge-back 不由你负责
 - 你当前是 OpenClaw，只负责执行 `install-openclaw`；不要代替 AI 宿主执行 `install-host`，也不要使用 `full` 这种跨侧组合安装，除非我明确要求
+- 如果 `install-openclaw` 报“请先执行 install-host”，就直接告诉我共享层还没装好；不要自己改成跨侧代装
 - 不要删除、reset、重装或清空 AI 宿主侧的 skill / rule / guide / adapter；也不要擅自删除共享安装层或别的宿主产物，除非我明确要求
 - 当前渠道和当前目标，默认必须从当前入站消息上下文里获取；只有宿主真的拿不到时，才回问用户
 - 如果当前渠道对象已经有 branch，你必须主动问用户“复用入口”还是“新建入口”，不能自己替用户决定

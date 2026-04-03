@@ -83,6 +83,7 @@ Relay Hub 接入有 3 类产物：
 - AI 宿主默认只执行 `install-host`
 - OpenClaw 默认只执行 `install-openclaw`
 - `full` 只保留给用户明确授权的组合安装 / 运维场景，不是默认委托路径
+- `install-openclaw` 不负责补装共享层；如果共享层缺失，应直接报错并要求先执行 `install-host`
 - AI 宿主不得擅自删除、reset、重装或清空 OpenClaw 侧现有 relay-hub 产物
 - OpenClaw 不得擅自删除、reset、重装或清空 AI 宿主侧产物
 - 任何跨侧清理、卸载、重建工作区、删除目录、清空旧版本动作，都必须先得到用户明确授权

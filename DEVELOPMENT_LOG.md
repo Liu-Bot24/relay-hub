@@ -103,6 +103,30 @@
 - 后续事项:
   - 若验证通过，应推送远端，避免 AI 继续拿旧的 `full` 路径跨侧代装。
 
+## 2026-04-04 00:30:02 UTC+08:00 | 作者: GPT-5-Codex
+- 目标: 修掉两处仍会影响分侧安装验收的真实问题：
+  1. `status` 将任意存在的 `HEARTBEAT.md` 误报成 Relay Hub heartbeat 已安装；
+  2. `install-openclaw` 仍会顺手补共享层，违背“安装也要各装各的部分”。
+- 关键操作:
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/install.py`：
+    - 新增 `heartbeat_block_installed()`，只在 `HEARTBEAT.md` 内真正存在 Relay Hub 标记块时才把 `heartbeat_installed` 视为 `true`；
+    - 新增 `ensure_shared_install_ready()`，让 `install-openclaw` 在共享层缺失时直接报错，要求先执行 `install-host`；
+    - 调整主流程，使 `install-openclaw` 不再自动执行 `bootstrap_runtime()`。
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/README.md`、`docs/AI_INSTALL_PROMPT.md`、`docs/INSTALL_PLAYBOOK.md`、`docs/OPENCLAW_INSTALL_PROMPT.md`、`docs/INTEGRATION_CONTRACT.md`、`docs/COMPATIBILITY.md`，把“OpenClaw 侧不负责补共享层”明确写死。
+- 变更文件:
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/install.py`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/README.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AI_INSTALL_PROMPT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INSTALL_PLAYBOOK.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/OPENCLAW_INSTALL_PROMPT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INTEGRATION_CONTRACT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/COMPATIBILITY.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/DEVELOPMENT_LOG.md`
+- 验证结果:
+  - 待执行 `status`、`install-openclaw` 缺共享层报错验证、分侧安装行为验证、`py_compile`、`git diff --check`。
+- 后续事项:
+  - 若验证通过，应推送远端，再让用户执行 OpenClaw 侧安装测试。
+
 ## 2026-04-03 22:37:37 UTC+08:00 | 作者: GPT-5-Codex
 - 目标: 按“不要只特判某一个 AI 工具”的产品边界，把这次修正路线切回通用宿主自举：不再新增 `Claude Code` 专属会话解析，而是让任意 AI 宿主在安装时靠通用轮子和 prompt 约束补齐最后一步。
 - 关键操作:

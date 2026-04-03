@@ -73,6 +73,7 @@ python3 install.py install-host --load-services
 - 如果我后面明确要求“除当前来源渠道外，还要额外镜像到别的渠道”，那时你再执行：
   python3 install.py install-openclaw --delivery-channel channel=target --delivery-account channel=accountId
 - 你当前是 AI 宿主，只负责执行 `install-host` 和当前宿主自举；不要代替 OpenClaw 执行 `install-openclaw`，也不要使用 `full` 这种跨侧组合安装，除非我明确要求
+- `install-openclaw` 现在要求共享层已经存在；如果 OpenClaw 侧后续安装时报“请先执行 install-host”，那是正确行为，不要自己改成跨侧代装
 - 你只允许做两类写入：
   1. 通过 `install.py` 原地更新共享安装产物
   2. 落当前宿主自己的长期规则 / skill / guide / adapter

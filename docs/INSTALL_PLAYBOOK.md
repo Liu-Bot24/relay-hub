@@ -43,6 +43,7 @@ python3 install.py install-host --load-services
 - 如果后面配置了额外回传渠道，那些渠道只是额外镜像；不会替代当前来源渠道
 - 如果机器上已经配过额外回传渠道，重装时不显式传参也会保留原配置
 - OpenClaw 侧需要单独执行 `install-openclaw`
+- `install-openclaw` 要求共享层已经由 `install-host` 装好；如果共享层缺失，应直接报错而不是跨侧代装
 - 外部对象后续再按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 接入
 
 如果你后面明确要“除当前来源渠道外，还要额外镜像到别的渠道”，再单独执行：
@@ -125,6 +126,7 @@ python3 install.py install-openclaw
 - OpenClaw 只是渠道网关，不是主记忆体。
 - main_context 和 merge-back 不由你负责。
 - 你当前是 OpenClaw，只负责执行 `install-openclaw`；不要代替 AI 宿主执行 `install-host`，也不要使用 `full` 这种跨侧组合安装，除非用户明确要求。
+- 如果执行 `install-openclaw` 时发现共享层不存在，应直接告诉用户先让 AI 宿主执行 `install-host`，不要自己补装共享层。
 - 不要删除、reset、重装或清空 AI 宿主侧的 skill / rule / guide / adapter；也不要擅自删除共享安装层或别的宿主产物，除非用户明确要求。
 - 当前渠道和当前目标，默认必须从当前入站消息上下文或宿主可查询的当前会话信息里获取；只有真的拿不到时才回问用户。
 - 如果当前渠道对象已经有 branch，必须主动问用户“复用入口”还是“新建入口”，不能静默替用户决定。

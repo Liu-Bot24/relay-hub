@@ -138,7 +138,8 @@ https://github.com/Liu-Bot24/relay-hub.git
 `python3 install.py install-openclaw` 会：
 
 1. 安装或更新 OpenClaw 侧桥接与相关配置
-2. 只触碰 OpenClaw 侧 relay-hub 产物和它依赖的共享前置，不负责宿主侧自举
+2. 只触碰 OpenClaw 侧 relay-hub 产物，不负责宿主侧自举
+3. 如果共享层还没由 `install-host` 装好，会直接报错并要求先装共享层
 
 如果你只想确认共享安装结果，直接运行 `python3 install.py status` 即可。`status` 默认只看共享安装产物；当前宿主最后一步是否已经自举完成，应由安装它的 AI 按 `docs/GENERIC_HOST_BOOTSTRAP.md` 自己落实并汇报。
 
