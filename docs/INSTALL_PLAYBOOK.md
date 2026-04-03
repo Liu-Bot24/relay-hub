@@ -32,17 +32,13 @@ cd /path/to/relay-hub
 python3 install.py full --load-services
 ```
 
-如果当前宿主就是 Codex，并且你要把“当前 Codex 主窗口”也一起接进 Relay Hub，再在这条命令后追加：
-
-```bash
---install-codex-host
-```
+如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且启用它能让“当前主窗口”也一起接进 Relay Hub，就在这条命令后追加对应参数；否则保持通用安装主路径，不要自行发明宿主专属参数。
 
 这表示：
 
 - Relay Hub 本身会先装好
 - OpenClaw 桥接和网页入口会一起装好
-- 只有在显式追加 `--install-codex-host` 时，才会改写 `~/.codex`
+- 如果你额外启用了某个宿主 adapter，才会改写对应宿主自己的目录
 - branch 回包默认走原始触发渠道，主窗口提醒优先复用当前主会话已绑定的来源渠道；不要求先配置额外渠道
 - 如果后面配置了额外回传渠道，那些渠道只是额外镜像；不会替代当前来源渠道
 - 如果机器上已经配过额外回传渠道，重装时不显式传参也会保留原配置
@@ -66,7 +62,9 @@ python3 install.py install-openclaw
 
 ## 2. 应该跟 AI 编程工具说什么
 
-下面这段可以直接发给 AI 编程工具。把其中的 `<your-agent-id>` 换成它自己的标准名字：
+如果你只是要一份可直接复制的提示，优先使用 `docs/AI_INSTALL_PROMPT.md`。
+
+下面这段是同一份安装提示的展开版，便于审查口径。把其中的 `<your-agent-id>` 换成它自己的标准名字：
 
 ```text
 这是一个 Relay Hub 仓库。请先阅读：
@@ -91,17 +89,13 @@ python3 install.py install-openclaw
 - Relay Hub 运行期通过 OpenClaw 发出的固定尾注、网页入口、以及产品操作提示，都是代码内置行为；不要在这段安装话术里重写、删改或自定义它们。
 ```
 
-例如（不限于此）：
-
-- `claude-code`
-- `codex`
-- `gemini-cli`
-- `cursor-cli`
-- `opencode`
+`<your-agent-id>` 应该就是当前宿主自己稳定、可持续复用的标识；不要为了迎合文档示例，临时改成别的名字。
 
 ## 3. 应该跟 OpenClaw 说什么
 
-下面这段可以直接发给 `OpenClaw`：
+如果你只是要一份可直接复制的提示，优先使用 `docs/OPENCLAW_INSTALL_PROMPT.md`。
+
+下面这段是同一份提示的展开版：
 
 ```text
 这是一个 Relay Hub 接入仓库。请先阅读：
@@ -135,7 +129,8 @@ python3 install.py install-openclaw
 当下面几件事都成立时，就可以认为仓库已经安装到“可用状态”：
 
 1. `python3 install.py doctor ...` 返回 `"ok": true`
-2. `python3 install.py status` 能看到 OpenClaw 桥接文件和 launchd 服务
+2. `python3 install.py status` 能看到 OpenClaw 桥接、skill、heartbeat 和 Web 服务等基础安装产物
+   - 如果你显式安装了某个宿主 adapter，status 里还应额外看到对应宿主侧产物
 3. `OpenClaw` 能响应：
    - `打开 <agent> 入口`
    - `已录入`
@@ -149,6 +144,6 @@ python3 install.py install-openclaw
 - 不要让外部 AI 直接读原始消息渠道
 - 不要让 OpenClaw 自己翻 Relay Hub 的底层文件
 - 不要把网页 branch 当成第二条主聊天
-- 不要假设仓库会替外部 AI 自动完成宿主侧接单机制；外部 AI 仍需按协议在自己环境里接入并保持持续接单能力
+- 仓库目标是尽量提供通用轮子，让外部 AI 低门槛自主接入；如果某个宿主当前还没把这些轮子真正接好，应视为该宿主接入未完成，而不是产品目标状态
 
 更详细的通用性边界，见 `docs/COMPATIBILITY.md`。

@@ -2,13 +2,8 @@
 
 这份文件描述任意外部 AI / 程序如何接入 Relay Hub。
 
-适用对象包括但不限于：
+适用对象：
 
-- `codex`
-- `claude-code`
-- `gemini-cli`
-- `cursor-cli`
-- `opencode`
 - 任何能执行命令、长期记住最小规则并稳定复用 `agent_id` 的 AI / 程序
 
 说明：
@@ -17,15 +12,11 @@
 - 协议本身不绑定任何特定 AI，也不绑定任何特定消息渠道
 - Relay Hub 默认只安装通用层；外部 AI 需要按本文件自行接入
 
-## 0. 完整支持 vs manual-only
+## 0. 目标状态
 
-如果一个外部 AI 只会临时执行命令、不会在自己的环境里持续接单，那它只能算：
+如果一个外部 AI 只会临时执行命令、不会在自己的环境里持续接单，说明它的接入还没完成。
 
-- `manual-only`
-
-只有当它能在自己的环境里建立最小长期机制，并在 `ready` 时持续接走 `queued` branch，才算：
-
-- `完整支持`
+只有当它能在自己的环境里建立最小长期机制，并在 `ready` 时持续接走 `queued` branch，才算真正接入完成。
 
 Relay Hub 仓库不会替某一家 AI 内置专属后台接单器；接单机制必须由接入方 AI 在自己的环境里落地。
 
@@ -52,6 +43,9 @@ Relay Hub 仓库不会替某一家 AI 内置专属后台接单器；接单机制
 
 - `接入 Relay Hub`
 - `Relay Hub 状态`
+- `消息提醒状态`
+- `开启<渠道>消息提醒`
+- `关闭<渠道>消息提醒`
 - `合流上下文`
 - `退出 Relay Hub`
 
@@ -95,12 +89,12 @@ python3 scripts/agent_relay.py --agent agent_demo start-pickup \
   --backend-command '["your-cli", "your-subcommand", "..."]'
 ```
 
-如果你的宿主环境恰好就是 `Codex`，也可以使用仓库内置的 `codex-exec` backend。仓库当前提供两种 backend 路径：
+仓库当前提供两类 backend 路径：
 
-- `command`：通用命令后端，适合 `Claude Code / Gemini CLI / Cursor CLI / Opencode / 自定义 CLI`
-- `codex-exec`：仓库内置的 Codex 便捷后端
+- `command`：面向任意 CLI 的通用主路径
+- 其他内置 backend：如果仓库里存在，就只应视作可选优化实现，不改变通用主路径
 
-如果宿主环境根本做不到持续接单，应明确告诉用户当前只能 `manual-only`。
+如果宿主环境当前根本做不到持续接单，应明确告诉用户当前宿主接入尚未完成。
 
 `enable-relay` 默认会立刻发一条启动提醒到 OpenClaw 渠道；这条提醒不创建 branch，但会自动附带网页入口和固定产品操作提示：
 
@@ -187,7 +181,40 @@ python3 scripts/agent_relay.py --agent agent_demo agent-status
 - `entry_open` 表示入口已打开，但用户还没在网页里写第一条消息
 - `input_open` 表示 branch 已开始，用户还在继续网页录入
 
-## 2.1 main_session_ref 规范
+## 2.1 查询消息提醒状态
+
+```bash
+cd /path/to/relay-hub
+python3 scripts/agent_relay.py --agent agent_demo notification-status
+```
+
+这个命令只显示当前已经配置好的 OpenClaw 提醒渠道，以及它们现在是开启还是关闭。
+
+## 2.2 开启单个渠道提醒
+
+```bash
+cd /path/to/relay-hub
+python3 scripts/agent_relay.py --agent agent_demo enable-notification-channel --channel "<channel>"
+```
+
+例如：
+
+- `飞书` / `feishu`
+- `微信` / `weixin` / `wechat` / `openclaw-weixin`
+- `telegram` / `tg`
+
+只对当前已经配置好的提醒渠道生效；不会顺手创建一个原本没配置的渠道。
+
+## 2.3 关闭单个渠道提醒
+
+```bash
+cd /path/to/relay-hub
+python3 scripts/agent_relay.py --agent agent_demo disable-notification-channel --channel "<channel>"
+```
+
+同样只对当前已经配置好的提醒渠道生效。
+
+## 2.4 main_session_ref 规范
 
 每条 AI 主对话都必须稳定维护一个 `main_session_ref`。
 

@@ -38,35 +38,35 @@
 
 当前仓库的产品边界是：
 
-- 默认安装只把 Relay Hub 本体装好
-- 外部 AI 后续按协议自己接入
+- 默认安装先落通用层
+- 外部 AI 再借助通用轮子把自己的宿主接入补齐
 
 所以结论是：
 
-- `Codex / Claude Code / Gemini CLI / Cursor CLI / Opencode`：协议层都可用
-- 但接单、处理、回包这一步，需要它们自己按协议参与
-- 默认 `install.py full --load-services` 不会顺手改写某个特定 AI 的宿主目录；例如 Codex 宿主入口只有在显式追加 `--install-codex-host` 时才会安装
+- 协议层对任意稳定宿主标识都开放
+- 仓库默认不会在产品主路径里假定某个特定宿主享有特殊地位
+- 如果仓库里附带了个别宿主的可选 adapter 或优化 backend，它们只能作为下层实现细节显式启用，不能改变产品主路径
 
-这不代表它们不能接入，只代表：
+这不代表其他宿主不能接入，只代表：
 
-- 可以通过 `scripts/agent_relay.py` 手动参与
-- 或者各自在自己的环境里做一层很薄的自动化封装
+- 应优先复用 `scripts/agent_relay.py`、`scripts/relay_agent_daemon.py` 这些通用轮子完成接入
+- 若某个宿主当前还需要额外补钩子或自动化，属于该宿主接入尚未补齐，不是产品价值观本身
 
 对“主窗口回复如何精确镜像到 OpenClaw”这件事，当前仓库提供的是两层：
 
-- `Codex`：原生 rollout 捕获，直接读取最终正文
-- 其他宿主：通用精确正文兜底，先把已经产出的最终正文写入文件，再执行 `scripts/agent_relay.py capture-main-output --body-file ...`
+- 通用主路径：精确正文捕获队列，先把已经产出的最终正文写入文件，再执行 `scripts/agent_relay.py capture-main-output --body-file ...`
+- 可选优化路径：仓库内允许存在个别宿主的原生正文捕获实现，但它们只是附加优化，不代表产品主路径
 
 更准确地说：
 
-- 能按协议手动参与：属于 `manual-only`
-- 能在自己的环境里建立持续接单机制：才属于“完整支持”
+- 能在自己的环境里建立持续接单机制，才算接入完成
+- 如果某个宿主当前还只能手动参与，说明该宿主接入未完成，不是产品目标状态
 
 仓库当前提供的是：
 
 - 一个通用控制入口：`scripts/agent_relay.py`
 - 一个通用持续接单守护轮子：`scripts/relay_agent_daemon.py`
-- 多种 backend 接法，其中 `command` 是面向任意 CLI 的通用方式，`codex-exec` 只是其中一个内置便捷 backend
+- 多种 backend 接法，其中 `command` 是面向任意 CLI 的通用方式；仓库里如果存在其他内置 backend，也只应视作可选实现细节
 
 ## 2. 消息渠道通用性
 
