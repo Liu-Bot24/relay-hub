@@ -43,12 +43,12 @@
      python3 scripts/agent_relay.py --agent <agent_id> capture-main-output --body-file <exact_body_file>
 7. 启用 Relay Hub 时的启动链路：
    - 先写 DEVELOPMENT_LOG.md 主线快照
-   - 再执行 enable-relay
-   - 再执行 start-pickup
-8. start-pickup 默认模板：
-   python3 scripts/agent_relay.py --agent <agent_id> start-pickup --main-session-ref <main_session_ref> --backend command --backend-command '<json_string_array>'
-9. <json_string_array> 必须替换成当前宿主自己的非交互 CLI 调用
-10. 只有在用户真的说了“接入 Relay Hub”并且 pickup 已运行后，才报告 ready
+   - 再执行带完整参数的 enable-relay --start-pickup
+8. enable-relay 默认模板：
+   python3 scripts/agent_relay.py --agent <agent_id> enable-relay --project-root <project_root> --development-log-path <development_log_path> --main-session-ref <main_session_ref> --snapshot-body "<snapshot_body>" --backend command --backend-command '<json_string_array>' --start-pickup
+9. 不要先裸跑 enable-relay 探路；对通用宿主来说，`--project-root` 与 `--snapshot-body/--snapshot-file` 从一开始就是必填
+10. `<json_string_array>` 必须替换成当前宿主自己的非交互 CLI 调用
+11. 只有在用户真的说了“接入 Relay Hub”并且 pickup 已运行后，才报告 ready
 
 安装阶段额外规则：
 

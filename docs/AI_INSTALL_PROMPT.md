@@ -49,7 +49,9 @@ python3 install.py install-host --load-services
 - 你已经在自己的环境里真正创建或刷新了最小长期规则 / skill / guide，而不是只说“后面会记住”
 - 你已经回读、列出，或用宿主提供的等价方式验证这份长期规则确实存在
 - 你已经明确当前主对话如何稳定生成并复用 main_session_ref
-- 你已经明确将来用户说“接入 Relay Hub”时要执行的 `start-pickup --backend command --backend-command ...` 启动链路
+- 你已经明确将来用户说“接入 Relay Hub”时要执行的完整启动链路：
+  - 先写主线快照
+  - 再执行带 `--project-root` 与 `--snapshot-body/--snapshot-file` 的 `enable-relay --start-pickup`
 - 如果仓库没有当前宿主的原生 adapter，但你已经按 `docs/GENERIC_HOST_BOOTSTRAP.md` 完成以上步骤，就不要再把自己报告成“宿主未完整接入”
 
 安装完成后的汇报格式：
@@ -84,6 +86,7 @@ python3 install.py install-host --load-services
 - 如果安装失败，就原样贴出失败点并停止，不要自创旁路方案
 - 安装完成后，必须先把当前宿主自己的长期机制真正落下，再做安装汇报
 - 不要把无关宿主信息塞进安装结论里
+- 当用户后续说 `接入 Relay Hub` 时，不要先裸跑 `enable-relay` 探路；对通用宿主，第一次调用就必须带上 `--project-root` 和 `--snapshot-body` 或 `--snapshot-file`
 - 当用户后续对你说“接入 Relay Hub”“Relay Hub 状态”“消息提醒状态”“开启<渠道>消息提醒”“关闭<渠道>消息提醒”“合流上下文”“退出 Relay Hub”时，严格按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 执行
 - Relay Hub 运行期通过 OpenClaw 发出的固定尾注、网页入口、以及产品操作提示，都是代码内置行为；不要在安装 prompt 里重写、删改或自定义它们
 ```

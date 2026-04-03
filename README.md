@@ -104,6 +104,7 @@ https://github.com/Liu-Bot24/relay-hub.git
 5. docs/COMPATIBILITY.md
 
 请完成 OpenClaw 侧接入；如果失败，告诉我失败原因；如果成功，告诉我当前可以使用哪些 relay 命令。
+如果当前没有配置额外镜像渠道，只需要说明“默认仍走原始触发渠道”；不要主动建议我现在去加渠道，除非我明确要求。
 ```
 
 ## 常用命令

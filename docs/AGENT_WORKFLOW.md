@@ -71,8 +71,17 @@ AI 自己应把这些话映射成下面的内部动作。
 cd /path/to/relay-hub
 python3 scripts/agent_relay.py --agent agent_demo enable-relay \
   --project-root /path/to/project \
-  --snapshot-body "这里放当前主线的简洁快照。"
+  --snapshot-body "这里放当前主线的简洁快照。" \
+  --backend command \
+  --backend-command '["your-cli", "your-subcommand", "..."]' \
+  --start-pickup
 ```
+
+对通用宿主：
+
+- 不要先裸跑 `enable-relay`
+- 第一次调用就带上 `--project-root`
+- 第一次调用就带上 `--snapshot-body` 或 `--snapshot-file`
 
 这一步会：
 
@@ -81,7 +90,7 @@ python3 scripts/agent_relay.py --agent agent_demo enable-relay \
 - 记住当前项目根目录和开发日志路径
 - 把当前对象状态标记为 `ready`
 
-然后立刻为当前主对话启动持续接单。对仓库外的接入方，优先使用通用 `command` backend：
+如果你没有在上一步里直接带 `--start-pickup`，那就立刻为当前主对话启动持续接单。对仓库外的接入方，优先使用通用 `command` backend：
 
 ```bash
 cd /path/to/relay-hub

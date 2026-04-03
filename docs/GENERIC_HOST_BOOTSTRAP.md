@@ -123,6 +123,28 @@ python3 scripts/agent_relay.py --agent <agent_id> start-pickup \
 
 这一步由当前 AI 宿主自己根据自己的 CLI 形态补齐，不要因为仓库没点名当前工具就停在“还不能用”。
 
+## 6.1 启用 Relay Hub 时不要裸跑 enable-relay
+
+对通用宿主，推荐直接一次性执行：
+
+```bash
+python3 scripts/agent_relay.py --agent <agent_id> enable-relay \
+  --project-root <project_root> \
+  --development-log-path <development_log_path> \
+  --main-session-ref <main_session_ref> \
+  --snapshot-body "<snapshot_body>" \
+  --backend command \
+  --backend-command '<json_string_array>' \
+  --start-pickup
+```
+
+注意：
+
+- 不要先用裸的 `enable-relay` 探路
+- 对通用宿主，`--project-root` 必填
+- 对通用宿主，`--snapshot-body` 或 `--snapshot-file` 也必须从第一次调用就带上
+- 只有 `codex` 这种仓库内置了当前会话解析的宿主，才可能在特定路径下自动省略其中一部分参数
+
 ## 7. 安装完成后应该怎么汇报
 
 安装完成时要区分下面两件事：

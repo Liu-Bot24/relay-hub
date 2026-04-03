@@ -127,6 +127,49 @@
 - 后续事项:
   - 若验证通过，应推送远端，再让用户执行 OpenClaw 侧安装测试。
 
+## 2026-04-04 00:42:18 UTC+08:00 | 作者: GPT-5-Codex
+- 目标: 修掉 OpenClaw 安装回执里“主动建议用户现在去配置额外消息提醒渠道”的越权引导。
+- 关键操作:
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/install.py` 的 OpenClaw skill 模板，新增硬规则：
+    - 若未配置额外镜像渠道，只能说明“默认仍走原始触发渠道”
+    - 不要主动把“要加哪个渠道”作为当前安装回执的下一步
+  - 调整 `install-openclaw` 输出字段，把 `delivery_channels` 改成更明确的 `configured_extra_delivery_channels`，并附带说明 note。
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/README.md`、`docs/OPENCLAW_INSTALL_PROMPT.md`、`docs/OPENCLAW_RULE.md`、`docs/INSTALL_PLAYBOOK.md`、`docs/INTEGRATION_CONTRACT.md`，统一禁止 OpenClaw 在安装汇报里主动兜售额外渠道配置。
+- 变更文件:
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/install.py`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/README.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/OPENCLAW_INSTALL_PROMPT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/OPENCLAW_RULE.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INSTALL_PLAYBOOK.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INTEGRATION_CONTRACT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/DEVELOPMENT_LOG.md`
+- 验证结果:
+  - 待执行关键词复查、`py_compile`、`git diff --check`。
+- 后续事项:
+  - 若验证通过，应推送远端，避免 OpenClaw 继续在安装回执里越权引导渠道配置。
+
+## 2026-04-04 00:58:33 UTC+08:00 | 作者: GPT-5-Codex
+- 目标: 收掉通用宿主在 `接入 Relay Hub` 时仍可能先裸跑 `enable-relay`、再撞一次参数报错的体验漏洞。
+- 关键操作:
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_RULE_TEMPLATE.md` 与 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_BOOTSTRAP.md`，明确对通用宿主：
+    - 启用 Relay Hub 时应直接执行完整的 `enable-relay --start-pickup`
+    - 第一次调用就必须带 `--project-root`
+    - 第一次调用就必须带 `--snapshot-body` 或 `--snapshot-file`
+    - 不要先裸跑 `enable-relay`
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AI_INSTALL_PROMPT.md`、`docs/AGENT_ENTRY_RULE.md`、`docs/AGENT_WORKFLOW.md`、`docs/INTEGRATION_CONTRACT.md`，把这条规则同步到安装提示、最小入口和工作流文档。
+- 变更文件:
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_RULE_TEMPLATE.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_BOOTSTRAP.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AI_INSTALL_PROMPT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AGENT_ENTRY_RULE.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AGENT_WORKFLOW.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INTEGRATION_CONTRACT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/DEVELOPMENT_LOG.md`
+- 验证结果:
+  - 待执行关键词复查、`py_compile`、`git diff --check`。
+- 后续事项:
+  - 若验证通过，应推送远端，减少通用宿主在首次 `接入 Relay Hub` 时的红色中间报错。
+
 ## 2026-04-03 22:37:37 UTC+08:00 | 作者: GPT-5-Codex
 - 目标: 按“不要只特判某一个 AI 工具”的产品边界，把这次修正路线切回通用宿主自举：不再新增 `Claude Code` 专属会话解析，而是让任意 AI 宿主在安装时靠通用轮子和 prompt 约束补齐最后一步。
 - 关键操作:

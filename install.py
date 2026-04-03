@@ -301,6 +301,7 @@ description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 <agent>
 - 当前渠道和当前目标，默认必须从当前入站消息上下文里获取；如果宿主没有直接给出，再用宿主可查询的当前会话信息补取；只有真的拿不到时才回问用户。
 - 不要使用文档示例值，不要沿用别的会话的渠道或目标。
 - 提醒与主窗口镜像默认优先复用当前主会话已经绑定过的 OpenClaw 渠道对象；只有没有可复用来源时，才回退到额外配置的默认提醒渠道；两者都没有时才明确告诉用户“提醒已跳过”。
+- 当你汇报安装结果或当前状态时，如果没有配置额外镜像渠道，只需要说明“未配置额外镜像渠道，默认仍走原始触发渠道”；不要主动建议用户现在去加渠道，也不要把“加哪个渠道”说成当前对话里的下一步。
 
 对象名规则
 - `--agent` 应传用户当前说到的对象名，或该对象稳定使用的 `agent_id`
@@ -619,7 +620,8 @@ def install_openclaw(args: argparse.Namespace, runtime_root: Path, openclaw_work
         "config_path": str(config_file),
         "skill_path": str(skill_path(openclaw_workspace)),
         "heartbeat_path": str(heartbeat_file),
-        "delivery_channels": config["delivery"]["channels"],
+        "configured_extra_delivery_channels": config["delivery"]["channels"],
+        "delivery_channels_note": "Empty means no extra mirror channels are configured; branch replies still default to the original trigger channel. Do not proactively ask the user to configure more channels unless they explicitly request it.",
     }
 
 
