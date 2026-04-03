@@ -52,6 +52,16 @@ python3 install.py full --load-services
 - 你已经明确将来用户说“接入 Relay Hub”时要执行的 `start-pickup --backend command --backend-command ...` 启动链路
 - 如果仓库没有当前宿主的原生 adapter，但你已经按 `docs/GENERIC_HOST_BOOTSTRAP.md` 完成以上步骤，就不要再把自己报告成“宿主未完整接入”
 
+安装完成后的汇报格式：
+- 必须分成 3 段分别汇报：
+  1. 共享安装状态
+  2. 当前宿主自举状态
+  3. 当前主对话 Relay 开启状态
+- 第 1 段只汇报 `doctor / status` 对共享安装产物的结论
+- 第 2 段只汇报当前宿主是否已经把长期规则、`agent_id`、`main_session_ref` 规则和 `command` backend 启动链路落下并验证
+- 第 3 段如果用户还没说 `接入 Relay Hub`，就明确写“当前主对话尚未开启 Relay Hub”
+- 不要把第 3 段的“尚未开启”写成第 2 段的“宿主未完整接入”
+
 额外判断规则：
 - 安装汇报时只关注当前宿主；默认不要提本机上其他 AI 工具已有的 adapter、home 目录或宿主产物，除非我明确追问
 - 如果当前主对话还没说 `接入 Relay Hub`，不要把“pickup 现在还没运行”误报成缺项；这表示 relay 还没开启，不表示宿主自举失败

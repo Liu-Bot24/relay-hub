@@ -28,6 +28,31 @@
 - 后续事项:
   - 若本地验证通过，应将这轮“只关注当前宿主 + 安装阶段必须真实落规则”的修正推送到远端，供用户重新测试。
 
+## 2026-04-03 23:19:41 UTC+08:00 | 作者: GPT-5-Codex
+- 目标: 继续从 Claude Code 的阅读顺序审查安装链路，补掉“安装阶段提前套用运行期 ready 规则”和“安装汇报结构不固定”这两类残留歧义。
+- 关键操作:
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/README.md` 中“交给 AI 编程工具安装”的用户提示，改成强制三段式汇报：
+    - 共享安装状态
+    - 当前宿主自举状态
+    - 当前主对话 Relay 开启状态
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AI_INSTALL_PROMPT.md`，新增安装完成后的固定汇报格式，明确禁止把“当前主对话尚未开启 Relay Hub”写成“宿主未完整接入”。
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_BOOTSTRAP.md` 与 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_RULE_TEMPLATE.md`，补充长期规则载体的优先顺序建议，帮助任意宿主更明确地知道“规则应该写到哪里”。
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INSTALL_PLAYBOOK.md` 的展开版安装提示，保证它与正式安装 prompt 保持同一口径。
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AGENT_ENTRY_RULE.md` 与 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AGENT_WORKFLOW.md`，在文件开头显式声明：这些是运行期规则，不应在安装阶段提前套用。
+- 变更文件:
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/README.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AI_INSTALL_PROMPT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_BOOTSTRAP.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_RULE_TEMPLATE.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INSTALL_PLAYBOOK.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AGENT_ENTRY_RULE.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AGENT_WORKFLOW.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/DEVELOPMENT_LOG.md`
+- 验证结果:
+  - 待执行关键词复查、`py_compile`、`git diff --check`。
+- 后续事项:
+  - 若验证通过，应将这轮“固定三段式安装汇报 + 明确安装/运行边界”的补强继续推送到远端，减少反复卸载重装测试成本。
+
 ## 2026-04-03 22:37:37 UTC+08:00 | 作者: GPT-5-Codex
 - 目标: 按“不要只特判某一个 AI 工具”的产品边界，把这次修正路线切回通用宿主自举：不再新增 `Claude Code` 专属会话解析，而是让任意 AI 宿主在安装时靠通用轮子和 prompt 约束补齐最后一步。
 - 关键操作:

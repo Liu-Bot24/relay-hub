@@ -11,6 +11,8 @@
 - 下文里的 `agent_demo / channel_a / target_demo / main_demo_001` 都只是示例
 - 协议本身不绑定任何特定 AI，也不绑定任何特定消息渠道
 - Relay Hub 默认只安装通用层；外部 AI 需要按本文件自行接入
+- 这份文件主要描述的是运行期动作；如果当前仍处于安装阶段，且用户还没说 `接入 Relay Hub`，不要把这里的 `ready` / 持续接单要求直接误报成安装缺项
+- 安装阶段该如何判断，优先看 `docs/AI_INSTALL_PROMPT.md` 和 `docs/GENERIC_HOST_BOOTSTRAP.md`
 
 ## 0. 目标状态
 

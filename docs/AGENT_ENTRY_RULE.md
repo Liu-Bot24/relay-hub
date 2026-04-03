@@ -2,6 +2,12 @@
 
 把这份文件和仓库根的 `RELAY_PROTOCOL.md` 一起发给任意外部 AI，就够它建立最小配合关系。需要详细操作时，再补 `docs/AGENT_WORKFLOW.md`。
 
+注意：
+
+- 这份文件主要描述的是“用户已经在主窗口说了 `接入 Relay Hub` 之后”的运行期动作
+- 如果当前仍处于安装阶段，且用户还没说 `接入 Relay Hub`，不要把这里的 `ready` / `start-pickup` 运行要求提前套进安装结论
+- 安装阶段该如何判断，优先看 `docs/AI_INSTALL_PROMPT.md` 和 `docs/GENERIC_HOST_BOOTSTRAP.md`
+
 ```text
 你支持 Relay Hub 模式。
 
