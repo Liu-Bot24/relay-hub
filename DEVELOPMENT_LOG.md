@@ -1,5 +1,33 @@
 # DEVELOPMENT_LOG.md
 
+## 2026-04-03 23:08:52 UTC+08:00 | 作者: GPT-5-Codex
+- 目标: 修掉“Claude Code 安装时被 status 里的 codex 线索带偏，并继续把长期机制 / pickup 未启动报成缺项”的设计问题，让当前安装 AI 默认只关注自己，并在安装阶段真正完成宿主自举。
+- 关键操作:
+  - 修改 `/Users/liuqi/Desktop/code/codex/relay-hub/install.py`：
+    - 从 `status` 默认输出中移除 `codex_home`、`codex_skill_installed`、`codex_agents_installed` 和 `host_adapters`，避免把无关宿主信息暴露给当前安装 AI；
+    - 改为输出通用 `status_scope_note`，明确 `status` 只描述共享安装产物，不替当前宿主做自举判定。
+  - 新增 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_RULE_TEMPLATE.md`，给任意宿主提供可直接改写的最小长期规则模板，补强“轮子”和行动指令。
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_BOOTSTRAP.md`，明确安装阶段必须现在就把长期机制真正落下、回读验证，并强调在用户尚未说 `接入 Relay Hub` 时，不要把 pickup 未启动误报成缺项。
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AI_INSTALL_PROMPT.md`，强制安装 AI：
+    - 只评估当前宿主；
+    - 默认不提无关宿主产物；
+    - 安装汇报前必须先落长期机制并验证；
+    - 不得把“当前 relay 尚未开启”误报成“宿主未完整接入”。
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/README.md`、`/Users/liuqi/Desktop/code/codex/relay-hub/docs/INSTALL_PLAYBOOK.md`、`/Users/liuqi/Desktop/code/codex/relay-hub/docs/INTEGRATION_CONTRACT.md`，把“status 只看共享安装产物、宿主自举由当前 AI 自己完成并汇报”的产品口径统一起来。
+- 变更文件:
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/install.py`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_RULE_TEMPLATE.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_BOOTSTRAP.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AI_INSTALL_PROMPT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/README.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INSTALL_PLAYBOOK.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INTEGRATION_CONTRACT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/DEVELOPMENT_LOG.md`
+- 验证结果:
+  - 待执行 `python3 install.py status`、`python3 -m py_compile ...`、`git diff --check` 复核。
+- 后续事项:
+  - 若本地验证通过，应将这轮“只关注当前宿主 + 安装阶段必须真实落规则”的修正推送到远端，供用户重新测试。
+
 ## 2026-04-03 22:37:37 UTC+08:00 | 作者: GPT-5-Codex
 - 目标: 按“不要只特判某一个 AI 工具”的产品边界，把这次修正路线切回通用宿主自举：不再新增 `Claude Code` 专属会话解析，而是让任意 AI 宿主在安装时靠通用轮子和 prompt 约束补齐最后一步。
 - 关键操作:

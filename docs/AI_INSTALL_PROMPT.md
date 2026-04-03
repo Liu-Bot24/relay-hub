@@ -19,8 +19,9 @@ https://github.com/Liu-Bot24/relay-hub.git
 如果读完上面 4 个文件后还需要具体安装细节，再补读：
 5. docs/INSTALL_PLAYBOOK.md
 6. docs/GENERIC_HOST_BOOTSTRAP.md
-7. docs/AGENT_WORKFLOW.md
-8. docs/COMPATIBILITY.md
+7. docs/GENERIC_HOST_RULE_TEMPLATE.md
+8. docs/AGENT_WORKFLOW.md
+9. docs/COMPATIBILITY.md
 
 先自己确定下面两件事，不要先来问我：
 1. 仓库根目录
@@ -41,18 +42,19 @@ python3 install.py full --load-services
 
 安装完成标准：
 - doctor 返回 ok=true
-- status 能看到 openclaw bridge、skill、heartbeat、web plist 等基础安装产物
-- 如果你显式安装了某个宿主的 host adapter，status 里还应能看到对应宿主侧产物
-- 阅读 status 时，`host_adapters` 只表示这台机器上已有的已知宿主 adapter；不要把它误报成“当前安装 AI 已经自动完成了最后一步”
+- status 能看到 openclaw bridge、skill、heartbeat、web plist 等共享安装产物
+- 阅读 status 时，只把它当成共享安装结果；不要把运行期规则提前套到安装汇报里
 
-完整接入标准：
-- 你已经在自己的环境里固化最小长期规则 / skill / guide
+安装阶段的宿主自举完成标准：
+- 你已经在自己的环境里真正创建或刷新了最小长期规则 / skill / guide，而不是只说“后面会记住”
+- 你已经回读、列出，或用宿主提供的等价方式验证这份长期规则确实存在
 - 你已经明确当前主对话如何稳定生成并复用 main_session_ref
-- 你已经把“显式开启一次、随后跟随当前活跃主会话切换、同一时间只保留一个活跃主会话、主窗口精确镜像”都落好
-- 你已经进入 ready，并且持续接单机制已经真正启动；如果做不到，就明确说明当前接入还没完成，不要把自己报告成 ready
+- 你已经明确将来用户说“接入 Relay Hub”时要执行的 `start-pickup --backend command --backend-command ...` 启动链路
+- 如果仓库没有当前宿主的原生 adapter，但你已经按 `docs/GENERIC_HOST_BOOTSTRAP.md` 完成以上步骤，就不要再把自己报告成“宿主未完整接入”
 
 额外判断规则：
-- 如果仓库没有当前宿主的原生 adapter，但你已经按 `docs/GENERIC_HOST_BOOTSTRAP.md` 补齐了长期规则、`agent_id`、`main_session_ref` 规则和 `command` backend，就不要再把自己报告成“宿主未完整接入”
+- 安装汇报时只关注当前宿主；默认不要提本机上其他 AI 工具已有的 adapter、home 目录或宿主产物，除非我明确追问
+- 如果当前主对话还没说 `接入 Relay Hub`，不要把“pickup 现在还没运行”误报成缺项；这表示 relay 还没开启，不表示宿主自举失败
 - 如果用户当前这条主对话还没说 `接入 Relay Hub`，这表示“当前 relay 尚未开启”，不是“宿主未完整接入”
 
 安装要求：
@@ -63,7 +65,8 @@ python3 install.py full --load-services
 - 不要直接读取原始消息渠道或 OpenClaw 插件内部实现
 - 不要自行做业务对话测试，除非我明确要求
 - 如果安装失败，就原样贴出失败点并停止，不要自创旁路方案
-- 安装完成后，不要在这段安装约束里继续脑补运行期行为
+- 安装完成后，必须先把当前宿主自己的长期机制真正落下，再做安装汇报
+- 不要把无关宿主信息塞进安装结论里
 - 当用户后续对你说“接入 Relay Hub”“Relay Hub 状态”“消息提醒状态”“开启<渠道>消息提醒”“关闭<渠道>消息提醒”“合流上下文”“退出 Relay Hub”时，严格按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 执行
 - Relay Hub 运行期通过 OpenClaw 发出的固定尾注、网页入口、以及产品操作提示，都是代码内置行为；不要在安装 prompt 里重写、删改或自定义它们
 ```

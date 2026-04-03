@@ -126,7 +126,7 @@ https://github.com/Liu-Bot24/relay-hub.git
 4. 写入后续检查所需的基础状态
 5. 如果你显式启用了某个宿主 adapter，再补充对应宿主侧产物
 
-如果你只想确认安装结果，直接运行 `python3 install.py status` 即可。`status` 里的 `host_adapters` 只表示这台机器上已经存在的已知宿主 adapter，不代表“当前安装 AI”已经自动完成了最后一步自举。
+如果你只想确认共享安装结果，直接运行 `python3 install.py status` 即可。`status` 默认只看共享安装产物；当前宿主最后一步是否已经自举完成，应由安装它的 AI 按 `docs/GENERIC_HOST_BOOTSTRAP.md` 自己落实并汇报。
 
 程序文件会安装到 macOS 的 `Application Support` 目录。
 

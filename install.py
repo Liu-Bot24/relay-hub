@@ -707,19 +707,10 @@ def install_status(
         "bridge_config_installed": bridge_config.exists(),
         "skill_installed": skill_path(openclaw_workspace).exists(),
         "heartbeat_installed": heartbeat_path(openclaw_workspace).exists(),
-        "codex_home": str(codex_home),
-        "codex_skill_installed": codex_skill_path(codex_home).exists(),
-        "codex_agents_installed": codex_agents_path(codex_home).exists(),
         "launchagents_dir": str(launchagents_dir),
         "web_plist_installed": (launchagents_dir / "com.relayhub.web.plist").exists(),
         "legacy_agent_plists_installed": sorted(str(path) for path in launchagents_dir.glob("com.relayhub.worker.*.plist")),
-        "host_adapters": {
-            "codex": {
-                "supported": True,
-                "installed": codex_skill_path(codex_home).exists() and codex_agents_path(codex_home).exists(),
-            },
-        },
-        "host_adapters_note": "host_adapters only describes known machine-level adapter artifacts; it does not identify the current AI host or prove that the current host has finished self-bootstrap",
+        "status_scope_note": "status only reports shared installation artifacts; current-host bootstrap must be judged from the installing AI's own completed host setup steps",
     }
     if bridge_config.exists():
         payload["bridge_config"] = json.loads(bridge_config.read_text(encoding="utf-8"))
@@ -753,11 +744,6 @@ def install_doctor(
         "openclaw_workspace",
         True,
         f"{openclaw_workspace} (will be created if missing)",
-    )
-    add_check(
-        "codex_home",
-        True,
-        f"{codex_home} (will be created if missing)",
     )
     add_check("launchagents_dir_parent", launchagents_dir.parent.exists(), str(launchagents_dir.parent))
     add_check("app_root_parent", app_root.parent.exists(), str(app_root.parent))

@@ -20,7 +20,7 @@
 python3 install.py full --load-services
 ```
 
-之后，必须自己补齐下面 4 件事：
+之后，必须自己立刻完成并验证下面 4 件事：
 
 1. 在自己的环境里落下一份持久生效的最小规则 / skill / guide
 2. 明确自己的稳定 `agent_id`
@@ -28,6 +28,37 @@ python3 install.py full --load-services
 4. 明确持续接单时使用的 `command` backend 命令
 
 如果这 4 件事都已经补齐，就不要再把自己报告成“宿主未完整接入”。
+
+注意：
+
+- 这里说的是“现在就完成”，不是“脑内记住以后再做”
+- 至少要把规则真正写进宿主支持的持久载体里，并在安装阶段回读或等价验证一次
+- 如果需要现成模板，直接使用 `docs/GENERIC_HOST_RULE_TEMPLATE.md`
+
+## 2.1 安装阶段必须真的把长期机制落下
+
+允许的载体包括：
+
+- 宿主自带的长期 rule / instruction / guide
+- 宿主 skill
+- 项目级 guide
+- 宿主 automation / watcher
+
+安装阶段必须做到：
+
+1. 选择当前宿主真正会长期生效的载体
+2. 把最小规则写进去，而不是只在当前回复里描述
+3. 写完后回读、列出，或用宿主提供的等价方式确认它已经存在
+
+如果这一步没做，才算“当前宿主接入还没完成”。
+
+## 2.2 安装阶段不要误报 pickup 未启动
+
+如果用户当前这条主对话还没有说 `接入 Relay Hub`，那么：
+
+- 持续接单守护进程此刻还没运行，不应单独算成缺项
+- 真正需要完成的是：把将来如何启动 `start-pickup` 的链路持久记住
+- 只有当你连可工作的 `start-pickup --backend command --backend-command ...` 方案都确定不了时，才应报告“当前宿主接入还没完成”
 
 ## 3. 最小长期规则必须记住什么
 
@@ -102,6 +133,7 @@ python3 scripts/agent_relay.py --agent <agent_id> start-pickup \
 表示：
 
 - 当前宿主的最小长期规则已经落下
+- 并且已经回读或等价验证过
 - `agent_id` 已明确
 - `main_session_ref` 规则已明确
 - `command` backend 命令已明确
@@ -116,6 +148,14 @@ python3 scripts/agent_relay.py --agent <agent_id> start-pickup \
 - 但当前主对话尚未开启 Relay Hub
 
 不要把这种状态误报成“宿主未完整接入”。
+
+## 7.1 安装汇报默认只关注当前宿主
+
+安装汇报时：
+
+- 只评估当前正在执行安装的宿主
+- 默认不要提本机上其他 AI 工具已有的 adapter、home 目录或宿主产物
+- 除非用户明确追问，否则不要把无关宿主当作当前结论的一部分
 
 只有在下面这些情况，才应明确报告“当前宿主接入还没完成”：
 

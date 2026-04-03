@@ -130,8 +130,8 @@ python3 install.py install-openclaw
 
 1. `python3 install.py doctor ...` 返回 `"ok": true`
 2. `python3 install.py status` 能看到 OpenClaw 桥接、skill、heartbeat 和 Web 服务等基础安装产物
-   - 如果你显式安装了某个宿主 adapter，status 里还应额外看到对应宿主侧产物
-   - `host_adapters` 只表示这台机器上已经存在的已知宿主 adapter，不代表“当前安装 AI”已经自动完成最后一步
+   - `status` 只用于确认共享安装产物
+   - 当前宿主最后一步是否已经自举完成，要由安装它的 AI 按 `docs/GENERIC_HOST_BOOTSTRAP.md` 实际落下长期机制后再汇报
 3. `OpenClaw` 能响应：
    - `打开 <agent> 入口`
    - `已录入`
