@@ -17,7 +17,7 @@
 当前 AI 宿主在跑完：
 
 ```bash
-python3 install.py full --load-services
+python3 install.py install-host --load-services
 ```
 
 之后，必须自己立刻完成并验证下面 4 件事：

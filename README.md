@@ -37,19 +37,20 @@ Relay Hub 是一个中转层，用来把这三样东西接起来：
 ```bash
 git clone https://github.com/Liu-Bot24/relay-hub.git
 cd relay-hub
-python3 install.py full --load-services
+python3 install.py install-host --load-services
+python3 install.py install-openclaw
 ```
 
 如果 OpenClaw 工作区不在默认位置：
 
 ```bash
-python3 install.py full --load-services --openclaw-workspace /path/to/.openclaw/workspace
+python3 install.py install-openclaw --openclaw-workspace /path/to/.openclaw/workspace
 ```
 
-如果你只想先安装文件、不立刻加载服务：
+如果你只想先安装 AI 宿主侧共享层、不立刻加载服务：
 
 ```bash
-python3 install.py full
+python3 install.py install-host
 ```
 
 建议安装后再执行两条检查：
@@ -59,7 +60,12 @@ python3 install.py doctor
 python3 install.py status
 ```
 
-默认安装先落通用层；如果当前宿主没有仓库内置 adapter，就按 `docs/GENERIC_HOST_BOOTSTRAP.md` 用通用轮子完成最后一步自举。
+默认安装按侧分开执行：
+
+1. 当前 AI 宿主执行 `install-host`
+2. OpenClaw 执行 `install-openclaw`
+
+如果当前宿主没有仓库内置 adapter，就按 `docs/GENERIC_HOST_BOOTSTRAP.md` 用通用轮子完成最后一步自举。
 
 ### 交给 AI 编程工具安装
 
@@ -77,6 +83,7 @@ https://github.com/Liu-Bot24/relay-hub.git
 1. 共享安装是否已经完成
 2. 当前宿主的安装阶段自举是否已经完成；如果没有，明确告诉我还差什么
 3. 当前主对话是否已经开启 Relay Hub；如果还没开启，只需要说明“尚未开启”，不要把它算成安装失败
+另外，你只负责执行 `python3 install.py install-host ...` 和当前宿主自己的自举；不要代替 OpenClaw 执行 `install-openclaw`，不要删除、重置或重装 OpenClaw 侧现有 relay-hub 产物，也不要动别的 AI 宿主产物，除非我明确要求你这么做。
 ```
 
 ### 交给 OpenClaw 接入
@@ -121,13 +128,17 @@ https://github.com/Liu-Bot24/relay-hub.git
 
 ## 安装后会得到什么
 
-`python3 install.py full --load-services` 会：
+`python3 install.py install-host --load-services` 会：
 
 1. 安装 Relay Hub 本体
-2. 安装 OpenClaw 侧桥接与相关配置
-3. 安装网页入口并加载 Web 服务
-4. 写入后续检查所需的基础状态
-5. 如果你显式启用了某个宿主 adapter，再补充对应宿主侧产物
+2. 安装网页入口并加载 Web 服务
+3. 写入后续检查所需的基础状态
+4. 如果你显式启用了某个宿主 adapter，再补充对应宿主侧产物
+
+`python3 install.py install-openclaw` 会：
+
+1. 安装或更新 OpenClaw 侧桥接与相关配置
+2. 只触碰 OpenClaw 侧 relay-hub 产物和它依赖的共享前置，不负责宿主侧自举
 
 如果你只想确认共享安装结果，直接运行 `python3 install.py status` 即可。`status` 默认只看共享安装产物；当前宿主最后一步是否已经自举完成，应由安装它的 AI 按 `docs/GENERIC_HOST_BOOTSTRAP.md` 自己落实并汇报。
 
@@ -211,6 +222,13 @@ cd relay-hub
 python3 install.py install-launchd --load-services
 ```
 
+宿主侧主路径：
+
+```bash
+cd relay-hub
+python3 install.py install-host --load-services
+```
+
 ## 文档入口
 
 - 通用协议：`RELAY_PROTOCOL.md`
@@ -240,5 +258,8 @@ python3 install.py install-launchd --load-services
 - OpenClaw 负责消息入口和回包，不负责主线快照与回主线合流。
 - 外部 AI 不直接读取原始消息渠道。
 - OpenClaw 也不需要直接翻 Relay Hub 的底层数据文件。
+- 共享安装层允许原地更新，但不允许任何一侧擅自删除、重置或重装另一侧的现有 relay-hub 产物。
+- AI 宿主只负责共享安装层和自己宿主侧的长期机制；OpenClaw 只负责自己的渠道网关动作。
+- 任何跨侧清理、删除、卸载、reset、重建工作区，都必须先得到用户明确授权。
 
 所有消息渠道读写都通过固定桥接 CLI 完成。

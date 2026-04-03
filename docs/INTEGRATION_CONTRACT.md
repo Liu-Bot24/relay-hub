@@ -65,6 +65,30 @@
 
 ## 2. 外部 AI 的接入硬要求
 
+### 2.0 侧边界和所有权
+
+Relay Hub 接入有 3 类产物：
+
+1. 共享安装层
+   - `install.py` 安装出来的 runtime / app / launchd / OpenClaw bridge / web 等共享产物
+2. 宿主侧产物
+   - 当前 AI 宿主自己的长期规则 / skill / guide / adapter / automation
+3. OpenClaw 侧产物
+   - OpenClaw 渠道网关使用的 bridge、skill、工作区内 relay-hub 相关脚本与配置
+
+硬规则：
+
+- AI 宿主可以原地更新共享安装层，也可以写入自己的宿主侧产物
+- OpenClaw 可以执行自己的渠道网关动作，也可以安装或更新自己的 OpenClaw 侧产物
+- AI 宿主默认只执行 `install-host`
+- OpenClaw 默认只执行 `install-openclaw`
+- `full` 只保留给用户明确授权的组合安装 / 运维场景，不是默认委托路径
+- AI 宿主不得擅自删除、reset、重装或清空 OpenClaw 侧现有 relay-hub 产物
+- OpenClaw 不得擅自删除、reset、重装或清空 AI 宿主侧产物
+- 任何跨侧清理、卸载、重建工作区、删除目录、清空旧版本动作，都必须先得到用户明确授权
+
+如果接入方认为“删掉另一侧再重装”可能更省事，也必须先停下并告诉用户风险，不能自己做决定
+
 ### 2.1 必须创建宿主侧最小长期机制
 
 仓库提供通用持续接单轮子，并允许存在少量宿主优化实现；但产品主路径必须始终是通用优先，不能把某个特定宿主包装成默认特权路径。

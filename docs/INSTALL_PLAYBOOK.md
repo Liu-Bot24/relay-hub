@@ -29,19 +29,20 @@ python3 install.py doctor
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py full --load-services
+python3 install.py install-host --load-services
 ```
 
-如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且启用它能让“当前主窗口”也一起接进 Relay Hub，就在这条命令后追加对应参数；否则保持通用安装主路径，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 让当前宿主自己完成最后一步自举，不要自行发明宿主专属参数。
+如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且启用它能让“当前主窗口”也一起接进 Relay Hub，就在这条命令后追加对应参数；否则保持通用宿主安装主路径，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 让当前宿主自己完成最后一步自举，不要自行发明宿主专属参数。
 
 这表示：
 
 - Relay Hub 本身会先装好
-- OpenClaw 桥接和网页入口会一起装好
+- 网页入口与共享服务会一起装好
 - 如果你额外启用了某个宿主 adapter，才会改写对应宿主自己的目录
 - branch 回包默认走原始触发渠道，主窗口提醒优先复用当前主会话已绑定的来源渠道；不要求先配置额外渠道
 - 如果后面配置了额外回传渠道，那些渠道只是额外镜像；不会替代当前来源渠道
 - 如果机器上已经配过额外回传渠道，重装时不显式传参也会保留原配置
+- OpenClaw 侧需要单独执行 `install-openclaw`
 - 外部对象后续再按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 接入
 
 如果你后面明确要“除当前来源渠道外，还要额外镜像到别的渠道”，再单独执行：
@@ -84,6 +85,9 @@ python3 install.py install-openclaw
 - 当前 AI 对话窗口是主线，网页 / md 是 branch。
 - 如果用户要求你参与 Relay Hub，就先按文档确认环境，再通过 agent_relay.py 接入。
 - 不要把“install.py 已跑通”误当成“已经完整接入”；只有当你已经在自己的环境里固化最小长期机制，并能持续接单时，才算完整接入。
+- 你当前是 AI 宿主，只负责执行 `install-host` 和当前宿主自举；不要代替 OpenClaw 执行 `install-openclaw`，也不要使用 `full` 这种跨侧组合安装，除非用户明确要求。
+- 你只允许原地更新共享安装层，并写入当前宿主自己的长期机制；不要删除、reset、重装或清空 OpenClaw 侧现有 relay-hub 产物，也不要碰别的 AI 宿主产物，除非用户明确要求。
+- 如果你认为必须做跨侧清理或破坏性重装，先停下并向用户说明风险，不要自己执行。
 - 安装汇报必须分成三段：共享安装状态、当前宿主自举状态、当前主对话 Relay 开启状态。
 - 如果用户当前还没说 `接入 Relay Hub`，只允许把第 3 段写成“尚未开启”；不要把它误写成“宿主未完整接入”。
 - 安装完成后，只汇报是否进入“可用状态”，不要自行替用户做完整业务测试，除非用户明确要求。
@@ -120,10 +124,12 @@ python3 install.py install-openclaw
 - 只通过 scripts/openclaw_relay.py 或安装后写入 ~/.openclaw/workspace/scripts/relay_openclaw_bridge.py 的桥接脚本工作。
 - OpenClaw 只是渠道网关，不是主记忆体。
 - main_context 和 merge-back 不由你负责。
+- 你当前是 OpenClaw，只负责执行 `install-openclaw`；不要代替 AI 宿主执行 `install-host`，也不要使用 `full` 这种跨侧组合安装，除非用户明确要求。
+- 不要删除、reset、重装或清空 AI 宿主侧的 skill / rule / guide / adapter；也不要擅自删除共享安装层或别的宿主产物，除非用户明确要求。
 - 当前渠道和当前目标，默认必须从当前入站消息上下文或宿主可查询的当前会话信息里获取；只有真的拿不到时才回问用户。
 - 如果当前渠道对象已经有 branch，必须主动问用户“复用入口”还是“新建入口”，不能静默替用户决定。
 - 一旦你已经问出了“复用/新建”，就必须把这次待确认的 agent、channel、target 记为当前待确认入口；如果用户下一句只回答“复用”或“新建”，仍然按同一组参数重调。
-- 如果用户要求接入 Relay Hub，而本机尚未安装完成，就先按 README 和 docs/INSTALL_PLAYBOOK.md 完成 install.py install-openclaw 或 install.py full。
+- 如果用户要求接入 Relay Hub，而本机尚未安装完成，就先按 README 和 docs/INSTALL_PLAYBOOK.md 分侧完成 `install-host` 与 `install-openclaw`，不要默认回到 `full`。
 ```
 
 ## 4. 成功标准
@@ -131,7 +137,7 @@ python3 install.py install-openclaw
 当下面几件事都成立时，就可以认为仓库已经安装到“可用状态”：
 
 1. `python3 install.py doctor ...` 返回 `"ok": true`
-2. `python3 install.py status` 能看到 OpenClaw 桥接、skill、heartbeat 和 Web 服务等基础安装产物
+2. `python3 install.py status` 能看到当前已经安装到位的共享产物；OpenClaw 侧是否已经装好，还应结合 `install-openclaw` 的结果确认
    - `status` 只用于确认共享安装产物
    - 当前宿主最后一步是否已经自举完成，要由安装它的 AI 按 `docs/GENERIC_HOST_BOOTSTRAP.md` 实际落下长期机制后再汇报
 3. `OpenClaw` 能响应：
@@ -147,6 +153,8 @@ python3 install.py install-openclaw
 - 不要让外部 AI 直接读原始消息渠道
 - 不要让 OpenClaw 自己翻 Relay Hub 的底层文件
 - 不要把网页 branch 当成第二条主聊天
+- 不要让 AI 宿主擅自清理 OpenClaw 侧 relay-hub 产物，也不要让 OpenClaw 擅自清理 AI 宿主侧产物
+- 任何删除、卸载、reset、重建工作区这类破坏性动作，都必须先得到用户明确授权
 - 仓库目标是尽量提供通用轮子，让外部 AI 低门槛自主接入；如果某个宿主当前还没把这些轮子真正接好，应视为该宿主接入未完成，而不是产品目标状态
 
 更详细的通用性边界，见 `docs/COMPATIBILITY.md`。

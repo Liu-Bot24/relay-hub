@@ -38,7 +38,8 @@
 
 当前仓库的产品边界是：
 
-- 默认安装先落通用层
+- AI 宿主默认执行 `install-host`
+- OpenClaw 默认执行 `install-openclaw`
 - 外部 AI 再借助通用轮子把自己的宿主接入补齐
 - 仓库可以附带少量宿主 adapter，但它们不是产品主路径
 
@@ -69,6 +70,13 @@
 - 一个通用持续接单守护轮子：`scripts/relay_agent_daemon.py`
 - 多种 backend 接法，其中 `command` 是面向任意 CLI 的通用方式；仓库里如果存在其他内置 backend，也只应视作可选实现细节
 
+### 宿主与 OpenClaw 的边界
+
+- AI 宿主负责共享安装层的正常安装/升级，以及自己宿主侧的长期机制
+- OpenClaw 负责自己的渠道网关动作和 OpenClaw 侧 relay-hub 产物
+- 默认只允许原地更新，不允许任何一侧擅自删除、reset、重装或清空另一侧已有产物
+- 任何跨侧清理或破坏性重装，都必须先得到用户明确授权
+
 ## 2. 消息渠道通用性
 
 ### 是否只支持少数预设渠道
@@ -89,9 +97,8 @@
 例如：
 
 ```bash
-python3 install.py full \
+python3 install.py install-openclaw \
   --delivery-channel some-channel=target_id \
-  --load-services
 ```
 
 这些额外渠道是镜像渠道，不会替代当前来源渠道：

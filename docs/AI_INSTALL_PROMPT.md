@@ -31,10 +31,10 @@ https://github.com/Liu-Bot24/relay-hub.git
 - 使用你当前宿主稳定、可持续复用的名字
 - 如果仓库里已经存在你对应的既有 `agent_id` 约定，就复用那一份；否则不要临时起一个会漂移的新名字
 
-然后执行安装：
-python3 install.py full --load-services
+然后执行当前宿主安装：
+python3 install.py install-host --load-services
 
-如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且启用它能让“当前主窗口”直接接进 Relay Hub，就一并启用；否则保持通用安装主路径，不要自行发明宿主专属参数，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 自己完成最后一步宿主自举。
+如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且启用它能让“当前主窗口”直接接进 Relay Hub，就把对应参数加在 `install-host` 后面；否则保持通用宿主安装主路径，不要自行发明宿主专属参数，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 自己完成最后一步宿主自举。
 
 安装完成后，再执行：
 1. python3 install.py doctor
@@ -72,6 +72,12 @@ python3 install.py full --load-services
 - 默认不要求你先配置额外消息渠道；branch 回包默认走原始触发渠道，主窗口提醒优先复用当前主会话已绑定的来源渠道
 - 如果我后面明确要求“除当前来源渠道外，还要额外镜像到别的渠道”，那时你再执行：
   python3 install.py install-openclaw --delivery-channel channel=target --delivery-account channel=accountId
+- 你当前是 AI 宿主，只负责执行 `install-host` 和当前宿主自举；不要代替 OpenClaw 执行 `install-openclaw`，也不要使用 `full` 这种跨侧组合安装，除非我明确要求
+- 你只允许做两类写入：
+  1. 通过 `install.py` 原地更新共享安装产物
+  2. 落当前宿主自己的长期规则 / skill / guide / adapter
+- 不要删除、重置、重装或清空 OpenClaw 侧已有 relay-hub 产物；不要删除、重置、重装或清空别的 AI 宿主产物，除非我明确要求
+- 如果你判断某个跨侧删除、reset、重建工作区、清空目录、卸载旧版本动作“也许有帮助”，先停下并告诉我风险，不要自己执行
 - 不要直接读取原始消息渠道或 OpenClaw 插件内部实现
 - 不要自行做业务对话测试，除非我明确要求
 - 如果安装失败，就原样贴出失败点并停止，不要自创旁路方案

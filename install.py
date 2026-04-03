@@ -120,8 +120,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Relay Hub installer and service manager")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    full_parser = subparsers.add_parser("full", help="Bootstrap runtime, install OpenClaw bridge, and install launchd services")
+    full_parser = subparsers.add_parser("full", help="Operator-only combined install of shared layer, OpenClaw side, and launchd services")
     add_shared_args(full_parser)
+
+    host_parser = subparsers.add_parser(
+        "install-host",
+        help="Install/update shared runtime and host-side services without touching OpenClaw workspace",
+    )
+    add_shared_args(host_parser)
 
     oc_parser = subparsers.add_parser("install-openclaw", help="Install/update OpenClaw-side bridge files")
     add_shared_args(oc_parser)
@@ -806,10 +812,10 @@ def main() -> None:
     if args.command in {"install-openclaw", "full"}:
         payload["openclaw"] = install_openclaw(args, runtime_root, openclaw_workspace, app_root)
 
-    if args.command == "full" and args.install_codex_host:
+    if args.command in {"install-host", "full"} and args.install_codex_host:
         payload["codex"] = install_codex(args, codex_home, app_root)
 
-    if args.command in {"install-launchd", "full"}:
+    if args.command in {"install-host", "install-launchd", "full"}:
         payload["launchd"] = install_launchd(args, runtime_root, launchagents_dir, app_root)
 
     output(payload)

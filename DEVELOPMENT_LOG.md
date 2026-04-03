@@ -53,6 +53,56 @@
 - 后续事项:
   - 若验证通过，应将这轮“固定三段式安装汇报 + 明确安装/运行边界”的补强继续推送到远端，减少反复卸载重装测试成本。
 
+## 2026-04-04 00:03:11 UTC+08:00 | 作者: GPT-5-Codex
+- 目标: 修补“AI 宿主和 OpenClaw 各管各的边界没有写成硬禁令，导致 Claude Code 越界删 OpenClaw 侧 relay-hub 产物”的漏洞。
+- 关键操作:
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/README.md`，在用户发给 AI 的安装提示和边界说明中加入硬约束：
+    - 只允许原地更新共享安装层
+    - AI 宿主只改自己宿主侧持久规则
+    - 任何跨侧删除、重置、重装、清空目录都必须得到用户明确授权
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AI_INSTALL_PROMPT.md` 与 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INSTALL_PLAYBOOK.md`，明确禁止 AI 宿主删除/重置 OpenClaw 侧现有 relay-hub 产物，禁止擅自碰别的 AI 宿主产物。
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/OPENCLAW_INSTALL_PROMPT.md` 与 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/OPENCLAW_RULE.md`，对 OpenClaw 对称加入“不得动 AI 宿主侧产物”的禁令。
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INTEGRATION_CONTRACT.md` 与 `/Users/liuqi/Desktop/code/codex/relay-hub/docs/COMPATIBILITY.md`，把共享安装层 / 宿主侧产物 / OpenClaw 侧产物三类所有权边界定义清楚。
+- 变更文件:
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/README.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AI_INSTALL_PROMPT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INSTALL_PLAYBOOK.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/OPENCLAW_INSTALL_PROMPT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/OPENCLAW_RULE.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INTEGRATION_CONTRACT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/COMPATIBILITY.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/DEVELOPMENT_LOG.md`
+- 验证结果:
+  - 待执行关键词复查与 `git diff --check`。
+- 后续事项:
+  - 若验证通过，应尽快推送远端，避免再次用旧 prompt 触发越界删除。
+
+## 2026-04-04 00:14:34 UTC+08:00 | 作者: GPT-5-Codex
+- 目标: 继续按“安装也要各装各的部分”收口，不再让默认安装命令本身鼓励跨侧代装。
+- 关键操作:
+  - 修改 `/Users/liuqi/Desktop/code/codex/relay-hub/install.py`：
+    - 新增 `install-host` 子命令，用于 AI 宿主安装共享层与宿主侧，不触碰 OpenClaw 工作区；
+    - 保留 `install-openclaw` 给 OpenClaw 侧；
+    - 将 `full` 明确降级为“用户明确授权时的组合安装/运维命令”。
+  - 更新 `/Users/liuqi/Desktop/code/codex/relay-hub/README.md`、`docs/AI_INSTALL_PROMPT.md`、`docs/INSTALL_PLAYBOOK.md`、`docs/OPENCLAW_INSTALL_PROMPT.md`、`docs/GENERIC_HOST_BOOTSTRAP.md`、`docs/COMPATIBILITY.md`、`docs/INTEGRATION_CONTRACT.md`，统一改成：
+    - AI 宿主默认执行 `install-host`
+    - OpenClaw 默认执行 `install-openclaw`
+    - `full` 不是默认委托路径
+- 变更文件:
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/install.py`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/README.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/AI_INSTALL_PROMPT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INSTALL_PLAYBOOK.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/OPENCLAW_INSTALL_PROMPT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/GENERIC_HOST_BOOTSTRAP.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/COMPATIBILITY.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/docs/INTEGRATION_CONTRACT.md`
+  - `/Users/liuqi/Desktop/code/codex/relay-hub/DEVELOPMENT_LOG.md`
+- 验证结果:
+  - 待执行 `python3 install.py install-host --help`、关键词复查、`py_compile`、`git diff --check`。
+- 后续事项:
+  - 若验证通过，应推送远端，避免 AI 继续拿旧的 `full` 路径跨侧代装。
+
 ## 2026-04-03 22:37:37 UTC+08:00 | 作者: GPT-5-Codex
 - 目标: 按“不要只特判某一个 AI 工具”的产品边界，把这次修正路线切回通用宿主自举：不再新增 `Claude Code` 专属会话解析，而是让任意 AI 宿主在安装时靠通用轮子和 prompt 约束补齐最后一步。
 - 关键操作:

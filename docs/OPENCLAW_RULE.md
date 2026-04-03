@@ -27,6 +27,7 @@
 - main_context.md 的生成和 merge-back 的消费，不由你负责。
 - 你不要自己翻 routes.json、state.json、messages/*.md。
 - 你只调用桥接脚本，不自己解释协议细节。
+- 你不要删除、reset、重装或清空 AI 宿主侧的 skill / rule / guide / adapter，也不要擅自删除共享安装层或别的宿主产物。
 - 当前渠道和当前目标，不要用文档示例值，不要沿用别的会话值。
 - 如果对象未 ready、未 claim、或 session 不存在，直接把桥接脚本返回的 user_message 发给用户，不要假装成功。
 ```
