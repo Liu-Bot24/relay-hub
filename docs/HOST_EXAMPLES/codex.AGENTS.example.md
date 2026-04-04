@@ -21,7 +21,7 @@
 4. 当处于 Relay Hub 已接入状态时，正常主窗口回复前先执行：
 
 ```bash
-python3 <app_root>/scripts/agent_relay.py --agent codex prepare-main-reply
+python3 "<app_root>/scripts/agent_relay.py" --agent codex prepare-main-reply
 ```
 
 5. 建议的 `command` backend：
@@ -43,7 +43,7 @@ python3 <app_root>/scripts/agent_relay.py --agent codex prepare-main-reply
      2. 运行：
 
 ```bash
-python3 <app_root>/scripts/relay_after_reply_hook.py --agent codex --body-file <exact_body_file>
+python3 "<app_root>/scripts/relay_after_reply_hook.py" --agent codex --body-file <exact_body_file>
 ```
 
    - 然后把同一份 `<exact_body_file>` 的内容作为最终回复发给用户
@@ -52,7 +52,7 @@ python3 <app_root>/scripts/relay_after_reply_hook.py --agent codex --body-file <
 7. `enable-relay` 默认模板：
 
 ```bash
-python3 <app_root>/scripts/agent_relay.py --agent codex enable-relay \
+python3 "<app_root>/scripts/agent_relay.py" --agent codex enable-relay \
   --project-root <project_root> \
   --development-log-path <development_log_path> \
   --main-session-ref <main_session_ref> \

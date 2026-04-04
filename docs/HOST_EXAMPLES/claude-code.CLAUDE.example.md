@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 <app_root>/scripts/relay_after_reply_hook.py --agent claude-code"
+            "command": "python3 \"<app_root>/scripts/relay_after_reply_hook.py\" --agent claude-code"
           }
         ]
       }
@@ -53,7 +53,7 @@
      2. 自动执行：
 
 ```bash
-python3 <app_root>/scripts/relay_after_reply_hook.py --agent claude-code --body-file <exact_body_file>
+python3 "<app_root>/scripts/relay_after_reply_hook.py" --agent claude-code --body-file <exact_body_file>
 ```
 
      3. 然后把同一份 `<exact_body_file>` 的内容作为最终回复发给用户
@@ -66,7 +66,7 @@ python3 <app_root>/scripts/relay_after_reply_hook.py --agent claude-code --body-
 7. `enable-relay` 默认模板：
 
 ```bash
-python3 <app_root>/scripts/agent_relay.py --agent claude-code enable-relay \
+python3 "<app_root>/scripts/agent_relay.py" --agent claude-code enable-relay \
   --project-root <project_root> \
   --development-log-path <development_log_path> \
   --main-session-ref <main_session_ref> \

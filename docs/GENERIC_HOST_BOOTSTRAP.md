@@ -129,7 +129,7 @@ python3 install.py install-host --load-services
 如果宿主能把原始 hook payload 管道给本地命令，优先复用仓库自带的通用 helper：
 
 ```bash
-python3 <app_root>/scripts/relay_after_reply_hook.py --agent <agent_id>
+python3 "<app_root>/scripts/relay_after_reply_hook.py" --agent <agent_id>
 ```
 
 这个 helper 会：
@@ -148,7 +148,7 @@ python3 <app_root>/scripts/relay_after_reply_hook.py --agent <agent_id>
 2. 再执行：
 
 ```bash
-python3 <app_root>/scripts/relay_after_reply_hook.py --agent <agent_id> --body-file <exact_body_file>
+python3 "<app_root>/scripts/relay_after_reply_hook.py" --agent <agent_id> --body-file <exact_body_file>
 ```
 
 3. 最后把同一份 `<exact_body_file>` 的内容作为真正的最终回复发给用户

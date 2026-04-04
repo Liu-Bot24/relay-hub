@@ -38,7 +38,7 @@
      2. 自动执行：
 
 ```bash
-python3 <app_root>/scripts/relay_after_reply_hook.py --agent gemini-cli --body-file <exact_body_file>
+python3 "<app_root>/scripts/relay_after_reply_hook.py" --agent gemini-cli --body-file <exact_body_file>
 ```
 
      3. 最后发送同一份 `<exact_body_file>` 的内容
@@ -46,7 +46,7 @@ python3 <app_root>/scripts/relay_after_reply_hook.py --agent gemini-cli --body-f
 7. `enable-relay` 默认模板：
 
 ```bash
-python3 <app_root>/scripts/agent_relay.py --agent gemini-cli enable-relay \
+python3 "<app_root>/scripts/agent_relay.py" --agent gemini-cli enable-relay \
   --project-root <project_root> \
   --development-log-path <development_log_path> \
   --main-session-ref <main_session_ref> \
