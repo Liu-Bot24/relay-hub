@@ -172,15 +172,10 @@ def render_session(hub: RelayHub, session_key: str, notice: str | None = None) -
     <h1>{escape(session_key)}</h1>
     <p class="muted">网页入口是主对话窗口派生出来的分支工作区。链接发出时只是入口打开；用户第一次保存网页消息时，branch 才正式开始。真正的“已录入”与对外发送，仍然应该由 OpenClaw 或 relayctl 触发。</p>
     {notice_html}
-    <div class="grid">
-      <div class="card">
-        <strong>Meta</strong>
-        <pre>{escape(str(meta))}</pre>
-      </div>
-      <div class="card">
-        <strong>State</strong>
-        <pre>{escape(str(state))}</pre>
-      </div>
+    {write_panel}
+    <div class="card">
+      <strong>消息历史</strong>
+      {''.join(messages_html) if messages_html else '<p class="muted">还没有消息。</p>'}
     </div>
     <div class="card">
       <strong>主对话快照</strong>
@@ -193,10 +188,15 @@ def render_session(hub: RelayHub, session_key: str, notice: str | None = None) -
       <pre>{escape(development_log.get('path') or '当前还没有附加开发日志。')}</pre>
       {development_log_notice(development_log)}
     </div>
-    {write_panel}
-    <div class="card">
-      <strong>消息历史</strong>
-      {''.join(messages_html) if messages_html else '<p class="muted">还没有消息。</p>'}
+    <div class="grid">
+      <div class="card">
+        <strong>Meta</strong>
+        <pre>{escape(str(meta))}</pre>
+      </div>
+      <div class="card">
+        <strong>State</strong>
+        <pre>{escape(str(state))}</pre>
+      </div>
     </div>
     """
     return html_page(session_key, body)
