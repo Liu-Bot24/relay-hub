@@ -685,7 +685,6 @@ def process_once(
             "RELAY_MAIN_SESSION_REF": main_session_ref,
             "RELAY_PROJECT_ROOT": project_root or "",
             "RELAY_CONTEXT_TEXT": branch_context["context_packet_text"],
-            "RELAY_HUB_DISABLE_MAIN_REPLY_HOOK": "1",
         }
         body, error = run_command_backend(backend_command or "", env_updates, prompt, cwd=project_root)
     else:
