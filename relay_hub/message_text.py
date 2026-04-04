@@ -4,7 +4,13 @@ DELIVERY_DIVIDER = "--------------------"
 
 
 def command_guide(agent: str | None) -> str:
-    return f"常用指令：打开 {agent or '<agent>'} 入口 / 已录入 / 状态 / 退出 / relay help"
+    return "\n".join(
+        [
+            "常用指令",
+            f"OpenClaw：打开 {agent or '<agent>'} 入口 / 已录入 / relay help",
+            "宿主AI：合流上下文 / 退出（接入） Relay Hub / 关闭（开启）<渠道>消息提醒",
+        ]
+    )
 
 
 def relay_help_text(agent: str | None) -> str:
