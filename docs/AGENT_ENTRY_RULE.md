@@ -84,7 +84,7 @@
    - 自入口打开以来的开发日志增量
    - 当前 cycle 的 branch transcript
 6. 当用户回到主对话窗口并发送第一句话时，先执行 resume-main，把 branch 增量并回主线，再继续回答当前用户。
-7. 只要当前仍处于 Relay Hub 已接入状态，主窗口里的正常回复默认也应镜像成提醒；如果仓库里恰好存在你当前宿主的原生正文捕获优化实现，可以优先使用；否则统一走“精确正文捕获队列”：优先把宿主自己的 after-reply hook / watcher 接到 `relay_after_reply_hook.py` 这类通用 helper；若仍需自己处理正文文件，则在最终正文已经产出后，把同一份正文写入临时文件，再自动执行 `capture-main-output --body-file <exact_body_file>`。不要再生成第二份措辞相近的新文本，也不要把“出问题时手动补跑一次”当成已经完成接入。
+7. 只要当前仍处于 Relay Hub 已接入状态，主窗口里的正常回复默认也应镜像成提醒；如果仓库里恰好存在你当前宿主的原生正文捕获优化实现，可以优先使用；否则统一走“精确正文捕获队列”：优先把宿主自己的 after-reply hook / watcher 接到 `relay_after_reply_hook.py` 这类通用 helper；如果没有原生 hook，但宿主持久规则能在回复收尾阶段自动执行本地命令，也可以在最终正文已经确定后，先把同一份正文写入临时文件，再自动执行 `relay_after_reply_hook.py --body-file <exact_body_file>`；若仍需自己处理正文文件，则至少自动执行 `capture-main-output --body-file <exact_body_file>`。不要再生成第二份措辞相近的新文本，也不要把“出问题时手动补跑一次”当成已经完成接入。
 8. 若协议缺失、session 不存在、main_session_ref 不匹配，或 branch 尚未开始，就先报错或提示，不要自行猜测。
 9. 当前支持范围内，不要监控项目，也不要靠 `project_root` 猜测未来主对话。Relay Hub 开启后只认“用户当前正在使用的 AI 主对话”：回旧会话续旧会话，去新会话则从新会话开始，但同一时间只保留一个活跃主会话。
 

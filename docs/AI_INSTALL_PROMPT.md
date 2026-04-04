@@ -23,6 +23,12 @@ https://github.com/Liu-Bot24/relay-hub.git
 8. docs/AGENT_WORKFLOW.md
 9. docs/COMPATIBILITY.md
 
+如果你当前宿主正好是下面 4 个之一，还可以额外参考对应示例文件，但示例只用于帮助你更快落地，验收标准仍以 `docs/GENERIC_HOST_BOOTSTRAP.md` 为准：
+- Codex：`docs/HOST_EXAMPLES/codex.AGENTS.example.md`
+- Claude Code：`docs/HOST_EXAMPLES/claude-code.CLAUDE.example.md`
+- Gemini CLI：`docs/HOST_EXAMPLES/gemini-cli.GEMINI.example.md`
+- Cursor CLI：`docs/HOST_EXAMPLES/cursor-cli.relay-hub.example.mdc`
+
 先自己确定下面两件事，不要先来问我：
 1. 仓库根目录
 - 如果你当前已经在仓库根目录，就直接使用当前目录
@@ -58,6 +64,7 @@ python3 install.py install-host --load-services
   - `main_session_ref` 规则、`enable-relay` 完整启动链路、`command` backend 都必须明确且可工作；像“之后再根据实际情况确定 backend”这种说法，仍然算未完成
   - 自动精确镜像必须是真正持久的自动机制；人工补跑 `capture-main-output` 不算完成
   - 只要宿主有“回复结束时触发、且 payload 带最终正文”的 hook / watcher，就必须把它当成可用载体，并优先接仓库的 `relay_after_reply_hook.py`
+  - 如果宿主没有原生 after-reply hook，但支持持久规则 / skill / guide，并且能在正常回复流程里自动执行本地命令，那么“宿主内回复收尾流程”也算有效自动镜像：先把最终正文写入文件，再自动执行 `relay_after_reply_hook.py --body-file <exact_body_file>`，最后发送同一份正文
   - 如果你新增了宿主侧 wrapper / extractor / transcript 解析脚本，不能只测“脚本能跑通”；必须用一个“前一条 assistant 文本”和“最后一条 assistant 文本”不同的最小夹具验证它确实抓到最后一条回复，验证通过后才能报告完成
 
 安装完成后的汇报格式：

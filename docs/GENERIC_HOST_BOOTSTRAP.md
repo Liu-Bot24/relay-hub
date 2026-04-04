@@ -54,7 +54,7 @@ python3 install.py install-host --load-services
 1. 选择当前宿主真正会长期生效的载体
 2. 把最小规则写进去，而不是只在当前回复里描述
 3. 写完后回读、列出，或用宿主提供的等价方式确认它已经存在
-4. 另外再为“主窗口正常回复后的自动精确镜像”选择一个真正会长期运行的触发载体，例如宿主 automation / watcher / reply hook
+4. 另外再为“主窗口正常回复后的自动精确镜像”选择一个真正会长期运行的触发载体，例如宿主 automation / watcher / reply hook，或宿主持久规则里的“回复收尾流程”
 5. 验证这条触发机制不是单次手动命令，而是后续每条主窗口正常回复都会自动触发
 6. 如果宿主支持 hooks / watcher，还必须把 helper 调用真正写进宿主的持久化设置文件或等价载体，并在安装阶段回读验证
 
@@ -65,6 +65,12 @@ python3 install.py install-host --load-services
 3. 如果前两者都没有，再退回宿主 automation / watcher 等可持续复用机制
 
 光有一份文字规则还不够；如果主窗口镜像仍要靠人工在每条回复后手动补跑 `capture-main-output`，那说明自动机制没有落下，安装阶段自举仍未完成。
+
+但如果宿主没有原生 after-reply hook，却支持“持久规则 + 本地命令执行”，那么把这条镜像链路写进宿主自己的回复收尾流程也算自动机制。关键不是事件名，而是：
+
+- 用户不需要每轮再提醒一次
+- 宿主自己会在每次主窗口正常回复前自动执行
+- 被排进镜像队列的正文，和最终真正发给用户的正文是同一份文本
 
 如果这一步没做，才算“当前宿主接入还没完成”。
 
@@ -103,8 +109,9 @@ python3 install.py install-host --load-services
 优先顺序：
 
 1. 当前宿主原生提供的 after-reply / stop / lifecycle hook
-2. 当前宿主原生提供的 automation / watcher / post-response action
-3. 宿主明确支持的本地 transcript watcher
+2. 宿主持久规则里可稳定复用的“回复收尾流程”
+3. 当前宿主原生提供的 automation / watcher / post-response action
+4. 宿主明确支持的本地 transcript watcher
 
 判断规则：
 
@@ -134,6 +141,25 @@ python3 <app_root>/scripts/relay_after_reply_hook.py --agent <agent_id>
 宿主只需要把自己的 after-reply hook / watcher 接到这个 helper，而不是自己重拼 `capture-main-output` 参数。
 
 如果宿主支持 hooks / watcher，但安装阶段还没有把这条 helper 调用真实写进宿主设置并回读验证，就不能报告“宿主自举已完成”。
+
+如果宿主没有可用原生 hook，但支持持久规则 / skill / guide，并且能在正常回复过程中执行本地命令，那么可以改走“宿主内回复收尾流程”：
+
+1. 先把即将发给用户的最终正文原样写进临时文件
+2. 再执行：
+
+```bash
+python3 <app_root>/scripts/relay_after_reply_hook.py --agent <agent_id> --body-file <exact_body_file>
+```
+
+3. 最后把同一份 `<exact_body_file>` 的内容作为真正的最终回复发给用户
+
+这条路径同样算自动精确镜像，因为：
+
+- 它由宿主自己的持久规则自动触发
+- 不需要用户再额外提醒
+- 镜像出去的正文与最终回复完全一致
+
+只有“需要用户每轮提醒你补跑一次命令”才算手动补跑；宿主按持久规则在回复收尾阶段自动执行，不算手动。
 
 ## 3.2 通用 hook 宿主最小可抄样例
 
@@ -201,6 +227,8 @@ python3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py \
 
 - 事件必须真的是“本轮回复结束后”触发
 - 最终接进宿主设置的命令，必须是 `relay_after_reply_hook.py` 或等价自动镜像链路，而不是人工补跑一次 `capture-main-output`
+
+如果当前宿主正好是 `Codex`、`Claude Code`、`Gemini CLI`、`Cursor CLI`，可再参考 `docs/HOST_EXAMPLES.md` 里的对应示例文件。
 
 ## 4. agent_id 规则
 

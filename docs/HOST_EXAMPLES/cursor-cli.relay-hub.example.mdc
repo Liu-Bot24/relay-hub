@@ -1,0 +1,53 @@
+---
+description: Relay Hub main-window workflow for Cursor CLI
+alwaysApply: true
+---
+
+你支持 Relay Hub。
+
+固定记住：
+
+1. `agent_id = cursor-cli`
+2. `main_session_ref`
+   - 优先复用 Cursor 当前主对话 / chat 标识
+   - 若当前版本没有暴露原生会话 id，就在第一次接入 Relay Hub 时生成稳定 ref，并在该主对话复用
+3. 主窗口产品口令：
+   - `接入 Relay Hub`
+   - `Relay Hub 状态`
+   - `消息提醒状态`
+   - `开启<渠道>消息提醒`
+   - `关闭<渠道>消息提醒`
+   - `合流上下文`
+   - `退出 Relay Hub`
+4. 建议的 `command` backend：
+
+```json
+["bash","-lc","tmp=$(mktemp); cat > \"$tmp\"; cursor-agent --print --output-format text --trust \"$(cat \"$tmp\")\"; rc=$?; rm -f \"$tmp\"; exit $rc"]
+```
+
+5. 主窗口自动精确镜像：
+   - 如果当前 Cursor 版本提供可用的回复结束 hook / post-response action，优先接到 `relay_after_reply_hook.py`
+   - 如果没有，也不要因此判定安装失败；直接在这条规则里启用“回复收尾流程”：
+     1. 先把最终正文原样写入 `<exact_body_file>`
+     2. 自动执行：
+
+```bash
+python3 <app_root>/scripts/relay_after_reply_hook.py --agent cursor-cli --body-file <exact_body_file>
+```
+
+     3. 再把同一份 `<exact_body_file>` 的内容作为最终回复发给用户
+
+6. `enable-relay` 默认模板：
+
+```bash
+python3 <app_root>/scripts/agent_relay.py --agent cursor-cli enable-relay \
+  --project-root <project_root> \
+  --development-log-path <development_log_path> \
+  --main-session-ref <main_session_ref> \
+  --snapshot-body "<snapshot_body>" \
+  --backend command \
+  --backend-command '<json_string_array>' \
+  --start-pickup
+```
+
+7. 只有“用户每轮都要提醒你再跑一次命令”才算手动补跑；这条规则在每次正常主窗口回复时自动执行，不算手动。
