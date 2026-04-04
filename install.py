@@ -28,6 +28,7 @@ FORBIDDEN_INSTALL_ROOT_PREFIXES = (
     Path("/private/tmp"),
     Path("/tmp"),
     Path("/var/folders"),
+    Path("/private/var/folders"),
 )
 DEFAULT_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 DEFAULT_WEB_HOST = "0.0.0.0"
