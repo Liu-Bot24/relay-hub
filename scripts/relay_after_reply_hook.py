@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -188,6 +189,17 @@ def read_payload_text(args: argparse.Namespace) -> str:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
+
+    if os.environ.get("RELAY_HUB_DISABLE_MAIN_REPLY_HOOK") == "1":
+        output(
+            {
+                "ok": True,
+                "skipped": True,
+                "reason": "disabled_in_pickup_worker",
+                "agent": args.agent,
+            }
+        )
+        return
 
     hub = RelayHub(resolve_root(args.root))
     hub.init_layout()
