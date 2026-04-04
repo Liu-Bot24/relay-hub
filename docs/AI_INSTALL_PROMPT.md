@@ -31,6 +31,7 @@ https://github.com/Liu-Bot24/relay-hub.git
 
 如果当前宿主正好命中上面 4 个之一，优先直接按对应示例文件落配置，不要自己重新发明一套“看起来差不多”的宿主规则。
 如果当前宿主是 Codex，先问清用户要不要安装 Codex 专属宿主增强；未得到明确同意前，保持通用主路径，不要默认把 Codex adapter 一起装上。
+如果当前宿主命中了某个已知示例，该示例里写明的“精确持久载体路径”和“精确验证方式”就是硬要求；不要用 memory、session cache、项目转录文件、临时 notes 或别的旁路文件冒充已经持久化完成。
 
 先自己确定下面两件事，不要先来问我：
 1. 仓库根目录
@@ -39,7 +40,9 @@ https://github.com/Liu-Bot24/relay-hub.git
 - 如果当前目录不是仓库根目录，但某个上级目录已经同时包含 README.md、install.py、RELAY_PROTOCOL.md，就直接使用那个上级目录；不要因为仓库名相同又重新下载一份
 - 如果用户已经把仓库下载到桌面、下载目录或任意本地文件夹，只要里面同时有 README.md、install.py、RELAY_PROTOCOL.md，就把这份本地目录当成唯一有效安装源；不要再克隆第二份
 - 如果你不在仓库根目录，就自动定位到同时包含 README.md、install.py、RELAY_PROTOCOL.md 的目录
+- 在允许 `git clone` 之前，先搜索本地可见目录里是否已经有有效副本；至少检查当前目录、上级目录、`~/Desktop`、`~/Downloads`、`~/code`、`~/Desktop/code`、`~/workspace` 和 `~` 下常见的 `relay-hub` 位置
 - 只有在上面这些本地目录都不存在时，才允许执行 `git clone`
+- 如果搜索到 2 份及以上有效本地副本，而用户没有明确指定其中一份，就停止并把候选路径全部告诉用户；不要自己猜哪一份才是对的，更不要再克隆第三份
 - 如果必须克隆，目标路径只能是两个可预期位置之一：`./relay-hub` 或 `~/relay-hub`；不要克隆到临时目录、缓存目录、隐藏工作区、别的项目目录深处、或任何用户没有明确看到的位置
 - 如果 `./relay-hub` 与 `~/relay-hub` 都已存在但都不是有效仓库，就停止并把冲突路径告诉用户；不要擅自换第三个位置继续下载
 2. 你的 agent_id
@@ -70,6 +73,7 @@ python3 install.py install-host --load-services
   - 如果宿主没有原生 after-reply hook，但支持持久规则 / skill / guide，并且能在正常回复流程里自动执行本地命令，那么“宿主内回复收尾流程”也算有效自动镜像：先把最终正文写入文件，再自动执行 `relay_after_reply_hook.py --body-file <exact_body_file>`，最后发送同一份正文
   - branch 合流默认属于通用产品命令能力，不默认要求自动完成；如果当前宿主没有可靠的“主窗口用户发言前”触发机制，就必须明确告诉用户：回到主窗口后先说 `合流上下文`，再继续主线
   - 只有当当前宿主确实支持可靠的前置 hook / pre-prompt / watcher，并且你已经真实落下该机制时，才允许把“回主窗口自动先合流”报告为已完成
+  - 安装阶段不要通过真实开启当前主对话 Relay、留下后台 pickup、或偷跑业务对话来“验证 backend”；除非用户此刻明确要求接入 Relay Hub，否则安装汇报里当前主对话应仍是“尚未开启”
   - 如果你新增了宿主侧 wrapper / extractor / transcript 解析脚本，不能只测“脚本能跑通”；必须用一个“前一条 assistant 文本”和“最后一条 assistant 文本”不同的最小夹具验证它确实抓到最后一条回复，验证通过后才能报告完成
 
 安装完成后的汇报格式：

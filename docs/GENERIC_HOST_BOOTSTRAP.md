@@ -39,6 +39,7 @@ python3 install.py install-host --load-services
 - 至少要把规则真正写进宿主支持的持久载体里，并在安装阶段回读或等价验证一次
 - 如果主窗口精确镜像还需要你后面每条回复手动补跑一次 `capture-main-output`，那不算已经补齐
 - 如果需要现成模板，直接使用 `docs/GENERIC_HOST_RULE_TEMPLATE.md`
+- 如果当前宿主命中了仓库内置的已知示例文件，该示例中写明的精确持久载体路径与验证方式优先；memory、session cache、临时 transcript、测试输出文件都不能替代真正的持久载体
 
 ## 2.1 安装阶段必须真的把长期机制落下
 
@@ -73,6 +74,12 @@ python3 install.py install-host --load-services
 - 被排进镜像队列的正文，和最终真正发给用户的正文是同一份文本
 
 如果这一步没做，才算“当前宿主接入还没完成”。
+
+## 2.1.1 安装阶段不要偷跑运行期接入
+
+- 安装阶段的目标是把“将来如何接入”和“将来如何自动镜像”持久落下，不是现在就把当前主对话开启成 Relay
+- 除非用户此刻明确要求执行 `接入 Relay Hub`，否则不要为了“验证 backend”而启动真实 pickup、开启真实 Relay、或偷跑业务对话
+- 安装汇报里的第 3 段仍应是“当前主对话尚未开启 Relay Hub”
 
 ## 2.2 安装阶段不要误报 pickup 未启动
 

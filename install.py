@@ -24,6 +24,11 @@ DEFAULT_OPENCLAW_WORKSPACE = Path.home() / ".openclaw" / "workspace"
 DEFAULT_LAUNCHAGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
 DEFAULT_APP_ROOT = DEFAULT_INSTALL_ROOT / "app"
 DEFAULT_CODEX_HOME = Path.home() / ".codex"
+FORBIDDEN_INSTALL_ROOT_PREFIXES = (
+    Path("/private/tmp"),
+    Path("/tmp"),
+    Path("/var/folders"),
+)
 DEFAULT_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 DEFAULT_WEB_HOST = "0.0.0.0"
 DEFAULT_WEB_PORT = 4317
@@ -61,6 +66,22 @@ def load_json(path: Path, default: Any = None) -> Any:
 
 def resolve_path(raw: str | None, default: Path) -> Path:
     return Path(raw).expanduser().resolve() if raw else default
+
+
+def repo_root_is_ephemeral(path: Path) -> bool:
+    resolved = path.expanduser().resolve()
+    return any(resolved == prefix or prefix in resolved.parents for prefix in FORBIDDEN_INSTALL_ROOT_PREFIXES)
+
+
+def ensure_repo_root_allowed(command: str) -> None:
+    if command not in {"install-host", "install-openclaw", "install-launchd", "full"}:
+        return
+    if repo_root_is_ephemeral(REPO_ROOT):
+        raise SystemExit(
+            "Relay Hub must not be installed from a temporary/cache checkout such as "
+            f"`{REPO_ROOT}`. Re-run from a visible permanent local repo copy (for example the current "
+            "workspace repo or `~/relay-hub`), and do not use `/tmp`, `/private/tmp`, or `/var/folders`."
+        )
 
 
 def default_web_base_url(port: int) -> str:
@@ -1200,6 +1221,7 @@ def install_doctor(
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
+    ensure_repo_root_allowed(args.command)
     runtime_root = resolve_path(args.runtime_root, DEFAULT_RUNTIME_ROOT)
     openclaw_workspace = resolve_path(args.openclaw_workspace, DEFAULT_OPENCLAW_WORKSPACE)
     launchagents_dir = resolve_path(args.launchagents_dir, DEFAULT_LAUNCHAGENTS_DIR)
