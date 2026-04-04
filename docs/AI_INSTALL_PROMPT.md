@@ -55,6 +55,7 @@ python3 install.py install-host --load-services
 - 你给 `--backend-command` 填的必须是真实可工作的宿主 CLI；占位符、`echo`、`printf`、`true`、`false`、`sleep` 这类假命令都不算完成
 - 你已经在宿主环境里真正落下“每条主窗口正常回复后自动执行精确镜像”的持久机制；如果还需要每条回复人工补跑 `capture-main-output`，那不算完成
 - 你在声称“做不到自动镜像”之前，已经检查过当前宿主版本的本地设置和官方文档里的 hooks / automation / watcher；如果宿主支持原生 after-reply hook，优先把它接到仓库提供的通用 helper，而不是自己重拼镜像命令
+- 如果宿主支持 hooks / watcher，安装阶段只有在你已经把 helper 调用真正写进宿主持久化设置，并回读验证该配置存在后，才算自动镜像已完成
 - 如果仓库没有当前宿主的原生 adapter，但你已经按 `docs/GENERIC_HOST_BOOTSTRAP.md` 完成以上步骤，就不要再把自己报告成“宿主未完整接入”
 
 安装完成后的汇报格式：
@@ -81,7 +82,7 @@ python3 install.py install-host --load-services
 - `install-openclaw` 现在要求共享层已经存在；如果 OpenClaw 侧后续安装时报“请先执行 install-host”，那是正确行为，不要自己改成跨侧代装
 - 你只允许做两类写入：
   1. 通过 `install.py` 原地更新共享安装产物
-  2. 落当前宿主自己的长期规则 / skill / guide / adapter
+  2. 落当前宿主自己的长期规则 / skill / guide / adapter（包括宿主自己的 hooks / watcher / settings 配置）
 - 不要删除、重置、重装或清空 OpenClaw 侧已有 relay-hub 产物；不要删除、重置、重装或清空别的 AI 宿主产物，除非我明确要求
 - 如果你判断某个跨侧删除、reset、重建工作区、清空目录、卸载旧版本动作“也许有帮助”，先停下并告诉我风险，不要自己执行
 - 不要直接读取原始消息渠道或 OpenClaw 插件内部实现

@@ -53,6 +53,7 @@ python3 install.py install-host --load-services
 3. 写完后回读、列出，或用宿主提供的等价方式确认它已经存在
 4. 另外再为“主窗口正常回复后的自动精确镜像”选择一个真正会长期运行的触发载体，例如宿主 automation / watcher / reply hook
 5. 验证这条触发机制不是单次手动命令，而是后续每条主窗口正常回复都会自动触发
+6. 如果宿主支持 hooks / watcher，还必须把 helper 调用真正写进宿主的持久化设置文件或等价载体，并在安装阶段回读验证
 
 优先顺序建议：
 
@@ -122,6 +123,8 @@ python3 <app_root>/scripts/relay_after_reply_hook.py --agent <agent_id>
 - 把正文排进精确镜像队列
 
 宿主只需要把自己的 after-reply hook / watcher 接到这个 helper，而不是自己重拼 `capture-main-output` 参数。
+
+如果宿主支持 hooks / watcher，但安装阶段还没有把这条 helper 调用真实写进宿主设置并回读验证，就不能报告“宿主自举已完成”。
 
 ## 4. agent_id 规则
 
