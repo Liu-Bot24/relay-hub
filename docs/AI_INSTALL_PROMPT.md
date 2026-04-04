@@ -56,6 +56,7 @@ python3 install.py install-host --load-services
 - 你已经在宿主环境里真正落下“每条主窗口正常回复后自动执行精确镜像”的持久机制；如果还需要每条回复人工补跑 `capture-main-output`，那不算完成
 - 你在声称“做不到自动镜像”之前，已经检查过当前宿主版本的本地设置和官方文档里的 hooks / automation / watcher；如果宿主支持原生 after-reply hook，优先把它接到仓库提供的通用 helper，而不是自己重拼镜像命令
 - 如果宿主支持 hooks / watcher，安装阶段只有在你已经把 helper 调用真正写进宿主持久化设置，并回读验证该配置存在后，才算自动镜像已完成
+- 只要宿主存在“回复结束时触发、且 payload 带最终正文”的 stop / completion / lifecycle hook，它就应被视为可用的 after-reply 载体；不要因为事件名不是 after-reply 就错误判定“做不到自动镜像”
 - 如果仓库没有当前宿主的原生 adapter，但你已经按 `docs/GENERIC_HOST_BOOTSTRAP.md` 完成以上步骤，就不要再把自己报告成“宿主未完整接入”
 
 安装完成后的汇报格式：

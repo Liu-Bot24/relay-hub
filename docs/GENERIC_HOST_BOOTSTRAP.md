@@ -103,6 +103,12 @@ python3 install.py install-host --load-services
 2. 当前宿主原生提供的 automation / watcher / post-response action
 3. 宿主明确支持的本地 transcript watcher
 
+判断规则：
+
+- 只要某个 hook / event 是在“本轮回复结束时”触发，并且 payload 里能拿到最终正文，它就应被视为可用的 after-reply 载体
+- 不要求宿主字面上必须叫 `after-reply`
+- 例如 `stop` / `completion` / `response-finished` 一类事件，只要满足上面两条，就不能再说“宿主没有 after-reply hook”
+
 安装当前宿主的 AI 必须先自己检查：
 
 - 宿主当前版本的本地设置 / 配置文件

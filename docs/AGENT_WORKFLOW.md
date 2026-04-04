@@ -139,7 +139,7 @@ python3 scripts/agent_relay.py --agent agent_demo enable-relay \
 优先级规则：
 
 1. 如果宿主能代码级拿到“刚刚发给主窗口的最终正文”，就直接用这份原文镜像。
-2. 如果宿主支持把 after-reply hook payload 管道给本地命令，优先接仓库 helper：
+2. 如果宿主支持把“回复结束时触发、且 payload 带最终正文”的 hook payload 管道给本地命令，优先接仓库 helper：
 
 ```bash
 cd /path/to/relay-hub

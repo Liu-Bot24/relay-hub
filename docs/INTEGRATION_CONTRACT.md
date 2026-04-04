@@ -123,6 +123,8 @@ Relay Hub 接入有 3 类产物：
 
 在判断“宿主能不能自动镜像”时，接入方必须先检查宿主当前版本实际提供的 hooks / automation / watcher。只有在这些载体都不存在时，才允许报告“无法自动镜像”。
 
+这里的“可用 hook”不要求字面上必须叫 after-reply。只要某个 stop / completion / lifecycle hook 是在回复结束时触发，并且 payload 里带最终正文，就必须把它视为可用自动镜像载体。
+
 如果宿主支持 hooks / watcher，接入方还必须把 helper 调用真实写进宿主的持久化设置并回读验证；只是在回复里说明“后面会这么配”不算完成。
 
 ### 2.2 开启和关闭
