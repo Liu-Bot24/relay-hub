@@ -116,6 +116,11 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Also install the Codex host adapter into ~/.codex. Use only when the current AI host is Codex.",
     )
+    parser.add_argument(
+        "--uninstall-codex-host",
+        action="store_true",
+        help="Also remove the Codex host adapter from ~/.codex. Only affects Relay Hub-managed Codex files.",
+    )
     parser.add_argument("--skip-heartbeat-patch", action="store_true")
 
 
@@ -137,6 +142,30 @@ def build_parser() -> argparse.ArgumentParser:
 
     svc_parser = subparsers.add_parser("install-launchd", help="Install/update launchd plist for Relay Hub web")
     add_shared_args(svc_parser)
+
+    uninstall_parser = subparsers.add_parser(
+        "uninstall",
+        help="Operator-only combined uninstall of shared layer, OpenClaw side, and launchd services",
+    )
+    add_shared_args(uninstall_parser)
+
+    uninstall_host_parser = subparsers.add_parser(
+        "uninstall-host",
+        help="Remove shared runtime and host-side services without touching OpenClaw workspace",
+    )
+    add_shared_args(uninstall_host_parser)
+
+    uninstall_oc_parser = subparsers.add_parser(
+        "uninstall-openclaw",
+        help="Remove OpenClaw-side Relay Hub bridge files without touching shared runtime",
+    )
+    add_shared_args(uninstall_oc_parser)
+
+    uninstall_launchd_parser = subparsers.add_parser(
+        "uninstall-launchd",
+        help="Unload and remove launchd plist for Relay Hub web",
+    )
+    add_shared_args(uninstall_launchd_parser)
 
     status_parser = subparsers.add_parser("status", help="Show current Relay Hub install status")
     add_shared_args(status_parser)
@@ -750,6 +779,55 @@ def merge_heartbeat(existing: str, block: str) -> str:
     return block.rstrip() + "\n\n" + existing
 
 
+def remove_marked_block(existing: str, begin: str, end: str) -> tuple[str, bool]:
+    if begin not in existing or end not in existing:
+        return existing, False
+    before, rest = existing.split(begin, 1)
+    _, after = rest.split(end, 1)
+    cleaned = before.rstrip("\n")
+    suffix = after.lstrip("\n")
+    if cleaned and suffix:
+        result = cleaned + "\n\n" + suffix
+    elif cleaned:
+        result = cleaned + "\n"
+    else:
+        result = suffix
+    return result.rstrip() + ("\n" if result.strip() else ""), True
+
+
+def unlink_if_exists(path: Path) -> bool:
+    if not path.exists():
+        return False
+    path.unlink()
+    return True
+
+
+def remove_tree_if_exists(path: Path) -> bool:
+    if not path.exists():
+        return False
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+    return True
+
+
+def prune_empty_parents(path: Path, stop_at: Path) -> None:
+    current = path
+    stop = stop_at.resolve()
+    while current.exists() and current.is_dir():
+        try:
+            if current.resolve() == stop:
+                return
+        except FileNotFoundError:
+            return
+        try:
+            current.rmdir()
+        except OSError:
+            return
+        current = current.parent
+
+
 def bootstrap_runtime(args: argparse.Namespace, runtime_root: Path) -> dict[str, Any]:
     hub = RelayHub(runtime_root)
     config = hub.init_layout(
@@ -832,6 +910,31 @@ def install_codex(args: argparse.Namespace, codex_home: Path, app_root: Path) ->
     }
 
 
+def uninstall_codex(codex_home: Path) -> dict[str, Any]:
+    skill_file = codex_skill_path(codex_home)
+    agents_file = codex_agents_path(codex_home)
+    skill_removed = unlink_if_exists(skill_file)
+    prune_empty_parents(skill_file.parent, codex_home)
+    agents_updated = False
+    agents_removed = False
+    if agents_file.exists():
+        existing_agents = agents_file.read_text(encoding="utf-8")
+        updated_agents, removed = remove_marked_block(existing_agents, CODEX_AGENTS_BEGIN, CODEX_AGENTS_END)
+        if removed:
+            agents_updated = True
+            if updated_agents.strip():
+                write_text(agents_file, updated_agents)
+            else:
+                agents_file.unlink(missing_ok=True)
+                agents_removed = True
+    return {
+        "codex_home": str(codex_home),
+        "skill_removed": skill_removed,
+        "agents_updated": agents_updated,
+        "agents_removed": agents_removed,
+    }
+
+
 def launchctl_domain() -> str:
     return f"gui/{os.getuid()}"
 
@@ -896,6 +999,88 @@ def install_launchd(args: argparse.Namespace, runtime_root: Path, launchagents_d
         "web_plist": str(web_plist),
         "removed_legacy_agent_plists": removed_legacy_agent_plists,
         "loaded": bool(args.load_services),
+    }
+
+
+def uninstall_launchd(launchagents_dir: Path) -> dict[str, Any]:
+    web_plist = launchagents_dir / "com.relayhub.web.plist"
+    unloaded_labels: list[str] = []
+    if web_plist.exists():
+        result = subprocess.run(  # noqa: S603
+            ["launchctl", "bootout", launchctl_domain(), str(web_plist)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            unloaded_labels.append("com.relayhub.web")
+        web_plist.unlink(missing_ok=True)
+    removed_legacy_agent_plists = remove_legacy_agent_plists(launchagents_dir)
+    return {
+        "launchagents_dir": str(launchagents_dir),
+        "web_plist_removed": not web_plist.exists(),
+        "unloaded_labels": unloaded_labels,
+        "removed_legacy_agent_plists": removed_legacy_agent_plists,
+    }
+
+
+def uninstall_openclaw(openclaw_workspace: Path) -> dict[str, Any]:
+    bridge_target = bridge_script_workspace_path(openclaw_workspace)
+    config_file = openclaw_config_path(openclaw_workspace)
+    alias_file = alias_map_path(openclaw_workspace)
+    skill_dir = skill_path(openclaw_workspace).parent
+    heartbeat_file = heartbeat_path(openclaw_workspace)
+    relay_pid = openclaw_workspace / "data" / "relay_hub_web.pid"
+    relay_log = openclaw_workspace / "log" / "relay_hub_web.log"
+
+    bridge_removed = unlink_if_exists(bridge_target)
+    config_removed = unlink_if_exists(config_file)
+    alias_removed = unlink_if_exists(alias_file)
+    pid_removed = unlink_if_exists(relay_pid)
+    log_removed = unlink_if_exists(relay_log)
+    skill_removed = remove_tree_if_exists(skill_dir)
+
+    heartbeat_updated = False
+    heartbeat_removed = False
+    if heartbeat_file.exists():
+        existing = heartbeat_file.read_text(encoding="utf-8")
+        updated, removed = remove_marked_block(existing, HEARTBEAT_BEGIN, HEARTBEAT_END)
+        if removed:
+            heartbeat_updated = True
+            if updated.strip():
+                write_text(heartbeat_file, updated)
+            else:
+                heartbeat_file.unlink(missing_ok=True)
+                heartbeat_removed = True
+
+    prune_empty_parents(bridge_target.parent, openclaw_workspace / "scripts")
+    prune_empty_parents(skill_dir, openclaw_workspace / "skills")
+    prune_empty_parents(config_file.parent, openclaw_workspace / "data")
+    prune_empty_parents(relay_log.parent, openclaw_workspace / "log")
+
+    return {
+        "openclaw_workspace": str(openclaw_workspace),
+        "bridge_script_removed": bridge_removed,
+        "config_removed": config_removed,
+        "alias_map_removed": alias_removed,
+        "skill_removed": skill_removed,
+        "heartbeat_updated": heartbeat_updated,
+        "heartbeat_removed": heartbeat_removed,
+        "relay_pid_removed": pid_removed,
+        "relay_log_removed": log_removed,
+    }
+
+
+def uninstall_host(runtime_root: Path, app_root: Path, launchagents_dir: Path) -> dict[str, Any]:
+    launchd_payload = uninstall_launchd(launchagents_dir)
+    app_removed = remove_tree_if_exists(app_root)
+    runtime_removed = remove_tree_if_exists(runtime_root)
+    return {
+        "launchd": launchd_payload,
+        "app_root": str(app_root),
+        "app_removed": app_removed,
+        "runtime_root": str(runtime_root),
+        "runtime_removed": runtime_removed,
+        "note": "OpenClaw workspace is untouched. Run uninstall-openclaw separately if you also want to remove channel-side Relay Hub files.",
     }
 
 
@@ -1041,6 +1226,18 @@ def main() -> None:
 
     if args.command in {"install-host", "install-launchd", "full"}:
         payload["launchd"] = install_launchd(args, runtime_root, launchagents_dir, app_root)
+
+    if args.command in {"uninstall-openclaw", "uninstall"}:
+        payload["openclaw"] = uninstall_openclaw(openclaw_workspace)
+
+    if args.command in {"uninstall-host", "uninstall"}:
+        payload["host"] = uninstall_host(runtime_root, app_root, launchagents_dir)
+
+    if args.command == "uninstall-launchd":
+        payload["launchd"] = uninstall_launchd(launchagents_dir)
+
+    if args.command in {"uninstall-host", "uninstall"} and args.uninstall_codex_host:
+        payload["codex"] = uninstall_codex(codex_home)
 
     output(payload)
 

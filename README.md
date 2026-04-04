@@ -66,6 +66,7 @@ python3 install.py status
 2. OpenClaw 执行 `install-openclaw`
 
 如果当前宿主没有仓库内置 adapter，就按 `docs/GENERIC_HOST_BOOTSTRAP.md` 用通用轮子完成最后一步自举。
+卸载说明见 `docs/UNINSTALL.md`。
 
 ### 交给 AI 编程工具安装
 
@@ -239,6 +240,7 @@ python3 install.py install-host --load-services
 - 通用宿主自举：`docs/GENERIC_HOST_BOOTSTRAP.md`
 - 接入硬章程：`docs/INTEGRATION_CONTRACT.md`
 - 通用性审计：`docs/COMPATIBILITY.md`
+- 卸载说明：`docs/UNINSTALL.md`
 - 给 OpenClaw 的安装提示：`docs/OPENCLAW_INSTALL_PROMPT.md`
 - OpenClaw 接入映射：`docs/OPENCLAW_INTEGRATION.md`
 - OpenClaw 最小规则：`docs/OPENCLAW_RULE.md`
