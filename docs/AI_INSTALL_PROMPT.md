@@ -8,7 +8,7 @@
 仓库地址：
 https://github.com/Liu-Bot24/relay-hub.git
 
-如果本机还没有这个仓库，请先克隆；如果已经有本地副本，就直接定位到包含 README.md、install.py、RELAY_PROTOCOL.md 的仓库根目录。请在该仓库根目录工作，并严格按下面流程执行，不要自行简化步骤。
+如果本机还没有这个仓库，请先克隆；如果已经有本地副本，或用户已经下载/解压出一份本地目录，就直接定位到包含 README.md、install.py、RELAY_PROTOCOL.md 的仓库根目录。解压目录即使没有 `.git` 也算有效安装源，不要因为“不是 git clone”就再额外克隆一份。请在该仓库根目录工作，并严格按下面流程执行，不要自行简化步骤。
 
 先优先阅读这 4 个关键文件：
 1. README.md
@@ -26,7 +26,13 @@ https://github.com/Liu-Bot24/relay-hub.git
 先自己确定下面两件事，不要先来问我：
 1. 仓库根目录
 - 如果你当前已经在仓库根目录，就直接使用当前目录
+- 如果用户已经明确给了当前工作目录、当前打开的仓库、或你已经在某个仓库副本里执行命令，这个当前仓库副本就是唯一有效根目录；不要擅自切到另一份同名 clone
+- 如果当前目录不是仓库根目录，但某个上级目录已经同时包含 README.md、install.py、RELAY_PROTOCOL.md，就直接使用那个上级目录；不要因为仓库名相同又重新下载一份
+- 如果用户已经把仓库下载到桌面、下载目录或任意本地文件夹，只要里面同时有 README.md、install.py、RELAY_PROTOCOL.md，就把这份本地目录当成唯一有效安装源；不要再克隆第二份
 - 如果你不在仓库根目录，就自动定位到同时包含 README.md、install.py、RELAY_PROTOCOL.md 的目录
+- 只有在上面这些本地目录都不存在时，才允许执行 `git clone`
+- 如果必须克隆，目标路径只能是两个可预期位置之一：`./relay-hub` 或 `~/relay-hub`；不要克隆到临时目录、缓存目录、隐藏工作区、别的项目目录深处、或任何用户没有明确看到的位置
+- 如果 `./relay-hub` 与 `~/relay-hub` 都已存在但都不是有效仓库，就停止并把冲突路径告诉用户；不要擅自换第三个位置继续下载
 2. 你的 agent_id
 - 使用你当前宿主稳定、可持续复用的名字
 - 如果仓库里已经存在你对应的既有 `agent_id` 约定，就复用那一份；否则不要临时起一个会漂移的新名字
@@ -49,9 +55,10 @@ python3 install.py install-host --load-services
 - 宿主自举完成的唯一验收标准，以 `docs/GENERIC_HOST_BOOTSTRAP.md` 为准；若其他文件与它理解不一致，统一以这份文档为准
 - 这里不再重复展开全部细则，只保留最低提醒：
   - 最小长期规则必须真实写入宿主持久载体，并回读验证
-  - `main_session_ref` 规则、`enable-relay` 完整启动链路、`command` backend 都必须明确且可工作
+  - `main_session_ref` 规则、`enable-relay` 完整启动链路、`command` backend 都必须明确且可工作；像“之后再根据实际情况确定 backend”这种说法，仍然算未完成
   - 自动精确镜像必须是真正持久的自动机制；人工补跑 `capture-main-output` 不算完成
   - 只要宿主有“回复结束时触发、且 payload 带最终正文”的 hook / watcher，就必须把它当成可用载体，并优先接仓库的 `relay_after_reply_hook.py`
+  - 如果你新增了宿主侧 wrapper / extractor / transcript 解析脚本，不能只测“脚本能跑通”；必须用一个“前一条 assistant 文本”和“最后一条 assistant 文本”不同的最小夹具验证它确实抓到最后一条回复，验证通过后才能报告完成
 
 安装完成后的汇报格式：
 - 必须分成 3 段分别汇报：
@@ -70,6 +77,8 @@ python3 install.py install-host --load-services
 
 安装要求：
 - install.py 会自动探测本机局域网地址；只有探测失败时，才回头问我
+- 你在安装过程中创建的项目级 guide、wrapper、临时脚本、验证文件，都必须落在这次实际使用的同一份仓库根目录下；不要把规则写到另一份本地 clone 里
+- 不要把仓库重新下载到另一个“更顺手”的位置再继续安装；下载位置和安装位置必须是同一份本地副本
 - 默认不要求你手工配置额外消息渠道；`install-openclaw` 应自动发现当前已启用的 OpenClaw 消息渠道，并把它们设为首次主窗口开启时的默认提醒渠道；branch 回包仍默认走原始触发渠道
 - 如果我后面明确要求覆盖默认发现结果，或额外指定某个固定目标，那时你再执行：
   python3 install.py install-openclaw --delivery-channel channel=target --delivery-account channel=accountId
