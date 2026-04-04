@@ -39,6 +39,8 @@
    - claim-next -> branch-context -> reply -> resume-main
 6. 主窗口正常回复后的精确镜像：
    - 这必须是宿主环境里的自动触发机制，不允许每条回复靠人工补跑
+   - 先检查宿主有没有原生 after-reply / stop hook；如果有，优先把 hook 接到仓库 helper：
+     python3 <app_root>/scripts/relay_after_reply_hook.py --agent <agent_id>
    - 若没有宿主专属正文捕获实现，就把最终正文原样写入文件
    - 再自动执行：
      python3 scripts/agent_relay.py --agent <agent_id> capture-main-output --body-file <exact_body_file>
@@ -57,6 +59,7 @@
 1. 现在就把这份规则落到持久载体里，不要停在口头说明
 2. 写完后回读或等价验证，确认后续会持续生效
 3. 现在就把“主窗口正常回复后的自动精确镜像机制”也落到持久载体里，并验证不是人工补跑
+   - 如果宿主支持原生 hooks / watcher，先用它，而不是先假设做不到
 4. 安装汇报时只关注当前宿主，不提无关宿主或本机上别的 adapter，除非用户明确问
 5. 如果当前主对话还没说“接入 Relay Hub”，不要把“pickup 现在还没运行”误报成缺项；只需要确认将来如何启动它已经被持久记住
 6. 安装汇报固定分成三段：

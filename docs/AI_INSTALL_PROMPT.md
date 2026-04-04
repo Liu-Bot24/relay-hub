@@ -54,6 +54,7 @@ python3 install.py install-host --load-services
   - 再执行带 `--project-root` 与 `--snapshot-body/--snapshot-file` 的 `enable-relay --start-pickup`
 - 你给 `--backend-command` 填的必须是真实可工作的宿主 CLI；占位符、`echo`、`printf`、`true`、`false`、`sleep` 这类假命令都不算完成
 - 你已经在宿主环境里真正落下“每条主窗口正常回复后自动执行精确镜像”的持久机制；如果还需要每条回复人工补跑 `capture-main-output`，那不算完成
+- 你在声称“做不到自动镜像”之前，已经检查过当前宿主版本的本地设置和官方文档里的 hooks / automation / watcher；如果宿主支持原生 after-reply hook，优先把它接到仓库提供的通用 helper，而不是自己重拼镜像命令
 - 如果仓库没有当前宿主的原生 adapter，但你已经按 `docs/GENERIC_HOST_BOOTSTRAP.md` 完成以上步骤，就不要再把自己报告成“宿主未完整接入”
 
 安装完成后的汇报格式：
@@ -88,6 +89,7 @@ python3 install.py install-host --load-services
 - 如果安装失败，就原样贴出失败点并停止，不要自创旁路方案
 - 安装完成后，必须先把当前宿主自己的长期机制真正落下，再做安装汇报
 - 不要把“我知道后续可以手动执行 `capture-main-output`”当成自动镜像已完成；只有宿主环境里已经存在可持续复用的自动触发机制，才算安装阶段自举完成
+- 如果宿主支持把原始 hook payload 传给本地命令，优先使用安装后的 `relay_after_reply_hook.py` helper 作为通用镜像入口
 - 不要把无关宿主信息塞进安装结论里
 - 当用户后续说 `接入 Relay Hub` 时，不要先裸跑 `enable-relay` 探路；对通用宿主，第一次调用就必须带上 `--project-root` 和 `--snapshot-body` 或 `--snapshot-file`
 - 当用户后续对你说“接入 Relay Hub”“Relay Hub 状态”“消息提醒状态”“开启<渠道>消息提醒”“关闭<渠道>消息提醒”“合流上下文”“退出 Relay Hub”时，严格按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 执行

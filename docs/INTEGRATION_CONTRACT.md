@@ -121,6 +121,8 @@ Relay Hub 接入有 3 类产物：
 
 安装阶段不能只把这些内容留在当前回复里，必须真正写入宿主会长期生效的载体，并做一次回读或等价验证。若自动精确镜像机制还没落下，只能算“共享层已安装”，不能算“宿主接入准备已完成”。
 
+在判断“宿主能不能自动镜像”时，接入方必须先检查宿主当前版本实际提供的 hooks / automation / watcher。只有在这些载体都不存在时，才允许报告“无法自动镜像”。
+
 ### 2.2 开启和关闭
 
 当用户说：
@@ -195,6 +197,12 @@ Relay Hub 接入有 3 类产物：
 - `scripts/agent_relay.py start-pickup / pickup-status / stop-pickup`
 
 你可以直接使用这套轮子，或者在宿主环境里做等价实现；但不能退化成“每次靠用户重新教一次”，也不能退化成“每次主窗口回复后靠人工补跑一次 capture-main-output”。
+
+如果宿主能把原始 after-reply hook payload 传给本地命令，优先复用仓库提供的通用 helper：
+
+- `scripts/relay_after_reply_hook.py`
+
+它负责从 hook payload 里提取最终正文，并排进精确镜像队列；宿主只负责把自己的 hook / watcher 接到它。
 
 如果 `command` backend 里填的只是占位符或假命令，例如 `echo`、`printf`、`true`、`false`、`sleep`，也不能算“已完成持续接单接入”。
 

@@ -94,6 +94,35 @@ python3 install.py install-host --load-services
     `python3 scripts/agent_relay.py --agent <agent_id> capture-main-output --body-file <exact_body_file>`
   - 只在出错补救时手动补跑一条，不算安装完成
 
+## 3.1 自动镜像触发载体的选择顺序
+
+优先顺序：
+
+1. 当前宿主原生提供的 after-reply / stop / lifecycle hook
+2. 当前宿主原生提供的 automation / watcher / post-response action
+3. 宿主明确支持的本地 transcript watcher
+
+安装当前宿主的 AI 必须先自己检查：
+
+- 宿主当前版本的本地设置 / 配置文件
+- 宿主官方文档里当前版本可用的 hooks / automation / watcher
+
+只有在这些都确认不存在时，才允许报告“当前宿主无法自动镜像，所以安装阶段自举未完成”。
+
+如果宿主能把原始 hook payload 管道给本地命令，优先复用仓库自带的通用 helper：
+
+```bash
+python3 <app_root>/scripts/relay_after_reply_hook.py --agent <agent_id>
+```
+
+这个 helper 会：
+
+- 在 Relay Hub 已附着时自动读取当前 `main_session_ref`
+- 从原始 hook payload 里提取最终正文
+- 把正文排进精确镜像队列
+
+宿主只需要把自己的 after-reply hook / watcher 接到这个 helper，而不是自己重拼 `capture-main-output` 参数。
+
 ## 4. agent_id 规则
 
 - 使用当前宿主稳定、可持续复用的产品名

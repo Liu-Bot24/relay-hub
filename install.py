@@ -400,6 +400,7 @@ def stage_app_bundle(app_root: Path) -> dict[str, Any]:
     scripts = [
         "agent_relay.py",
         "openclaw_relay.py",
+        "relay_after_reply_hook.py",
         "relay_agent_daemon.py",
         "relay_openclaw_bridge.py",
         "relay_web.py",

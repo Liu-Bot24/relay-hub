@@ -56,6 +56,7 @@
 
 对“主窗口回复如何精确镜像到 OpenClaw”这件事，当前仓库提供的是两层：
 
+- 通用 hook helper：若宿主支持 after-reply / stop / watcher payload，把原始 payload 管道给 `scripts/relay_after_reply_hook.py`
 - 通用主路径：精确正文捕获队列，先把已经产出的最终正文写入文件，再执行 `scripts/agent_relay.py capture-main-output --body-file ...`
 - 可选优化路径：仓库内允许存在个别宿主的原生正文捕获实现，但它们只是附加优化，不代表产品主路径
 
