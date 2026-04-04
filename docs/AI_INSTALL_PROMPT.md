@@ -64,7 +64,7 @@ python3 install.py install-host --load-services
 - 宿主自举完成的唯一验收标准，以 `docs/GENERIC_HOST_BOOTSTRAP.md` 为准；若其他文件与它理解不一致，统一以这份文档为准
 - 这里不再重复展开全部细则，只保留最低提醒：
   - 最小长期规则必须真实写入宿主持久载体，并回读验证
-  - `main_session_ref` 规则、`enable-relay` 完整启动链路，以及当前宿主实际使用的 backend（仓库内置 backend 或 `command` backend）都必须明确且可工作；像“之后再根据实际情况确定 backend”这种说法，仍然算未完成
+  - `main_session_ref` 规则、`enable-relay` 完整启动链路、`command` backend 都必须明确且可工作；像“之后再根据实际情况确定 backend”这种说法，仍然算未完成
   - 自动精确镜像必须是真正持久的自动机制；人工补跑 `capture-main-output` 不算完成
   - 只要宿主有“回复结束时触发、且 payload 带最终正文”的 hook / watcher，就必须把它当成可用载体，并优先接仓库的 `relay_after_reply_hook.py`
   - 如果宿主没有原生 after-reply hook，但支持持久规则 / skill / guide，并且能在正常回复流程里自动执行本地命令，那么“宿主内回复收尾流程”也算有效自动镜像：先把最终正文写入文件，再自动执行 `relay_after_reply_hook.py --body-file <exact_body_file>`，最后发送同一份正文

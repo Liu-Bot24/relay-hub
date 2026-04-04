@@ -24,11 +24,17 @@
 python3 "<app_root>/scripts/agent_relay.py" --agent codex prepare-main-reply
 ```
 
-5. backend 规则：
+5. 建议的 `command` backend：
 
-- Codex 当前直接使用仓库内置的 `codex-exec` backend
-- 不要为 Codex 额外发明一条 `command backend`
-- 内置 `codex-exec` 已经会隔离常见的污染性环境变量（例如坏掉的 `CODEX_API_KEY` / `OPENAI_API_KEY`），并优先复用当前 Codex 可用认证
+```json
+["bash","-lc","codex exec --skip-git-repo-check --sandbox workspace-write -o \"$RELAY_OUTPUT_FILE\" -"]
+```
+
+如果需要显式绑定项目根目录，可改成：
+
+```json
+["bash","-lc","codex exec --skip-git-repo-check --sandbox workspace-write --cd \"<project_root>\" -o \"$RELAY_OUTPUT_FILE\" -"]
+```
 
 6. 主窗口自动精确镜像：
    - 优先沿用 Codex 当前仓库里的 Relay Hub 主窗口规则
@@ -51,10 +57,12 @@ python3 "<app_root>/scripts/agent_relay.py" --agent codex enable-relay \
   --development-log-path <development_log_path> \
   --main-session-ref <main_session_ref> \
   --snapshot-body "<snapshot_body>" \
+  --backend command \
+  --backend-command '<json_string_array>' \
   --start-pickup
 ```
 
 最低验收：
 
-- 不要把 Codex 误判成“还缺 command backend”；当前应直接使用仓库内置 `codex-exec`
+- `command` backend 不能留空，也不能写成“后面再确定”
 - 正常主窗口回复时，镜像必须自动发生，不能靠用户提醒

@@ -257,12 +257,6 @@ python3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py \
 
 ## 6. command backend 规则
 
-如果当前宿主已经有仓库内置 backend，就直接使用那条内置 backend，不要再额外发明一条 `command backend`。
-
-例如：
-
-- Codex 当前直接使用仓库内置 `codex-exec`
-
 若当前宿主没有仓库内置 backend，就统一走：
 
 ```bash
