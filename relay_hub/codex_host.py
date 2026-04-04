@@ -175,6 +175,58 @@ def _last_user_message_timestamp(rollout_path: str | Path) -> str | None:
     return last_timestamp
 
 
+def _last_task_complete_timestamp(rollout_path: str | Path) -> str | None:
+    path = Path(rollout_path).expanduser().resolve()
+    if not path.exists():
+        return None
+    last_timestamp: str | None = None
+    with path.open("r", encoding="utf-8") as handle:
+        for raw in handle:
+            try:
+                item = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if item.get("type") != "event_msg":
+                continue
+            payload = item.get("payload") or {}
+            if payload.get("type") != "task_complete":
+                continue
+            if not str(payload.get("last_agent_message") or "").strip():
+                continue
+            timestamp = item.get("timestamp")
+            if isinstance(timestamp, str):
+                last_timestamp = timestamp
+    return last_timestamp
+
+
+def latest_task_complete_event(rollout_path: str | Path) -> dict[str, Any] | None:
+    path = Path(rollout_path).expanduser().resolve()
+    if not path.exists():
+        return None
+    latest: dict[str, Any] | None = None
+    with path.open("r", encoding="utf-8") as handle:
+        for raw in handle:
+            try:
+                item = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if item.get("type") != "event_msg":
+                continue
+            payload = item.get("payload") or {}
+            if payload.get("type") != "task_complete":
+                continue
+            message = str(payload.get("last_agent_message") or "").strip()
+            turn_id = str(payload.get("turn_id") or "").strip()
+            if not message or not turn_id:
+                continue
+            latest = {
+                "turn_id": turn_id,
+                "message": message,
+                "timestamp": item.get("timestamp"),
+            }
+    return latest
+
+
 def resolve_active_user_thread_record(
     *,
     codex_home: str | Path | None = None,
@@ -204,6 +256,39 @@ def resolve_active_user_thread_record(
             best_key = key
     if best is not None:
         best["resolved_by"] = "latest_user_message"
+        return best
+    return None
+
+
+def resolve_active_reply_thread_record(
+    *,
+    codex_home: str | Path | None = None,
+    limit: int = 12,
+) -> dict[str, Any] | None:
+    db_path = state_db_path(codex_home)
+    candidates = _query_all(
+        db_path,
+        "select id, rollout_path, cwd, updated_at, archived from threads "
+        "where archived = 0 order by updated_at desc limit ?",
+        (limit,),
+    )
+    best: dict[str, Any] | None = None
+    best_key: tuple[datetime, int] | None = None
+    for record in candidates:
+        last_reply_timestamp = _last_task_complete_timestamp(record["rollout_path"])
+        if last_reply_timestamp is None:
+            continue
+        try:
+            parsed = datetime.fromisoformat(last_reply_timestamp.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        record["last_reply_message_at"] = last_reply_timestamp
+        key = (parsed, int(record.get("updated_at") or 0))
+        if best_key is None or key > best_key:
+            best = record
+            best_key = key
+    if best is not None:
+        best["resolved_by"] = "latest_reply_message"
         return best
     return None
 

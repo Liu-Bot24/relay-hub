@@ -22,7 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from relay_hub import RelayHub
 from relay_hub.codex_host import (
     read_new_task_completions,
-    resolve_active_user_thread_record,
+    resolve_active_reply_thread_record,
     resolve_rollout_record,
     thread_id_from_main_session_ref,
     thread_record,
@@ -480,9 +480,10 @@ def drain_capture_queue_once(
                 "notify": notify_result,
             }
         path.unlink(missing_ok=True)
+        metadata = payload.get("metadata") or {}
         state.update(
             {
-                "last_mirrored_turn_id": payload.get("id"),
+                "last_mirrored_turn_id": metadata.get("turn_id") or payload.get("id"),
                 "last_mirrored_at": payload.get("created_at") or time.strftime("%Y-%m-%dT%H:%M:%S"),
                 "last_mirrored_body_preview": preview_text(body),
                 "last_error": None,
@@ -815,10 +816,44 @@ def main() -> None:
                 last_error=None,
             )
             return
-        current_state = load_pickup_state(root, args.agent, args.main_session_ref)
+        current_state = ensure_codex_host_binding(
+            root,
+            args.agent,
+            args.main_session_ref,
+            load_pickup_state(root, args.agent, args.main_session_ref).get("project_root"),
+        )
+        current_thread_id = str(
+            current_state.get("host_thread_id")
+            or thread_id_from_main_session_ref(args.main_session_ref)
+            or ""
+        )
+        latest_reply_thread = resolve_active_reply_thread_record() if args.agent == "codex" else None
         if current_state.get("host_kind") == "codex-rollout":
             alive, reason = codex_host_still_active(current_state)
             if not alive:
+                if (
+                    latest_reply_thread is not None
+                    and latest_reply_thread.get("id")
+                    and str(latest_reply_thread["id"]) != current_thread_id
+                    and agent_state.get("current_main_session_ref") == args.main_session_ref
+                ):
+                    handoff = handoff_to_thread(
+                        root=root,
+                        agent=args.agent,
+                        backend=args.backend,
+                        backend_command=args.backend_command,
+                        poll_interval_seconds=args.poll_interval_seconds,
+                        thread_id=str(latest_reply_thread["id"]),
+                    )
+                    update_pickup_state(
+                        root,
+                        args.agent,
+                        args.main_session_ref,
+                        status="stopped",
+                        pid=None,
+                        last_error=None if handoff.get("ok") else handoff.get("error"),
+                    )
+                    return
                 if agent_state.get("current_main_session_ref") == args.main_session_ref:
                     hub.disable_agent(args.agent)
                 update_pickup_state(
@@ -830,31 +865,29 @@ def main() -> None:
                     last_error=reason,
                 )
                 return
-            latest_user_thread = resolve_active_user_thread_record()
-            current_thread_id = str(current_state.get("host_thread_id") or "")
-            if (
-                latest_user_thread is not None
-                and latest_user_thread.get("id")
-                and str(latest_user_thread["id"]) != current_thread_id
-                and agent_state.get("current_main_session_ref") == args.main_session_ref
-            ):
-                handoff = handoff_to_thread(
-                    root=root,
-                    agent=args.agent,
-                    backend=args.backend,
-                    backend_command=args.backend_command,
-                    poll_interval_seconds=args.poll_interval_seconds,
-                    thread_id=str(latest_user_thread["id"]),
-                )
-                update_pickup_state(
-                    root,
-                    args.agent,
-                    args.main_session_ref,
-                    status="stopped",
-                    pid=None,
-                    last_error=None if handoff.get("ok") else handoff.get("error"),
-                )
-                return
+        if (
+            latest_reply_thread is not None
+            and latest_reply_thread.get("id")
+            and str(latest_reply_thread["id"]) != current_thread_id
+            and agent_state.get("current_main_session_ref") == args.main_session_ref
+        ):
+            handoff = handoff_to_thread(
+                root=root,
+                agent=args.agent,
+                backend=args.backend,
+                backend_command=args.backend_command,
+                poll_interval_seconds=args.poll_interval_seconds,
+                thread_id=str(latest_reply_thread["id"]),
+            )
+            update_pickup_state(
+                root,
+                args.agent,
+                args.main_session_ref,
+                status="stopped",
+                pid=None,
+                last_error=None if handoff.get("ok") else handoff.get("error"),
+            )
+            return
         result = process_once(
             hub=hub,
             root=root,

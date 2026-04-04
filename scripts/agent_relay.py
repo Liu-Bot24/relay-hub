@@ -21,6 +21,7 @@ from relay_hub.codex_host import (
     conversation_rounds as codex_conversation_rounds,
     fallback_rounds_summary,
     format_rounds_snapshot,
+    latest_task_complete_event,
     resolve_active_user_thread_record,
     resolve_rollout_record,
     rounds_before_last_relay_enable as codex_rounds_before_last_relay_enable,
@@ -427,6 +428,60 @@ def apply_codex_host_binding(
     return state
 
 
+def enqueue_codex_latest_reply_backfill(
+    root: Path,
+    agent: str,
+    main_session_ref: str,
+) -> dict[str, Any] | None:
+    state = load_pickup_state(root, agent, main_session_ref)
+    if state.get("host_kind") != "codex-rollout":
+        return None
+    rollout_path = state.get("host_rollout_path")
+    if not rollout_path:
+        return None
+    event = latest_task_complete_event(rollout_path)
+    if event is None:
+        return None
+    if event["turn_id"] == state.get("last_mirrored_turn_id"):
+        return {
+            "queued": False,
+            "reason": "already_mirrored",
+            "turn_id": event["turn_id"],
+        }
+    queue_dir = pickup_capture_queue_dir(root, agent, main_session_ref)
+    if queue_dir.exists():
+        for path in sorted(queue_dir.glob("*.json")):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                continue
+            metadata = payload.get("metadata") or {}
+            if metadata.get("turn_id") == event["turn_id"]:
+                return {
+                    "queued": False,
+                    "reason": "already_queued",
+                    "turn_id": event["turn_id"],
+                    "path": str(path),
+                }
+    queued = enqueue_captured_main_output(
+        root=root,
+        agent=agent,
+        main_session_ref=main_session_ref,
+        body=event["message"],
+        source="codex-latest-reply-backfill",
+        metadata={
+            "turn_id": event["turn_id"],
+            "turn_timestamp": event.get("timestamp"),
+        },
+    )
+    return {
+        "queued": True,
+        "turn_id": event["turn_id"],
+        "turn_timestamp": event.get("timestamp"),
+        **queued,
+    }
+
+
 def sync_codex_main_session(
     *,
     hub: RelayHub,
@@ -452,6 +507,7 @@ def sync_codex_main_session(
         }
     if agent != "codex":
         raise SystemExit("sync-current-main currently supports codex only")
+    previous_main_session_ref = presence.get("current_main_session_ref")
     binding = resolve_codex_conversation_binding(
         hub.root,
         agent,
@@ -504,16 +560,24 @@ def sync_codex_main_session(
         poll_interval_seconds=poll_interval_seconds,
         main_context_body=snapshot_seed if bootstrap_needed and not seed_exists else None,
     )
+    latest_reply_backfill = None
+    if previous_main_session_ref and previous_main_session_ref != main_session_ref:
+        latest_reply_backfill = enqueue_codex_latest_reply_backfill(
+            hub.root,
+            agent,
+            main_session_ref,
+        )
     return {
         "ok": True,
         "relay_active": True,
-        "switched": presence.get("current_main_session_ref") != main_session_ref,
+        "switched": previous_main_session_ref != main_session_ref,
         "bootstrap_needed": bootstrap_needed,
         "main_session_ref": main_session_ref,
         "thread_id": binding["thread_id"],
         "project_root": context_payload["project_root"],
         "development_log_path": context_payload["development_log_path"],
         "pickup": pickup,
+        "latest_reply_backfill": latest_reply_backfill,
         "stopped_pickups": stopped_pickups,
     }
 
