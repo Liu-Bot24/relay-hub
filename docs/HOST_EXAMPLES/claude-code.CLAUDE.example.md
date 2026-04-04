@@ -27,8 +27,28 @@
 如果当前场景要求绑定已有 Claude session，也可以改成当前版本支持的可工作 `--resume` / `--session-id` 形式，但不能写成占位待定。
 
 5. 主窗口自动精确镜像：
-   - 如果当前 Claude 版本暴露了可用的 `Stop` hook / 生命周期 hook，并且 payload 足以拿到最终正文，就优先接到 `relay_after_reply_hook.py`
-   - 如果当前版本没有可直接用的原生 hook，也不能因此判定安装失败；改走宿主持久规则里的“回复收尾流程”：
+   - Claude Code 当前主路径优先使用 `Stop` hook，不要先假设“没有 after-reply hook”
+   - 可直接写入 `~/.claude/settings.json` 的最小示例如下：
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 <app_root>/scripts/relay_after_reply_hook.py --agent claude-code"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+   - `relay_after_reply_hook.py` 现在会直接读取 Claude `Stop` payload 里的 `transcript_path`，并提取最后一条 assistant 正文排入镜像队列
+   - 如果当前环境下确实无法落 `Stop` hook，再退回宿主持久规则里的“回复收尾流程”：
      1. 在真正发给用户之前，先把最终正文原样写入 `<exact_body_file>`
      2. 自动执行：
 
@@ -40,7 +60,7 @@ python3 <app_root>/scripts/relay_after_reply_hook.py --agent claude-code --body-
 
 6. 这不算“手动补跑”，前提是：
    - 用户不需要每次再提醒
-   - 这条流程已经写进 `CLAUDE.md` 或等价长期载体
+   - `Stop` hook 或回复收尾流程已经写进 Claude 的持久载体
    - 每条正常主窗口回复都会自动遵守
 
 7. `enable-relay` 默认模板：
@@ -59,4 +79,5 @@ python3 <app_root>/scripts/agent_relay.py --agent claude-code enable-relay \
 最低验收：
 
 - 不能再写“Claude Code 没有原生 after-reply hook，所以只能部分完成”
-- 只要回复收尾流程已经被持久规则自动接住，就算自动镜像已完成
+- 如果 `Stop` hook 已写入 `~/.claude/settings.json` 并回读验证，就应优先判定为已完成
+- 只有当前环境确实不能落 `Stop` hook 时，才退回 `CLAUDE.md` 里的回复收尾流程

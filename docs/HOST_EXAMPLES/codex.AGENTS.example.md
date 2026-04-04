@@ -27,13 +27,13 @@ python3 <app_root>/scripts/agent_relay.py --agent codex prepare-main-reply
 5. 建议的 `command` backend：
 
 ```json
-["codex","exec","--skip-git-repo-check","--sandbox","workspace-write","-o","$RELAY_OUTPUT_FILE","-"]
+["bash","-lc","codex exec --skip-git-repo-check --sandbox workspace-write -o \"$RELAY_OUTPUT_FILE\" -"]
 ```
 
 如果需要显式绑定项目根目录，可改成：
 
 ```json
-["codex","exec","--skip-git-repo-check","--sandbox","workspace-write","--cd","<project_root>","-o","$RELAY_OUTPUT_FILE","-"]
+["bash","-lc","codex exec --skip-git-repo-check --sandbox workspace-write --cd \"<project_root>\" -o \"$RELAY_OUTPUT_FILE\" -"]
 ```
 
 6. 主窗口自动精确镜像：

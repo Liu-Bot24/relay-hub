@@ -29,6 +29,8 @@ https://github.com/Liu-Bot24/relay-hub.git
 - Gemini CLI：`docs/HOST_EXAMPLES/gemini-cli.GEMINI.example.md`
 - Cursor CLI：`docs/HOST_EXAMPLES/cursor-cli.relay-hub.example.mdc`
 
+如果当前宿主正好命中上面 4 个之一，优先直接按对应示例文件落配置，不要自己重新发明一套“看起来差不多”的宿主规则。
+
 先自己确定下面两件事，不要先来问我：
 1. 仓库根目录
 - 如果你当前已经在仓库根目录，就直接使用当前目录

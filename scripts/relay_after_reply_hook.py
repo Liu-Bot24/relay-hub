@@ -37,6 +37,11 @@ DEFAULT_FIELDS = [
     "text",
 ]
 
+TRANSCRIPT_PATH_FIELDS = [
+    "transcript_path",
+    "transcriptPath",
+]
+
 
 def output(payload: object) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2))
@@ -78,6 +83,43 @@ def stringify_content(value: Any) -> str | None:
     return None
 
 
+def extract_last_assistant_text_from_transcript(path_value: Any) -> str | None:
+    if not isinstance(path_value, str):
+        return None
+    path = Path(path_value).expanduser()
+    if not path.exists() or not path.is_file():
+        return None
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            obj = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        if obj.get("role") != "assistant":
+            continue
+        message = obj.get("message")
+        if isinstance(message, dict):
+            text = stringify_content(message.get("content"))
+            if text:
+                return text
+            text = stringify_content(message.get("text"))
+            if text:
+                return text
+        text = stringify_content(obj.get("content"))
+        if text:
+            return text
+        text = stringify_content(obj.get("text"))
+        if text:
+            return text
+    return None
+
+
 def extract_from_payload(payload: Any, candidate_fields: list[str]) -> tuple[str | None, str | None]:
     if isinstance(payload, str):
         return (payload.strip() or None), "stdin_text"
@@ -87,6 +129,12 @@ def extract_from_payload(payload: Any, candidate_fields: list[str]) -> tuple[str
         if field not in payload:
             continue
         text = stringify_content(payload[field])
+        if text:
+            return text, field
+    for field in TRANSCRIPT_PATH_FIELDS:
+        if field not in payload:
+            continue
+        text = extract_last_assistant_text_from_transcript(payload[field])
         if text:
             return text, field
     return None, None
