@@ -46,18 +46,12 @@ python3 install.py install-host --load-services
 - 阅读 status 时，只把它当成共享安装结果；不要把运行期规则提前套到安装汇报里
 
 安装阶段的宿主自举完成标准：
-- 你已经在自己的环境里真正创建或刷新了最小长期规则 / skill / guide，而不是只说“后面会记住”
-- 你已经回读、列出，或用宿主提供的等价方式验证这份长期规则确实存在
-- 你已经明确当前主对话如何稳定生成并复用 main_session_ref
-- 你已经明确将来用户说“接入 Relay Hub”时要执行的完整启动链路：
-  - 先写主线快照
-  - 再执行带 `--project-root` 与 `--snapshot-body/--snapshot-file` 的 `enable-relay --start-pickup`
-- 你给 `--backend-command` 填的必须是真实可工作的宿主 CLI；占位符、`echo`、`printf`、`true`、`false`、`sleep` 这类假命令都不算完成
-- 你已经在宿主环境里真正落下“每条主窗口正常回复后自动执行精确镜像”的持久机制；如果还需要每条回复人工补跑 `capture-main-output`，那不算完成
-- 你在声称“做不到自动镜像”之前，已经检查过当前宿主版本的本地设置和官方文档里的 hooks / automation / watcher；如果宿主支持原生 after-reply hook，优先把它接到仓库提供的通用 helper，而不是自己重拼镜像命令
-- 如果宿主支持 hooks / watcher，安装阶段只有在你已经把 helper 调用真正写进宿主持久化设置，并回读验证该配置存在后，才算自动镜像已完成
-- 只要宿主存在“回复结束时触发、且 payload 带最终正文”的 stop / completion / lifecycle hook，它就应被视为可用的 after-reply 载体；不要因为事件名不是 after-reply 就错误判定“做不到自动镜像”
-- 如果仓库没有当前宿主的原生 adapter，但你已经按 `docs/GENERIC_HOST_BOOTSTRAP.md` 完成以上步骤，就不要再把自己报告成“宿主未完整接入”
+- 宿主自举完成的唯一验收标准，以 `docs/GENERIC_HOST_BOOTSTRAP.md` 为准；若其他文件与它理解不一致，统一以这份文档为准
+- 这里不再重复展开全部细则，只保留最低提醒：
+  - 最小长期规则必须真实写入宿主持久载体，并回读验证
+  - `main_session_ref` 规则、`enable-relay` 完整启动链路、`command` backend 都必须明确且可工作
+  - 自动精确镜像必须是真正持久的自动机制；人工补跑 `capture-main-output` 不算完成
+  - 只要宿主有“回复结束时触发、且 payload 带最终正文”的 hook / watcher，就必须把它当成可用载体，并优先接仓库的 `relay_after_reply_hook.py`
 
 安装完成后的汇报格式：
 - 必须分成 3 段分别汇报：

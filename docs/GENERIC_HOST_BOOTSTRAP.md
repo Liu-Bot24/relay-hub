@@ -4,6 +4,9 @@
 
 目标不是给某一个工具写特判，而是给任意 AI 编程工具一套通用落地法。
 
+安装阶段“宿主自举是否完成”的唯一验收标准，以这份文档为准。
+其他文档如果提到安装完成，只能做摘要提醒，不应再另写一套独立标准。
+
 ## 1. 什么时候使用
 
 满足下面任一条件时，就走这份文档：
@@ -131,6 +134,73 @@ python3 <app_root>/scripts/relay_after_reply_hook.py --agent <agent_id>
 宿主只需要把自己的 after-reply hook / watcher 接到这个 helper，而不是自己重拼 `capture-main-output` 参数。
 
 如果宿主支持 hooks / watcher，但安装阶段还没有把这条 helper 调用真实写进宿主设置并回读验证，就不能报告“宿主自举已完成”。
+
+## 3.2 通用 hook 宿主最小可抄样例
+
+如果宿主的“回复结束”hook 能把原始 payload 直接传给本地命令，最小接法就是：
+
+```bash
+python3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py --agent <agent_id>
+```
+
+常见的 JSON 风格 hook 配置，可以直接抄成下面这个骨架，再把事件名替换成当前宿主自己的“回复结束”事件：
+
+```json
+{
+  "event": "<reply_finished_event>",
+  "command": [
+    "python3",
+    "/absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py",
+    "--agent",
+    "<agent_id>"
+  ]
+}
+```
+
+如果宿主不会把 payload 走 stdin，而是先落到临时文件，再执行本地命令，最小接法改成：
+
+```json
+{
+  "event": "<reply_finished_event>",
+  "command": [
+    "python3",
+    "/absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py",
+    "--agent",
+    "<agent_id>",
+    "--payload-file",
+    "<payload_file>"
+  ]
+}
+```
+
+如果宿主给出的不是整段 payload，而是“最终正文文件路径”，则改成：
+
+```json
+{
+  "event": "<reply_finished_event>",
+  "command": [
+    "python3",
+    "/absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py",
+    "--agent",
+    "<agent_id>",
+    "--body-file",
+    "<exact_body_file>"
+  ]
+}
+```
+
+如果 payload 里的正文不在 helper 默认字段里，再额外补 `--field`：
+
+```bash
+python3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py \
+  --agent <agent_id> \
+  --field finalText
+```
+
+最低要求只有两条：
+
+- 事件必须真的是“本轮回复结束后”触发
+- 最终接进宿主设置的命令，必须是 `relay_after_reply_hook.py` 或等价自动镜像链路，而不是人工补跑一次 `capture-main-output`
 
 ## 4. agent_id 规则
 
