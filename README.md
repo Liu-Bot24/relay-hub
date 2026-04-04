@@ -127,26 +127,7 @@ https://github.com/Liu-Bot24/relay-hub.git
 | OpenClaw | `relay help` | 查看这份命令大全 | 用于快速回看命令说明 |
 | OpenClaw | `复用入口` / `新建入口` | 在 OpenClaw 追问时，明确选择继续旧 branch 还是创建新 branch | 用于回答上一条“复用还是新建”的追问 |
 
-## 安装后会得到什么
-
-`python3 install.py install-host --load-services` 会：
-
-1. 安装 Relay Hub 本体
-2. 安装网页入口并加载 Web 服务
-3. 写入后续检查所需的基础状态
-4. 如果你显式启用了某个宿主 adapter，再补充对应宿主侧产物
-
-`python3 install.py install-openclaw` 会：
-
-1. 安装或更新 OpenClaw 侧桥接与相关配置
-2. 只触碰 OpenClaw 侧 relay-hub 产物，不负责宿主侧自举
-3. 如果共享层还没由 `install-host` 装好，会直接报错并要求先装共享层
-
-如果你只想确认共享安装结果，直接运行 `python3 install.py status` 即可。`status` 默认只看共享安装产物；当前宿主最后一步是否已经自举完成，应由安装它的 AI 按 `docs/GENERIC_HOST_BOOTSTRAP.md` 自己落实并汇报。
-
-程序文件会安装到 macOS 的 `Application Support` 目录。
-
-## 安装后怎么用
+## 标准使用流程
 
 装完以后，正常流程是：
 
