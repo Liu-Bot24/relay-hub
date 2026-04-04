@@ -20,19 +20,21 @@
 python3 install.py install-host --load-services
 ```
 
-之后，必须自己立刻完成并验证下面 4 件事：
+之后，必须自己立刻完成并验证下面 5 件事：
 
 1. 在自己的环境里落下一份持久生效的最小规则 / skill / guide
 2. 明确自己的稳定 `agent_id`
 3. 明确当前宿主如何生成并复用 `main_session_ref`
 4. 明确持续接单时使用的 `command` backend 命令
+5. 落下一条“每次主窗口正常回复后自动执行精确镜像”的持久机制
 
-如果这 4 件事都已经补齐，就不要再把自己报告成“宿主未完整接入”。
+如果这 5 件事都已经补齐，就不要再把自己报告成“宿主未完整接入”。
 
 注意：
 
 - 这里说的是“现在就完成”，不是“脑内记住以后再做”
 - 至少要把规则真正写进宿主支持的持久载体里，并在安装阶段回读或等价验证一次
+- 如果主窗口精确镜像还需要你后面每条回复手动补跑一次 `capture-main-output`，那不算已经补齐
 - 如果需要现成模板，直接使用 `docs/GENERIC_HOST_RULE_TEMPLATE.md`
 
 ## 2.1 安装阶段必须真的把长期机制落下
@@ -49,12 +51,16 @@ python3 install.py install-host --load-services
 1. 选择当前宿主真正会长期生效的载体
 2. 把最小规则写进去，而不是只在当前回复里描述
 3. 写完后回读、列出，或用宿主提供的等价方式确认它已经存在
+4. 另外再为“主窗口正常回复后的自动精确镜像”选择一个真正会长期运行的触发载体，例如宿主 automation / watcher / reply hook
+5. 验证这条触发机制不是单次手动命令，而是后续每条主窗口正常回复都会自动触发
 
 优先顺序建议：
 
 1. 优先使用当前宿主会自动加载的项目级 guide / rule / instruction 载体
 2. 如果没有项目级自动加载载体，再使用宿主自己的全局持久规则载体
 3. 如果前两者都没有，再退回宿主 automation / watcher 等可持续复用机制
+
+光有一份文字规则还不够；如果主窗口镜像仍要靠人工在每条回复后手动补跑 `capture-main-output`，那说明自动机制没有落下，安装阶段自举仍未完成。
 
 如果这一步没做，才算“当前宿主接入还没完成”。
 
@@ -83,8 +89,10 @@ python3 install.py install-host --load-services
 - 接单主链路：
   - `claim-next -> branch-context -> reply -> resume-main`
 - 主窗口正常回复后的精确镜像规则：
-  - 若宿主拿不到代码级原文，就把最终正文原样写入文件，再执行
+  - 必须在宿主环境里持久落下一条“每次主窗口正常回复后自动触发”的机制
+  - 若宿主拿不到代码级原文，就把最终正文原样写入文件，再自动执行
     `python3 scripts/agent_relay.py --agent <agent_id> capture-main-output --body-file <exact_body_file>`
+  - 只在出错补救时手动补跑一条，不算安装完成
 
 ## 4. agent_id 规则
 
@@ -166,6 +174,7 @@ python3 scripts/agent_relay.py --agent <agent_id> enable-relay \
 - `agent_id` 已明确
 - `main_session_ref` 规则已明确
 - `command` backend 命令已明确
+- 主窗口正常回复后的自动精确镜像机制已落下，并确认后续每条回复都会自动触发
 
 ### 当前主对话是否已开启 Relay Hub
 
@@ -193,6 +202,7 @@ python3 scripts/agent_relay.py --agent <agent_id> enable-relay \
 - 无法确定稳定 `agent_id`
 - 无法确定 `main_session_ref` 规则
 - 无法确定任何可工作的 `command` backend
+- 无法在宿主环境里落下“每条主窗口正常回复后自动执行精确镜像”的持久机制
 
 ## 8. 当前仓库提供的通用轮子
 

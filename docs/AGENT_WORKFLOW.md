@@ -152,6 +152,7 @@ python3 scripts/agent_relay.py --agent agent_demo capture-main-output \
 
 - 这份文件必须就是主窗口最终正文本身，不允许重新组织一版“差不多意思”的文案。
 - `capture-main-output` 是通用精确镜像队列入口：pickup 守护会按原文顺序把它转发到 OpenClaw。
+- 对通用宿主，这一步必须被接进宿主环境里的持久自动机制，保证每条主窗口正常回复后都会自动触发；单次手动补跑只算补救。
 - `mirror-main-output` 仍可用于“需要立即直发”的补救场景，但也必须传入同一份最终正文。
 - `notify-openclaw` 仍保留给 startup / 显式提醒场景；主窗口镜像默认不要再手动拼 `--body "<reply body>"`。
 
