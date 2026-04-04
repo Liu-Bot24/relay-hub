@@ -177,9 +177,6 @@ def build_parser() -> argparse.ArgumentParser:
     add_session_locator(delivered_parser)
     delivered_parser.add_argument("--message-id", required=True)
 
-    exit_parser = subparsers.add_parser("exit-relay", help="Return one branch session to normal mode")
-    add_session_locator(exit_parser)
-
     resolve_parser = subparsers.add_parser("resolve-session", help="Resolve a channel target into the deterministic session key")
     resolve_parser.add_argument("--channel", required=True)
     resolve_parser.add_argument("--target", required=True)
@@ -269,18 +266,6 @@ def main() -> None:
         if args.command == "ack-delivery":
             payload = hub.mark_delivered(resolve_session_arg(args), args.message_id)
             output({"ok": True, **payload})
-            return
-
-        if args.command == "exit-relay":
-            session_key = resolve_session_arg(args)
-            payload = hub.set_normal_mode(session_key)
-            output(
-                {
-                    "ok": True,
-                    **payload,
-                    "user_message": "已退出 Relay Hub，恢复 OpenClaw 正常模式。",
-                }
-            )
             return
 
         if args.command == "resolve-session":

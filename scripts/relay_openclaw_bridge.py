@@ -795,9 +795,6 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser = subparsers.add_parser("session-status", help="Show relay branch status")
     add_locator_args(status_parser)
 
-    exit_parser = subparsers.add_parser("exit-relay", help="Exit relay mode for one branch")
-    add_locator_args(exit_parser)
-
     pump_parser = subparsers.add_parser("pump-deliveries", help="Send pending relay deliveries via OpenClaw channels")
     pump_parser.add_argument("--channel")
     pump_parser.add_argument("--target")
@@ -928,22 +925,6 @@ def handle_status(config: dict[str, Any], args: argparse.Namespace) -> dict[str,
     meta = session.get("meta") or {}
     if not meta.get("session_key"):
         raise SystemExit(f"session {channel}__{target} does not exist")
-    payload["resolved"] = {"channel": channel, "target": target}
-    if aliased_session:
-        payload["resolved"]["session"] = aliased_session
-    return payload
-
-
-def handle_exit(config: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
-    ensure_runtime_config(config)
-    channel, target = resolve_channel_target(config, args.channel, args.target)
-    aliased_session = resolve_session_alias(config, channel, target)
-    relay_args = ["exit-relay"]
-    if aliased_session:
-        relay_args.extend(["--session", aliased_session])
-    else:
-        relay_args.extend(["--channel", channel, "--target", target])
-    payload = run_openclaw_relay(config, relay_args)
     payload["resolved"] = {"channel": channel, "target": target}
     if aliased_session:
         payload["resolved"]["session"] = aliased_session
@@ -1198,10 +1179,6 @@ def main() -> None:
             return
         if args.command == "session-status":
             payload = handle_status(config, args)
-            output(payload, args.json)
-            return
-        if args.command == "exit-relay":
-            payload = handle_exit(config, args)
             output(payload, args.json)
             return
         if args.command == "pump-deliveries":
