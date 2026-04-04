@@ -114,12 +114,12 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--install-codex-host",
         action="store_true",
-        help="Also install the Codex host adapter into ~/.codex. Use only when the current AI host is Codex.",
+        help="Also install the optional Codex host enhancement into ~/.codex. Use only when the current AI host is Codex and the user explicitly wants it.",
     )
     parser.add_argument(
         "--uninstall-codex-host",
         action="store_true",
-        help="Also remove the Codex host adapter from ~/.codex. Only affects Relay Hub-managed Codex files.",
+        help="Also remove the optional Codex host enhancement from ~/.codex. Only affects Relay Hub-managed Codex files.",
     )
     parser.add_argument("--skip-heartbeat-patch", action="store_true")
 

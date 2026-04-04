@@ -434,19 +434,44 @@ def build_notify_text_with_entry(agent: str, web_url: str, kind: str, body: str 
     return "\n".join(lines).strip()
 
 
-def configured_delivery_channels(config: dict[str, Any]) -> list[tuple[str, str, str | None]]:
+def configured_delivery_channels(
+    config: dict[str, Any],
+    *,
+    exclude_origin_channel: str | None = None,
+    exclude_origin_target: str | None = None,
+) -> list[tuple[str, str, str | None]]:
     results: list[tuple[str, str, str | None]] = []
     channels_config = (config.get("delivery") or {}).get("channels") or {}
     for channel, channel_config in channels_config.items():
-        target = channel_config.get("target")
-        if not target:
+        channel_key = str(channel or "").strip()
+        target = str(channel_config.get("target") or "").strip()
+        if not channel_key or not target:
             continue
-        results.append((channel, target, channel_config.get("accountId")))
+        if (
+            exclude_origin_channel
+            and exclude_origin_target
+            and channel_key == exclude_origin_channel
+            and target == exclude_origin_target
+        ):
+            continue
+        results.append((channel_key, target, channel_config.get("accountId")))
     return results
 
 
-def configured_delivery_channel_names(config: dict[str, Any]) -> list[str]:
-    return [channel for channel, _target, _account_id in configured_delivery_channels(config)]
+def configured_delivery_channel_names(
+    config: dict[str, Any],
+    *,
+    exclude_origin_channel: str | None = None,
+    exclude_origin_target: str | None = None,
+) -> list[str]:
+    return [
+        channel
+        for channel, _target, _account_id in configured_delivery_channels(
+            config,
+            exclude_origin_channel=exclude_origin_channel,
+            exclude_origin_target=exclude_origin_target,
+        )
+    ]
 
 
 def notify_entry_strategy(
@@ -523,7 +548,11 @@ def ensure_notify_entry(
         "--target",
         target,
     ]
-    configured_channels = configured_delivery_channel_names(config)
+    configured_channels = configured_delivery_channel_names(
+        config,
+        exclude_origin_channel=channel,
+        exclude_origin_target=target,
+    )
     if configured_channels:
         relay_args.extend(["--delivery-mode", "all", "--delivery-channels", *configured_channels])
     if origin.get("reuse_session_key"):
@@ -835,7 +864,11 @@ def handle_open_entry(config: dict[str, Any], args: argparse.Namespace) -> dict[
         "--target",
         target,
     ]
-    configured_channels = configured_delivery_channel_names(config)
+    configured_channels = configured_delivery_channel_names(
+        config,
+        exclude_origin_channel=channel,
+        exclude_origin_target=target,
+    )
     if configured_channels:
         relay_args.extend(["--delivery-mode", "all", "--delivery-channels", *configured_channels])
     if aliased_session and args.branch_mode == "reuse":

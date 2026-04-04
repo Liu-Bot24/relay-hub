@@ -24,12 +24,13 @@ https://github.com/Liu-Bot24/relay-hub.git
 9. docs/COMPATIBILITY.md
 
 如果你当前宿主正好是下面 4 个之一，还可以额外参考对应示例文件，但示例只用于帮助你更快落地，验收标准仍以 `docs/GENERIC_HOST_BOOTSTRAP.md` 为准：
-- Codex：`docs/HOST_EXAMPLES/codex.AGENTS.example.md`
+- Codex（可选宿主增强，不属于通用主路径）：`docs/HOST_EXAMPLES/codex.AGENTS.example.md`
 - Claude Code：`docs/HOST_EXAMPLES/claude-code.CLAUDE.example.md`
 - Gemini CLI：`docs/HOST_EXAMPLES/gemini-cli.GEMINI.example.md`
 - Cursor CLI：`docs/HOST_EXAMPLES/cursor-cli.relay-hub.example.mdc`
 
 如果当前宿主正好命中上面 4 个之一，优先直接按对应示例文件落配置，不要自己重新发明一套“看起来差不多”的宿主规则。
+如果当前宿主是 Codex，先问清用户要不要安装 Codex 专属宿主增强；未得到明确同意前，保持通用主路径，不要默认把 Codex adapter 一起装上。
 
 先自己确定下面两件事，不要先来问我：
 1. 仓库根目录
@@ -48,7 +49,7 @@ https://github.com/Liu-Bot24/relay-hub.git
 然后执行当前宿主安装：
 python3 install.py install-host --load-services
 
-如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且启用它能让“当前主窗口”直接接进 Relay Hub，就把对应参数加在 `install-host` 后面；否则保持通用宿主安装主路径，不要自行发明宿主专属参数，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 自己完成最后一步宿主自举。
+如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且用户明确同意启用它，就把对应参数加在 `install-host` 后面；否则保持通用宿主安装主路径，不要自行发明宿主专属参数，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 自己完成最后一步宿主自举。
 
 安装完成后，再执行：
 1. python3 install.py doctor
@@ -67,6 +68,8 @@ python3 install.py install-host --load-services
   - 自动精确镜像必须是真正持久的自动机制；人工补跑 `capture-main-output` 不算完成
   - 只要宿主有“回复结束时触发、且 payload 带最终正文”的 hook / watcher，就必须把它当成可用载体，并优先接仓库的 `relay_after_reply_hook.py`
   - 如果宿主没有原生 after-reply hook，但支持持久规则 / skill / guide，并且能在正常回复流程里自动执行本地命令，那么“宿主内回复收尾流程”也算有效自动镜像：先把最终正文写入文件，再自动执行 `relay_after_reply_hook.py --body-file <exact_body_file>`，最后发送同一份正文
+  - branch 合流默认属于通用产品命令能力，不默认要求自动完成；如果当前宿主没有可靠的“主窗口用户发言前”触发机制，就必须明确告诉用户：回到主窗口后先说 `合流上下文`，再继续主线
+  - 只有当当前宿主确实支持可靠的前置 hook / pre-prompt / watcher，并且你已经真实落下该机制时，才允许把“回主窗口自动先合流”报告为已完成
   - 如果你新增了宿主侧 wrapper / extractor / transcript 解析脚本，不能只测“脚本能跑通”；必须用一个“前一条 assistant 文本”和“最后一条 assistant 文本”不同的最小夹具验证它确实抓到最后一条回复，验证通过后才能报告完成
 
 安装完成后的汇报格式：

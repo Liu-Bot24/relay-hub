@@ -76,8 +76,14 @@ python3 "<app_root>/scripts/agent_relay.py" --agent claude-code enable-relay \
   --start-pickup
 ```
 
+8. branch 合流规则：
+   - 通用主路径默认仍然使用产品命令 `合流上下文`
+   - 只有在当前 Claude 环境里，确实已经落下了可靠的“主窗口用户发言前”触发机制，并且该机制会先执行合流，再继续当前回答时，才允许把自动合流报告为已完成
+   - 如果没有这类可靠前置机制，就必须明确告诉用户：回到主窗口后先说 `合流上下文`，再继续主线
+
 最低验收：
 
 - 不能再写“Claude Code 没有原生 after-reply hook，所以只能部分完成”
 - 如果 `Stop` hook 已写入 `~/.claude/settings.json` 并回读验证，就应优先判定为已完成
 - 只有当前环境确实不能落 `Stop` hook 时，才退回 `CLAUDE.md` 里的回复收尾流程
+- 如果没有可靠的前置 hook / pre-prompt 机制，就不要把自动合流写成已完成
