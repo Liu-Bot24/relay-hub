@@ -18,13 +18,11 @@ https://github.com/Liu-Bot24/relay-hub.git
 先执行 OpenClaw 侧安装：
 python3 install.py install-openclaw
 
-你只负责这 5 件事：
+你只负责这 4 件事：
 1. 当我说“打开 <agent> 入口”时，调用已安装的 relay bridge 打开或重发入口；如果已有 branch，则主动询问“复用入口 / 新建入口”
 2. 当我说“已录入”时，把 branch 入队，并在需要时等待 claim
 3. 当我说“状态”时，查询当前 branch 状态
 4. 当有待发送回包时，把它发到消息渠道并 ack-delivery
-5. 当我说“退出”时，退出 relay
-
 注意：
 - 不要直接读取 routes.json、state.json、messages/*.md
 - 不要自己解释协议细节，只调用桥接脚本

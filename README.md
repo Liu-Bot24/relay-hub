@@ -124,7 +124,6 @@ https://github.com/Liu-Bot24/relay-hub.git
 | OpenClaw | `打开 <agent> 入口` | 打开网页入口，或在已有 branch 时让用户选择“复用入口 / 新建入口” | 如果当前入口下已有 branch，会继续追问你是复用还是新建 |
 | OpenClaw | `已录入` | 把网页里刚保存的输入正式入队 | 只有网页已经保存过输入时才有效 |
 | OpenClaw | `状态` | 查看当前入口 / branch 状态 | 面向当前渠道对象 |
-| OpenClaw | `退出` | 退出当前 relay branch | 只退出当前 branch，不会关闭主会话 |
 | OpenClaw | `relay help` | 查看这份命令大全 | 用于快速回看命令说明 |
 | OpenClaw | `复用入口` / `新建入口` | 在 OpenClaw 追问时，明确选择继续旧 branch 还是创建新 branch | 用于回答上一条“复用还是新建”的追问 |
 
@@ -162,7 +161,7 @@ https://github.com/Liu-Bot24/relay-hub.git
 9. 外部 AI 按协议接手 branch
 10. 处理结果通过 OpenClaw 发回原消息渠道
 11. 用户如需显式重发入口，或在已有 branch 上选择“复用/新建”，再说：`打开 <agent> 入口`
-12. 用户回到当前 AI 主窗口说第一句话时，AI 先做一次 merge-back，再继续主线对话
+12. 用户回到当前 AI 主窗口后，如需把 branch 增量接回主线，先说 `合流上下文`，再继续主线对话
 
 ## 仓库结构
 

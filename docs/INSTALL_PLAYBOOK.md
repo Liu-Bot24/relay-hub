@@ -131,7 +131,6 @@ python3 install.py install-openclaw
 - 打开 <agent> 入口
 - 处理“已录入”
 - 查询“状态”
-- 退出 relay
 - 发送 pull-deliveries 里的待回包消息
 
 要求：
@@ -161,7 +160,7 @@ python3 install.py install-openclaw
    - `打开 <agent> 入口`
    - `已录入`
    - `状态`
-   - `退出`
+   - `relay help`
 4. 本地网页入口能打开 branch 页面
 5. 网页入口和 OpenClaw 命令链已经进入可用状态
 

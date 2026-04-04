@@ -36,7 +36,7 @@ Relay Hub 仓库不会替某一家 AI 内置专属后台接单器；接单机制
 - OpenClaw 打开网页入口时，只是“入口已打开”
 - 用户第一次在网页里保存消息时，branch 才正式开始
 - 开发日志是 branch 上下文和主线合流的重要托底
-- branch 结束后，用户回到主窗口说第一句话时，应先把 branch 增量 merge back，再继续回答
+- branch 结束后，通用主路径默认通过产品命令 `合流上下文` 把增量接回主线；只有宿主确实支持可靠的主窗口前置机制时，才把“回主窗口自动先合流”当成可选增强
 - 每条 branch 最终都必须绑定到一个明确的 `main_session_ref`
 
 ## 用户对 AI 说什么
@@ -368,7 +368,10 @@ python3 scripts/agent_relay.py --agent agent_demo reply \
 
 如果用户直接对你说 `合流上下文`，也走这一节。
 
-当用户回到当前 AI 主窗口，并发送第一句话时：
+通用主路径下，用户回到当前 AI 主窗口后，如需先接回 branch 增量，应先说 `合流上下文`。
+只有当前宿主确实已经落下可靠的主窗口前置机制时，才允许在用户回主窗口第一句话前自动执行同样动作。
+
+执行 `合流上下文` 时：
 
 1. 先执行 `resume-main`
 2. 读取 `merge_back_text`
@@ -384,9 +387,8 @@ python3 scripts/agent_relay.py --agent agent_demo resume-main \
 
 默认行为：
 
-- 自动做 merge-back
-- 自动推进 merge 水位
-- 自动把该 branch 退出 Relay 模式
+- 推进 merge 水位
+- 默认关闭该 branch 的 Relay 模式
 
 如果你确实要合流但暂时不关闭 relay，可以加：
 
@@ -407,7 +409,7 @@ python3 scripts/agent_relay.py --agent agent_demo disable-relay
 ## 边界
 
 - OpenClaw 不负责主线快照和 merge-back
-- OpenClaw 只负责入口、已录入、状态、退出、渠道发回包
+- OpenClaw 只负责入口、已录入、状态、渠道发回包
 - branch 不是第二条主聊天
 - branch 只是主线的外部分支工作区
 - 如果没有 `main_session_ref`，branch 不能安全 merge back

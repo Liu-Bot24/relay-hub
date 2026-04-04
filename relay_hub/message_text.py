@@ -26,7 +26,6 @@ def relay_help_text(agent: str | None) -> str:
             f"- 打开 {resolved} 入口：打开网页入口；如已有旧 branch，会先询问复用还是新建",
             "- 已录入：把网页里刚保存的输入正式入队",
             "- 状态：查看当前入口 / branch 状态",
-            "- 退出：退出当前 relay branch",
             "- relay help：查看这份命令大全",
             "- 复用入口 / 新建入口：在 OpenClaw 追问时，明确选择继续旧 branch 还是创建新 branch",
         ]
