@@ -20,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from relay_hub import RelayHub
+from relay_hub.host_support import default_repo_runtime_root
 from relay_hub.codex_host import (
     read_new_task_completions,
     resolve_active_reply_thread_record,
@@ -34,7 +35,7 @@ from relay_hub.pickup import (
     save_pickup_state,
 )
 
-DEFAULT_ROOT = (PROJECT_ROOT.parent / "runtime") if PROJECT_ROOT.name == "app" else ((Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime") if (Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime").exists() else (PROJECT_ROOT / "runtime"))
+DEFAULT_ROOT = default_repo_runtime_root(PROJECT_ROOT)
 DEFAULT_OPENCLAW_BRIDGE = PROJECT_ROOT / "scripts" / "relay_openclaw_bridge.py"
 DEFAULT_AGENT_RELAY = PROJECT_ROOT / "scripts" / "agent_relay.py"
 

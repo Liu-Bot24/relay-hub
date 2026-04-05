@@ -11,3 +11,4 @@ venv/
 dist/
 build/
 DEVELOPMENT_LOG.md
+.tmp-tests/

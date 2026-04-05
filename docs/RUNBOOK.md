@@ -5,14 +5,22 @@
 ## 关键路径
 
 - 仓库根：`/path/to/relay-hub`
-- runtime：`~/Library/Application Support/RelayHub/runtime`
-- 安装副本：`~/Library/Application Support/RelayHub/app`
 - OpenClaw 配置：`~/.openclaw/workspace/data/relay_hub_openclaw.json`
 - OpenClaw 桥接脚本：`~/.openclaw/workspace/scripts/relay_openclaw_bridge.py`
 
-## launchd 服务名
+宿主侧默认路径：
 
-- Web: `com.relayhub.web`
+- macOS runtime：`~/Library/Application Support/RelayHub/runtime`
+- macOS 安装副本：`~/Library/Application Support/RelayHub/app`
+- macOS Web 托管：`~/Library/LaunchAgents/com.relayhub.web.plist`
+- Windows runtime：`%LOCALAPPDATA%\RelayHub\runtime`
+- Windows 安装副本：`%LOCALAPPDATA%\RelayHub\app`
+- Windows Web 托管：`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\RelayHub Web.cmd`
+
+## 宿主 Web 托管
+
+- macOS：`launchd`，服务名 `com.relayhub.web`
+- Windows：用户级 `Startup` 自启动入口 `RelayHub Web.cmd`
 
 ## 常用命令
 
@@ -30,33 +38,49 @@ cd /path/to/relay-hub
 python3 install.py install-openclaw
 ```
 
-重装服务：
+重装宿主 Web 托管并立即拉起：
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-launchd --load-services
+python3 install.py install-service --load-services
 ```
 
-## 手动管理 launchd
+卸载宿主 Web 托管：
 
-重启 Web：
+```bash
+cd /path/to/relay-hub
+python3 install.py uninstall-service
+```
+
+## 手动管理
+
+macOS 重启 Web：
 
 ```bash
 launchctl kickstart -k gui/$(id -u)/com.relayhub.web
 ```
 
-卸载服务：
+macOS 卸载 Web 托管：
 
 ```bash
 launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.relayhub.web.plist
 ```
 
+Windows 如需重新写入 Startup 入口并立即拉起，优先直接重跑：
+
+```bash
+cd /path/to/relay-hub
+python3 install.py install-service --load-services
+```
+
 ## 日志位置
 
-Web：
+宿主 Web：
 
-- `runtime/logs/launchd.web.out.log`
-- `runtime/logs/launchd.web.err.log`
+- macOS：`runtime/logs/launchd.web.out.log`
+- macOS：`runtime/logs/launchd.web.err.log`
+- Windows：`runtime/logs/windows.web.out.log`
+- Windows：`runtime/logs/windows.web.err.log`
 
 OpenClaw 网页启动日志：
 
@@ -67,8 +91,8 @@ OpenClaw 网页启动日志：
 如果网页打不开：
 
 1. `python3 install.py status`
-2. 看 `com.relayhub.web` 是否已安装
-3. 看 `runtime/logs/launchd.web.err.log`
+2. 看当前平台的宿主 Web 托管是否已安装
+3. 看当前平台对应的 `runtime/logs/*.err.log`
 4. 看 `~/.openclaw/workspace/log/relay_hub_web.log`
 5. 确认 `--web-base-url` 使用的是用户设备能访问的地址
 

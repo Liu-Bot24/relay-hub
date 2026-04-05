@@ -1,13 +1,24 @@
 from __future__ import annotations
 
 import base64
-import fcntl
 import json
 import os
+import time
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None
 
 from .devlog import ensure_development_log, log_entries_since, prepend_log_entry
 from .message_text import delivery_footer
@@ -151,6 +162,35 @@ def normalize_notification_channel_overrides(raw: Any) -> dict[str, bool]:
             continue
         normalized[channel] = bool(value)
     return normalized
+
+
+def acquire_file_lock(handle: Any) -> None:
+    if fcntl is not None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        return
+    if msvcrt is None:
+        raise RuntimeError("no supported file locking backend available on this platform")
+    handle.seek(0)
+    if handle.tell() == 0 and handle.read(1) == "":
+        handle.write("\0")
+        handle.flush()
+    handle.seek(0)
+    while True:
+        try:
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            return
+        except OSError:
+            time.sleep(0.05)
+
+
+def release_file_lock(handle: Any) -> None:
+    if fcntl is not None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        return
+    if msvcrt is None:
+        return
+    handle.seek(0)
+    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
 
 
 class RelayHub:
@@ -555,12 +595,17 @@ class RelayHub:
     def session_lock_path(self, session_key: str) -> Path:
         return self.session_dir(session_key) / ".session.lock"
 
+    @contextmanager
     def _lock_session(self, session_key: str):
         ensure_dir(self.session_dir(session_key))
         lock_path = self.session_lock_path(session_key)
         handle = lock_path.open("a+", encoding="utf-8")
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        return handle
+        acquire_file_lock(handle)
+        try:
+            yield handle
+        finally:
+            release_file_lock(handle)
+            handle.close()
 
     def get_meta(self, session_key: str) -> dict[str, Any]:
         return load_json(self.meta_path(session_key), {})
@@ -1123,55 +1168,51 @@ class RelayHub:
         return deliveries
 
     def commit_user_message(self, session_key: str, body: str, source: str = "web-ui") -> dict[str, Any]:
-        with self._lock_session(session_key) as session_lock:
-            try:
-                meta = self.get_meta(session_key)
-                if not meta:
-                    raise FileNotFoundError(f"session {session_key} does not exist")
-                state = self.get_state(session_key)
-                if not is_relay_mode(state):
-                    raise ValueError("relay branch is closed; reopen it from OpenClaw before writing new branch input")
-                message_id = self._next_message_id(session_key)
-                created_at = now_iso()
-                payload = {
-                    "id": message_id,
-                    "role": "user",
-                    "source": source,
-                    "status": "committed",
-                    "agent": meta["agent"],
-                    "created_at": created_at,
-                    "committed_at": created_at,
-                    "reply_expected": True,
-                }
-                file_path = self.messages_dir(session_key) / f"{message_id}.user.md"
-                atomic_write_text(file_path, format_front_matter(payload, body))
-                state["last_user_message_id"] = message_id
-                state["last_committed_user_message_id"] = message_id
-                branch_started_now = False
-                if source == "web-ui" and not state.get("branch_started_at"):
-                    state["branch_started_at"] = created_at
-                    branch_started_now = True
-                if source == "web-ui":
-                    state["last_branch_user_message_id"] = message_id
-                state["status"] = "input_open" if state.get("branch_started_at") else "entry_open"
-                self.save_state(session_key, state)
-                routes = self.routes()
-                route = routes["routes"].get(session_key, {})
-                route["last_user_commit_id"] = message_id
-                route["status"] = state["status"]
-                route["updated_at"] = now_iso()
-                routes["routes"][session_key] = route
-                self.save_routes(routes)
-                return {
-                    "message_id": message_id,
-                    "path": str(file_path),
-                    "source": source,
-                    "branch_started_now": branch_started_now,
-                    "branch_started_at": state.get("branch_started_at"),
-                }
-            finally:
-                fcntl.flock(session_lock.fileno(), fcntl.LOCK_UN)
-                session_lock.close()
+        with self._lock_session(session_key):
+            meta = self.get_meta(session_key)
+            if not meta:
+                raise FileNotFoundError(f"session {session_key} does not exist")
+            state = self.get_state(session_key)
+            if not is_relay_mode(state):
+                raise ValueError("relay branch is closed; reopen it from OpenClaw before writing new branch input")
+            message_id = self._next_message_id(session_key)
+            created_at = now_iso()
+            payload = {
+                "id": message_id,
+                "role": "user",
+                "source": source,
+                "status": "committed",
+                "agent": meta["agent"],
+                "created_at": created_at,
+                "committed_at": created_at,
+                "reply_expected": True,
+            }
+            file_path = self.messages_dir(session_key) / f"{message_id}.user.md"
+            atomic_write_text(file_path, format_front_matter(payload, body))
+            state["last_user_message_id"] = message_id
+            state["last_committed_user_message_id"] = message_id
+            branch_started_now = False
+            if source == "web-ui" and not state.get("branch_started_at"):
+                state["branch_started_at"] = created_at
+                branch_started_now = True
+            if source == "web-ui":
+                state["last_branch_user_message_id"] = message_id
+            state["status"] = "input_open" if state.get("branch_started_at") else "entry_open"
+            self.save_state(session_key, state)
+            routes = self.routes()
+            route = routes["routes"].get(session_key, {})
+            route["last_user_commit_id"] = message_id
+            route["status"] = state["status"]
+            route["updated_at"] = now_iso()
+            routes["routes"][session_key] = route
+            self.save_routes(routes)
+            return {
+                "message_id": message_id,
+                "path": str(file_path),
+                "source": source,
+                "branch_started_now": branch_started_now,
+                "branch_started_at": state.get("branch_started_at"),
+            }
 
     def dispatch_session(self, session_key: str) -> dict[str, Any]:
         state = self.get_state(session_key)
@@ -1361,56 +1402,52 @@ class RelayHub:
         deliver_via_openclaw: bool = True,
         append_web_url: bool = True,
     ) -> dict[str, Any]:
-        with self._lock_session(session_key) as session_lock:
-            try:
-                meta = self.get_meta(session_key)
-                if not meta:
-                    raise FileNotFoundError(f"session {session_key} does not exist")
-                if agent != meta.get("agent"):
-                    raise ValueError(f"session {session_key} belongs to {meta.get('agent')}, not {agent}")
-                if kind not in {"progress", "final", "error"}:
-                    raise ValueError(f"unsupported kind: {kind}")
-                state = self.get_state(session_key)
-                source_id = source_user_message_id or state.get("last_queued_user_message_id") or state.get("last_committed_user_message_id")
-                message_id = self._next_message_id(session_key)
-                created_at = now_iso()
-                payload = {
-                    "id": message_id,
-                    "role": "assistant",
-                    "kind": kind,
-                    "agent": agent,
-                    "source_user_message_id": source_id,
-                    "created_at": created_at,
-                    "deliver_via_openclaw": deliver_via_openclaw,
-                    "append_web_url": append_web_url,
-                }
-                file_path = self.messages_dir(session_key) / f"{message_id}.{kind}.{agent}.md"
-                atomic_write_text(file_path, format_front_matter(payload, body))
-                state["last_agent_message_id"] = message_id
-                if kind == "progress":
-                    state["status"] = "processing"
-                elif kind == "final":
-                    state["status"] = "awaiting_user"
-                else:
-                    state["status"] = "error"
-                self.save_state(session_key, state)
-                routes = self.routes()
-                route = routes["routes"].get(session_key, {})
-                route["status"] = state["status"]
-                route["last_agent_message_id"] = message_id
-                route["updated_at"] = now_iso()
-                routes["routes"][session_key] = route
-                self.save_routes(routes)
-                return {
-                    "message_id": message_id,
-                    "path": str(file_path),
-                    "status": state["status"],
-                    "deliver_via_openclaw": deliver_via_openclaw,
-                    "append_web_url": append_web_url,
-                }
-            finally:
-                fcntl.flock(session_lock.fileno(), fcntl.LOCK_UN)
-                session_lock.close()
+        with self._lock_session(session_key):
+            meta = self.get_meta(session_key)
+            if not meta:
+                raise FileNotFoundError(f"session {session_key} does not exist")
+            if agent != meta.get("agent"):
+                raise ValueError(f"session {session_key} belongs to {meta.get('agent')}, not {agent}")
+            if kind not in {"progress", "final", "error"}:
+                raise ValueError(f"unsupported kind: {kind}")
+            state = self.get_state(session_key)
+            source_id = source_user_message_id or state.get("last_queued_user_message_id") or state.get("last_committed_user_message_id")
+            message_id = self._next_message_id(session_key)
+            created_at = now_iso()
+            payload = {
+                "id": message_id,
+                "role": "assistant",
+                "kind": kind,
+                "agent": agent,
+                "source_user_message_id": source_id,
+                "created_at": created_at,
+                "deliver_via_openclaw": deliver_via_openclaw,
+                "append_web_url": append_web_url,
+            }
+            file_path = self.messages_dir(session_key) / f"{message_id}.{kind}.{agent}.md"
+            atomic_write_text(file_path, format_front_matter(payload, body))
+            state["last_agent_message_id"] = message_id
+            if kind == "progress":
+                state["status"] = "processing"
+            elif kind == "final":
+                state["status"] = "awaiting_user"
+            else:
+                state["status"] = "error"
+            self.save_state(session_key, state)
+            routes = self.routes()
+            route = routes["routes"].get(session_key, {})
+            route["status"] = state["status"]
+            route["last_agent_message_id"] = message_id
+            route["updated_at"] = now_iso()
+            routes["routes"][session_key] = route
+            self.save_routes(routes)
+            return {
+                "message_id": message_id,
+                "path": str(file_path),
+                "status": state["status"],
+                "deliver_via_openclaw": deliver_via_openclaw,
+                "append_web_url": append_web_url,
+            }
 
     def mark_delivered(self, session_key: str, message_id: str) -> dict[str, Any]:
         state = self.get_state(session_key)

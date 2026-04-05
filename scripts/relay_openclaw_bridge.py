@@ -44,6 +44,7 @@ def bootstrap_import_paths() -> None:
 bootstrap_import_paths()
 
 from relay_hub import RelayHub
+from relay_hub.host_support import background_popen_kwargs
 from relay_hub.message_text import delivery_footer, relay_help_text
 
 AGENT_ALIASES = {
@@ -308,7 +309,7 @@ def ensure_web_running(config: dict[str, Any]) -> bool:
             stdin=subprocess.DEVNULL,
             stdout=handle,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
+            **background_popen_kwargs(),
         )
     pid_path.write_text(str(proc.pid), encoding="utf-8")
     deadline = time.time() + float(config["web"].get("startupWaitSeconds", 5))

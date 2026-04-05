@@ -29,20 +29,27 @@
 
 建议先执行一次自检：
 
+命令里的 `<python_cmd>` 取值规则：
+
+- macOS / Linux：`python3`
+- Windows：`py -3`
+- 如果 Windows 环境里已经有稳定可用的 `python3`，也可以继续用 `python3`
+
 ```bash
 cd /path/to/relay-hub
-python3 install.py doctor
+<python_cmd> install.py doctor
 ```
 
 说明：
 
 - `web_base_url` 默认会由安装器自动探测局域网 IPv4 后生成，只有探测失败时才回落到 `127.0.0.1`
+- 如果当前机器还没有 `OpenClaw`，这一步可能因为 `openclaw_cli` 缺失而不是 `ok=true`；这不妨碍你先完成 `install-host`
 
 通过后，再执行完整安装：
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-host --load-services
+<python_cmd> install.py install-host --load-services
 ```
 
 如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且启用它能让“当前主窗口”也一起接进 Relay Hub，就在这条命令后追加对应参数；否则保持通用宿主安装主路径，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 让当前宿主自己完成最后一步自举，不要自行发明宿主专属参数。
@@ -64,7 +71,7 @@ python3 install.py install-host --load-services
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-openclaw \
+<python_cmd> install.py install-openclaw \
   --delivery-channel some-channel=target_id \
   --delivery-account some-channel=account_id
 ```
@@ -73,7 +80,7 @@ python3 install.py install-openclaw \
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-openclaw
+<python_cmd> install.py install-openclaw
 ```
 
 ## 2. 应该跟 AI 编程工具说什么
@@ -152,10 +159,10 @@ python3 install.py install-openclaw
 
 当下面几件事都成立时，就可以认为仓库已经安装到“可用状态”：
 
-1. `python3 install.py doctor ...` 返回 `"ok": true`
-2. `python3 install.py status` 能看到当前已经安装到位的共享产物；OpenClaw 侧是否已经装好，还应结合 `install-openclaw` 的结果确认
+1. 宿主侧共享安装完成后，`<python_cmd> install.py status` 能看到当前已经安装到位的共享产物
    - `status` 只用于确认共享安装产物
    - 当前宿主最后一步是否已经自举完成，要由安装它的 AI 按 `docs/GENERIC_HOST_BOOTSTRAP.md` 实际落下长期机制后再汇报
+2. 若当前机器同时具备 OpenClaw 侧前提，`<python_cmd> install.py doctor ...` 应返回 `"ok": true`
 3. `OpenClaw` 能响应：
    - `打开 <agent> 入口`
    - `已录入`

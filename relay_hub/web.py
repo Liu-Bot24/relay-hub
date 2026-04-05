@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 
+from .host_support import MACOS, current_platform
 from .store import RelayHub, session_key_from_public_token, session_public_token
 
 
@@ -57,16 +58,19 @@ def development_log_notice(development_log: dict[str, object]) -> str:
         return ""
     path = str(development_log.get("path") or "")
     error = str(development_log.get("error") or "")
-    try:
-        resolved = Path(path).expanduser().resolve()
-        home = Path.home().resolve()
-        desktop = (home / "Desktop").resolve()
-        documents = (home / "Documents").resolve()
-        desktop_hit = desktop == resolved or desktop in resolved.parents
-        documents_hit = documents == resolved or documents in resolved.parents
-    except Exception:
-        desktop_hit = False
-        documents_hit = False
+    desktop_hit = False
+    documents_hit = False
+    if current_platform() == MACOS:
+        try:
+            resolved = Path(path).expanduser().resolve()
+            home = Path.home().resolve()
+            desktop = (home / "Desktop").resolve()
+            documents = (home / "Documents").resolve()
+            desktop_hit = desktop == resolved or desktop in resolved.parents
+            documents_hit = documents == resolved or documents in resolved.parents
+        except Exception:
+            desktop_hit = False
+            documents_hit = False
     if desktop_hit or documents_hit:
         reason = "这份开发日志位于 macOS 受保护目录（桌面或文稿）里；Relay Hub 的常驻 Web 服务由 launchd 在后台运行，通常没有读取这类目录的权限。"
     else:

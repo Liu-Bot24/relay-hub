@@ -15,13 +15,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from relay_agent_daemon import enqueue_captured_main_output
 from relay_hub import RelayHub
+from relay_hub.host_support import default_repo_runtime_root
 
-
-DEFAULT_ROOT = (
-    Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime"
-    if (Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime").exists()
-    else (PROJECT_ROOT / "runtime")
-)
+DEFAULT_ROOT = default_repo_runtime_root(PROJECT_ROOT)
 
 DEFAULT_FIELDS = [
     "last_assistant_message",

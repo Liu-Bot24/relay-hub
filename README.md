@@ -1,6 +1,6 @@
 # Relay Hub
 
-Relay Hub 是一个中转层，用来把这三样东西接起来：
+Relay Hub 是一个通用中转层，用来把这三样东西接起来：
 
 - AI 编程工具的主对话窗口
 - `OpenClaw` 负责的消息渠道
@@ -19,6 +19,25 @@ Relay Hub 是一个中转层，用来把这三样东西接起来：
 - 网页 = 临时工作区
 - `OpenClaw` = 消息网关
 
+## 项目描述
+
+Relay Hub 不是某个单一宿主的“专用版插件”，而是一个面向多种 AI 编程工具的通用产品层。它提供的是：
+
+- 一套通用 relay 协议
+- 一套共享安装层和通用 CLI 轮子
+- 一个只承担 branch 工作区的网页入口
+- 一个只通过 `OpenClaw` 出入消息渠道的统一网关模型
+
+产品主线始终在 AI 宿主的主对话里。网页只承担 branch 录入与浏览，`OpenClaw` 只承担消息网关，不承担主记忆体。
+
+## 当前支持
+
+- 宿主侧共享安装和 Web 托管：`macOS`、`Windows`
+- 消息网关：只通过 `OpenClaw`
+- 端到端完整可用：需要宿主侧已接好，并且有可用的 `OpenClaw` 实例
+
+如果当前机器还没有 `OpenClaw`，仍然可以先完成 `install-host`，把 Windows / macOS 的宿主侧共享安装、路径、后台托管和 Web 运行方式先落好；但这不代表消息网关或端到端联调已经完成。
+
 网页链接发出去时，只表示入口已经打开；用户第一次在网页里保存消息后，这次远程处理才真正开始。
 
 大致运行逻辑是：
@@ -34,31 +53,89 @@ Relay Hub 是一个中转层，用来把这三样东西接起来：
 
 ### 命令安装
 
+宿主侧共享安装：
+
+macOS：
+
 ```bash
 git clone https://github.com/Liu-Bot24/relay-hub.git
 cd relay-hub
 python3 install.py install-host --load-services
+```
+
+Windows：
+
+```bash
+git clone https://github.com/Liu-Bot24/relay-hub.git
+cd relay-hub
+py -3 install.py install-host --load-services
+```
+
+如果后续已经有 `OpenClaw`，再单独执行 OpenClaw 侧接入：
+
+macOS：
+
+```bash
 python3 install.py install-openclaw
 ```
 
-如果 OpenClaw 工作区不在默认位置：
+Windows：
 
 ```bash
-python3 install.py install-openclaw --openclaw-workspace /path/to/.openclaw/workspace
+py -3 install.py install-openclaw
+```
+
+Windows 如果当前环境有 `python3` 命令，也可以把文中的 `py -3` 等价替换成 `python3`。
+
+如果 OpenClaw 工作区不在默认位置：
+
+macOS：
+
+```bash
+python3 install.py install-openclaw --openclaw-workspace ~/.openclaw/workspace
+```
+
+Windows：
+
+```bash
+py -3 install.py install-openclaw --openclaw-workspace "$env:USERPROFILE\\.openclaw\\workspace"
 ```
 
 如果你只想先安装 AI 宿主侧共享层、不立刻加载服务：
+
+macOS：
 
 ```bash
 python3 install.py install-host
 ```
 
+Windows：
+
+```bash
+py -3 install.py install-host
+```
+
 建议安装后再执行两条检查：
+
+macOS：
 
 ```bash
 python3 install.py doctor
 python3 install.py status
 ```
+
+Windows：
+
+```bash
+py -3 install.py doctor
+py -3 install.py status
+```
+
+检查口径：
+
+- `status` 用来确认当前已经装到位的共享产物
+- `doctor` 的 `"ok": true` 代表整机侧前提基本齐全；如果当前机器还没有 `OpenClaw`，它仍可能因为 `openclaw_cli` 缺失而不是 `true`
+- 因此，在“先做 Windows / macOS 宿主侧支持、暂未接 OpenClaw”的阶段，不要把 `doctor` 还没全绿误报成宿主侧安装失败
 
 默认安装按侧分开执行：
 
@@ -84,7 +161,7 @@ https://github.com/Liu-Bot24/relay-hub.git
 1. 共享安装是否已经完成
 2. 当前宿主的安装阶段自举是否已经完成；如果没有，明确告诉我还差什么
 3. 当前主对话是否已经开启 Relay Hub；如果还没开启，只需要说明“尚未开启”，不要把它算成安装失败
-另外，你只负责执行 `python3 install.py install-host ...` 和当前宿主自己的自举；不要代替 OpenClaw 执行 `install-openclaw`，不要删除、重置或重装 OpenClaw 侧现有 relay-hub 产物，也不要动别的 AI 宿主产物，除非我明确要求你这么做。
+另外，你只负责执行当前平台对应的 `install.py install-host ...` 和当前宿主自己的自举；macOS 默认用 `python3`，Windows 默认用 `py -3`。不要代替 OpenClaw 执行 `install-openclaw`，不要删除、重置或重装 OpenClaw 侧现有 relay-hub 产物，也不要动别的 AI 宿主产物，除非我明确要求你这么做。
 ```
 
 ### 交给 OpenClaw 接入
@@ -174,10 +251,16 @@ relay-hub/
 
 ## 安装前提
 
-- `macOS`
-- `python3`
-- 已安装并可用的 `OpenClaw`
+宿主侧共享安装：
+
+- `macOS` 或 `Windows`
+- `python3`，或 Windows 上可用的 `py -3`
 - 至少一个可按协议接入的 AI 编程工具
+
+完整接入（含消息网关）：
+
+- 一个可用的 `OpenClaw`
+- 当前宿主已按协议完成自己的接入
 
 ## 常用维护命令
 
@@ -198,11 +281,11 @@ python3 install.py install-openclaw \
   --delivery-account <channel_b>=<account_b>
 ```
 
-只安装或更新 `launchd` 服务：
+只安装或更新宿主 Web 后台托管：
 
 ```bash
 cd relay-hub
-python3 install.py install-launchd --load-services
+python3 install.py install-service --load-services
 ```
 
 宿主侧主路径：
@@ -232,7 +315,7 @@ python3 install.py install-host --load-services
 
 - Relay Hub 本身是通用中转层，但不同 AI 宿主仍需要完成自己的接入。
 - 消息渠道统一通过 OpenClaw 接入；只要 OpenClaw 已支持该渠道，就可以接进 Relay Hub。
-- 当前仓库直接提供的是 `macOS + launchd` 的安装与服务托管。
+- 当前仓库直接提供的是 `macOS + launchd` 与 `Windows + Startup 自启动` 的安装与 Web 后台托管。
 - Relay Hub 通过 OpenClaw 对接消息渠道，不直接连接其他渠道网关。
 - 网页 branch 是主线对话的临时工作区，不是第二条主对话。
 - 你正在使用的 AI 主对话窗口始终是主线。

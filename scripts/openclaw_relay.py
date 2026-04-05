@@ -14,10 +14,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from relay_hub import RelayHub
+from relay_hub.host_support import default_repo_runtime_root
 from relay_hub.message_text import delivery_footer, relay_help_text
 from relay_hub.store import make_session_key
 
-DEFAULT_ROOT = (PROJECT_ROOT.parent / "runtime") if PROJECT_ROOT.name == "app" else ((Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime") if (Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime").exists() else (PROJECT_ROOT / "runtime"))
+DEFAULT_ROOT = default_repo_runtime_root(PROJECT_ROOT)
 def output(payload: object) -> None:
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 

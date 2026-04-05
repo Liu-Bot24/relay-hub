@@ -10,26 +10,43 @@ import shutil
 import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
 from relay_hub import RelayHub
+from relay_hub.host_support import (
+    DEFAULT_WINDOWS_TASK_NAME as HOST_DEFAULT_WINDOWS_TASK_NAME,
+    MACOS,
+    WINDOWS,
+    current_platform,
+    background_popen_kwargs,
+    default_app_root,
+    default_codex_home,
+    default_install_root,
+    default_openclaw_logs_dir,
+    default_openclaw_workspace,
+    default_runtime_root,
+    default_service_manager,
+    default_windows_startup_dir,
+    repo_root_forbidden_prefixes,
+    terminate_process,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parent
 SCRIPTS_DIR = REPO_ROOT / "scripts"
-DEFAULT_INSTALL_ROOT = Path.home() / "Library" / "Application Support" / "RelayHub"
-DEFAULT_RUNTIME_ROOT = DEFAULT_INSTALL_ROOT / "runtime"
-DEFAULT_OPENCLAW_WORKSPACE = Path.home() / ".openclaw" / "workspace"
+CURRENT_PLATFORM = current_platform()
+DEFAULT_INSTALL_ROOT = default_install_root()
+DEFAULT_RUNTIME_ROOT = default_runtime_root()
+DEFAULT_OPENCLAW_WORKSPACE = default_openclaw_workspace()
 DEFAULT_LAUNCHAGENTS_DIR = Path.home() / "Library" / "LaunchAgents"
-DEFAULT_APP_ROOT = DEFAULT_INSTALL_ROOT / "app"
-DEFAULT_CODEX_HOME = Path.home() / ".codex"
-FORBIDDEN_INSTALL_ROOT_PREFIXES = (
-    Path("/private/tmp"),
-    Path("/tmp"),
-    Path("/var/folders"),
-    Path("/private/var/folders"),
-)
+DEFAULT_WINDOWS_STARTUP_DIR = default_windows_startup_dir()
+DEFAULT_APP_ROOT = default_app_root()
+DEFAULT_CODEX_HOME = default_codex_home()
+DEFAULT_WINDOWS_TASK_NAME = HOST_DEFAULT_WINDOWS_TASK_NAME
+FORBIDDEN_INSTALL_ROOT_PREFIXES = repo_root_forbidden_prefixes()
+DEFAULT_SERVICE_MANAGER = default_service_manager()
 DEFAULT_PATH = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 DEFAULT_WEB_HOST = "0.0.0.0"
 DEFAULT_WEB_PORT = 4317
@@ -38,8 +55,9 @@ HEARTBEAT_BEGIN = "<!-- RELAY_HUB_BEGIN -->"
 HEARTBEAT_END = "<!-- RELAY_HUB_END -->"
 CODEX_AGENTS_BEGIN = "<!-- RELAY_HUB_CODEX_BEGIN -->"
 CODEX_AGENTS_END = "<!-- RELAY_HUB_CODEX_END -->"
-DEFAULT_OPENCLAW_LOGS_DIR = Path.home() / ".openclaw" / "logs"
+DEFAULT_OPENCLAW_LOGS_DIR = default_openclaw_logs_dir()
 DISCOVERY_LOG_TAIL_BYTES = 512 * 1024
+WEB_SERVICE_LABEL = "com.relayhub.web"
 
 
 def output(payload: object) -> None:
@@ -69,13 +87,20 @@ def resolve_path(raw: str | None, default: Path) -> Path:
     return Path(raw).expanduser().resolve() if raw else default
 
 
+def nearest_existing_parent(path: Path) -> Path:
+    current = path.expanduser().resolve()
+    while not current.exists() and current.parent != current:
+        current = current.parent
+    return current
+
+
 def repo_root_is_ephemeral(path: Path) -> bool:
     resolved = path.expanduser().resolve()
     return any(resolved == prefix or prefix in resolved.parents for prefix in FORBIDDEN_INSTALL_ROOT_PREFIXES)
 
 
 def ensure_repo_root_allowed(command: str) -> None:
-    if command not in {"install-host", "install-openclaw", "install-launchd", "full"}:
+    if command not in {"install-host", "install-openclaw", "install-service", "install-launchd", "full"}:
         return
     if repo_root_is_ephemeral(REPO_ROOT):
         raise SystemExit(
@@ -113,14 +138,14 @@ def resolved_web_base_url(args: argparse.Namespace) -> str:
 
 
 def add_shared_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--runtime-root", help="Relay runtime root. Defaults to ~/Library/Application Support/RelayHub/runtime.")
-    parser.add_argument("--openclaw-workspace", help="OpenClaw workspace path. Defaults to ~/.openclaw/workspace.")
-    parser.add_argument("--app-root", help="Installed runtime app directory. Defaults to ~/Library/Application Support/RelayHub/app.")
+    parser.add_argument("--runtime-root", help=f"Relay runtime root. Defaults to {DEFAULT_RUNTIME_ROOT}.")
+    parser.add_argument("--openclaw-workspace", help=f"OpenClaw workspace path. Defaults to {DEFAULT_OPENCLAW_WORKSPACE}.")
+    parser.add_argument("--app-root", help=f"Installed runtime app directory. Defaults to {DEFAULT_APP_ROOT}.")
     parser.add_argument("--web-host", default=DEFAULT_WEB_HOST)
     parser.add_argument("--web-port", type=int, default=DEFAULT_WEB_PORT)
     parser.add_argument("--web-base-url", help="Public base URL for Relay web.")
     parser.add_argument("--queue-ack-timeout", type=int, default=15)
-    parser.add_argument("--codex-home", help="Codex home directory. Defaults to ~/.codex.")
+    parser.add_argument("--codex-home", help=f"Codex home directory. Defaults to {DEFAULT_CODEX_HOME}.")
     parser.add_argument(
         "--delivery-channel",
         action="append",
@@ -131,8 +156,10 @@ def add_shared_args(parser: argparse.ArgumentParser) -> None:
         action="append",
         help="Optional delivery account in channel=accountId form. Repeatable.",
     )
-    parser.add_argument("--launchagents-dir", help="launchd plist destination. Defaults to ~/Library/LaunchAgents.")
-    parser.add_argument("--load-services", action="store_true", help="Bootstrap launchd services after writing plists.")
+    parser.add_argument("--launchagents-dir", help="macOS launchd plist destination. Defaults to ~/Library/LaunchAgents.")
+    parser.add_argument("--windows-startup-name", dest="windows_service_name", help=f"Windows Startup entry name. Defaults to {DEFAULT_WINDOWS_TASK_NAME}.")
+    parser.add_argument("--windows-task-name", dest="windows_service_name", help=argparse.SUPPRESS)
+    parser.add_argument("--load-services", action="store_true", help="Start managed host services after writing service definitions.")
     parser.add_argument(
         "--install-codex-host",
         action="store_true",
@@ -150,7 +177,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Relay Hub installer and service manager")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    full_parser = subparsers.add_parser("full", help="Operator-only combined install of shared layer, OpenClaw side, and launchd services")
+    full_parser = subparsers.add_parser("full", help="Operator-only combined install of shared layer, OpenClaw side, and managed host services")
     add_shared_args(full_parser)
 
     host_parser = subparsers.add_parser(
@@ -162,12 +189,15 @@ def build_parser() -> argparse.ArgumentParser:
     oc_parser = subparsers.add_parser("install-openclaw", help="Install/update OpenClaw-side bridge files")
     add_shared_args(oc_parser)
 
-    svc_parser = subparsers.add_parser("install-launchd", help="Install/update launchd plist for Relay Hub web")
+    svc_parser = subparsers.add_parser("install-service", help="Install/update the platform-managed Relay Hub web service")
     add_shared_args(svc_parser)
+
+    legacy_svc_parser = subparsers.add_parser("install-launchd", help="Legacy macOS alias for install-service")
+    add_shared_args(legacy_svc_parser)
 
     uninstall_parser = subparsers.add_parser(
         "uninstall",
-        help="Operator-only combined uninstall of shared layer, OpenClaw side, and launchd services",
+        help="Operator-only combined uninstall of shared layer, OpenClaw side, and managed host services",
     )
     add_shared_args(uninstall_parser)
 
@@ -183,9 +213,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_shared_args(uninstall_oc_parser)
 
+    uninstall_service_parser = subparsers.add_parser(
+        "uninstall-service",
+        help="Unload and remove the platform-managed Relay Hub web service",
+    )
+    add_shared_args(uninstall_service_parser)
+
     uninstall_launchd_parser = subparsers.add_parser(
         "uninstall-launchd",
-        help="Unload and remove launchd plist for Relay Hub web",
+        help="Legacy macOS alias for uninstall-service",
     )
     add_shared_args(uninstall_launchd_parser)
 
@@ -957,6 +993,42 @@ def uninstall_codex(codex_home: Path) -> dict[str, Any]:
     }
 
 
+def windows_service_name(args: argparse.Namespace) -> str:
+    return str(getattr(args, "windows_service_name", None) or DEFAULT_WINDOWS_TASK_NAME).strip() or DEFAULT_WINDOWS_TASK_NAME
+
+
+def can_connect_local_web(port: int, timeout: float = 0.5) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def wait_for_local_web(port: int, timeout_seconds: float = 5.0) -> bool:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if can_connect_local_web(port):
+            return True
+        time.sleep(0.2)
+    return can_connect_local_web(port)
+
+
+def run_service_command(cmd: list[str], error_message: str) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
+    if result.returncode != 0:
+        raise RuntimeError((result.stderr or result.stdout or error_message).strip())
+    return result
+
+
+def powershell_executable() -> str:
+    return shutil.which("powershell.exe") or shutil.which("powershell") or "powershell.exe"
+
+
+def powershell_single_quote(text: str) -> str:
+    return text.replace("'", "''")
+
+
 def launchctl_domain() -> str:
     return f"gui/{os.getuid()}"
 
@@ -972,7 +1044,7 @@ def launchctl_bootstrap(plist_path: Path, label: str) -> None:
 
 def build_web_plist(app_root: Path, runtime_root: Path, logs_dir: Path, host: str, port: int) -> bytes:
     payload = {
-        "Label": "com.relayhub.web",
+        "Label": WEB_SERVICE_LABEL,
         "ProgramArguments": [
             sys.executable,
             str(app_root / "scripts" / "relay_web.py"),
@@ -1005,17 +1077,245 @@ def remove_legacy_agent_plists(launchagents_dir: Path) -> list[str]:
     return removed
 
 
+def build_windows_web_launcher(app_root: Path, runtime_root: Path, logs_dir: Path, host: str, port: int) -> str:
+    python_executable = powershell_single_quote(sys.executable)
+    app_root_text = powershell_single_quote(str(app_root))
+    stdout_log = powershell_single_quote(str(logs_dir / "windows.web.out.log"))
+    stderr_log = powershell_single_quote(str(logs_dir / "windows.web.err.log"))
+    pid_path = powershell_single_quote(str(windows_web_pid_path(runtime_root)))
+    script_path = powershell_single_quote(str(app_root / "scripts" / "relay_web.py"))
+    runtime_root_text = powershell_single_quote(str(runtime_root))
+    argument_line = powershell_single_quote(f'"{app_root / "scripts" / "relay_web.py"}" --root "{runtime_root}" --host "{host}" --port "{port}"')
+    lines = [
+        "$ErrorActionPreference = 'Stop'",
+        f"$port = {port}",
+        "try {",
+        "  $client = New-Object System.Net.Sockets.TcpClient",
+        "  $async = $client.BeginConnect('127.0.0.1', $port, $null, $null)",
+        "  $connected = $async.AsyncWaitHandle.WaitOne(500, $false) -and $client.Connected",
+        "  $client.Close()",
+        "  if ($connected) { exit 0 }",
+        "} catch { }",
+        f"$argLine = '{argument_line}'",
+        f"$proc = Start-Process -FilePath '{python_executable}' -ArgumentList $argLine -WorkingDirectory '{app_root_text}' -WindowStyle Hidden -RedirectStandardOutput '{stdout_log}' -RedirectStandardError '{stderr_log}' -PassThru",
+        f"$meta = @{{ pid = $proc.Id; port = $port; script_path = '{script_path}'; runtime_root = '{runtime_root_text}' }}",
+        f"$meta | ConvertTo-Json -Compress | Set-Content -LiteralPath '{pid_path}' -Encoding utf8",
+    ]
+    return "\r\n".join(lines) + "\r\n"
+
+
+def windows_web_launcher_path(runtime_root: Path) -> Path:
+    return runtime_root / "bin" / "relayhub-web.ps1"
+
+
+def windows_startup_entry_path(args: argparse.Namespace) -> Path:
+    file_name = f"{windows_service_name(args)}.cmd"
+    return DEFAULT_WINDOWS_STARTUP_DIR / file_name
+
+
+def windows_web_pid_path(runtime_root: Path) -> Path:
+    return runtime_root / "relayhub-web.pid"
+
+
+def load_windows_web_pid_info(runtime_root: Path) -> dict[str, Any]:
+    pid_path = windows_web_pid_path(runtime_root)
+    if not pid_path.exists():
+        return {}
+    raw = pid_path.read_text(encoding="utf-8").strip()
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        payload = None
+    if isinstance(payload, dict):
+        return payload
+    try:
+        return {"pid": int(raw)}
+    except ValueError:
+        return {}
+
+
+def write_windows_web_pid_info(runtime_root: Path, payload: dict[str, Any]) -> None:
+    windows_web_pid_path(runtime_root).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def build_windows_startup_entry(args: argparse.Namespace, launcher_path: Path) -> str:
+    return (
+        "@echo off\r\n"
+        "setlocal\r\n"
+        f"\"{powershell_executable()}\" -NoProfile -ExecutionPolicy Bypass -File \"{launcher_path}\"\r\n"
+    )
+
+
+def normalized_windows_command_line(text: str | None) -> str:
+    return (text or "").replace('"', "").casefold()
+
+
+def windows_process_command_line(pid: int) -> str | None:
+    result = subprocess.run(  # noqa: S603
+        [
+            powershell_executable(),
+            "-NoProfile",
+            "-Command",
+            f"$p = Get-CimInstance Win32_Process -Filter \"ProcessId = {pid}\"; if ($p) {{ [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $p.CommandLine }}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
+    text = result.stdout.strip()
+    return text or None
+
+
+def windows_process_matches_relay_web(pid: int, runtime_root: Path, app_root: Path, port: int) -> bool:
+    command_line = normalized_windows_command_line(windows_process_command_line(pid))
+    if not command_line:
+        return False
+    expected_script = normalized_windows_command_line(str(app_root / "scripts" / "relay_web.py"))
+    expected_runtime = normalized_windows_command_line(str(runtime_root))
+    expected_port = normalized_windows_command_line(str(port))
+    return (
+        expected_script in command_line
+        and expected_runtime in command_line
+        and f"--port {expected_port}" in command_line
+    )
+
+
+def windows_relay_web_running(runtime_root: Path, app_root: Path, port: int) -> bool:
+    if not can_connect_local_web(port):
+        return False
+    pid_info = load_windows_web_pid_info(runtime_root)
+    pid = int(pid_info.get("pid") or 0)
+    if not pid:
+        return False
+    return windows_process_matches_relay_web(pid, runtime_root, app_root, port)
+
+
+def start_windows_web_now(runtime_root: Path, app_root: Path, host: str, port: int) -> int:
+    logs_dir = runtime_root / "logs"
+    ensure_dir(logs_dir)
+    stdout_log = logs_dir / "windows.web.out.log"
+    stderr_log = logs_dir / "windows.web.err.log"
+    with stdout_log.open("ab") as stdout_handle, stderr_log.open("ab") as stderr_handle:
+        proc = subprocess.Popen(  # noqa: S603
+            [
+                sys.executable,
+                str(app_root / "scripts" / "relay_web.py"),
+                "--root",
+                str(runtime_root),
+                "--host",
+                host,
+                "--port",
+                str(port),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+            **background_popen_kwargs(),
+        )
+    write_windows_web_pid_info(
+        runtime_root,
+        {
+            "pid": proc.pid,
+            "port": port,
+            "script_path": str(app_root / "scripts" / "relay_web.py"),
+            "runtime_root": str(runtime_root),
+        },
+    )
+    return proc.pid
+
+
+def install_windows_service(args: argparse.Namespace, runtime_root: Path, app_root: Path) -> dict[str, Any]:
+    app_bundle = stage_app_bundle(app_root)
+    logs_dir = runtime_root / "logs"
+    ensure_dir(logs_dir)
+    launcher_path = windows_web_launcher_path(runtime_root)
+    write_text(launcher_path, build_windows_web_launcher(app_root, runtime_root, logs_dir, args.web_host, args.web_port))
+    startup_entry = windows_startup_entry_path(args)
+    write_text(startup_entry, build_windows_startup_entry(args, launcher_path))
+    if args.load_services:
+        if can_connect_local_web(args.web_port):
+            if not windows_relay_web_running(runtime_root, app_root, args.web_port):
+                raise RuntimeError(
+                    f"port {args.web_port} is already in use by another process, or the existing listener cannot be verified as Relay Hub web"
+                )
+        else:
+            start_windows_web_now(runtime_root, app_root, args.web_host, args.web_port)
+            if not wait_for_local_web(args.web_port) or not windows_relay_web_running(runtime_root, app_root, args.web_port):
+                raise RuntimeError(f"relay web did not start on port {args.web_port}")
+    return {
+        "manager": "windows-startup",
+        "app_bundle": app_bundle,
+        "startup_dir": str(DEFAULT_WINDOWS_STARTUP_DIR),
+        "startup_entry": str(startup_entry),
+        "startup_entry_installed": startup_entry.exists(),
+        "launcher_path": str(launcher_path),
+        "launcher_installed": launcher_path.exists(),
+        "pid_path": str(windows_web_pid_path(runtime_root)),
+        "running": windows_relay_web_running(runtime_root, app_root, args.web_port),
+        "loaded": bool(args.load_services and windows_relay_web_running(runtime_root, app_root, args.web_port)),
+    }
+
+
+def uninstall_windows_service(args: argparse.Namespace, runtime_root: Path, app_root: Path) -> dict[str, Any]:
+    launcher_path = windows_web_launcher_path(runtime_root)
+    startup_entry = windows_startup_entry_path(args)
+    pid_path = windows_web_pid_path(runtime_root)
+    pid_info = load_windows_web_pid_info(runtime_root)
+    pid = int(pid_info.get("pid") or 0)
+    process_verified = False
+    if pid_path.exists() and pid:
+        process_verified = windows_process_matches_relay_web(pid, runtime_root, app_root, args.web_port)
+        if process_verified:
+            terminate_process(pid, force=False)
+            time.sleep(0.3)
+            if can_connect_local_web(args.web_port) and windows_process_matches_relay_web(pid, runtime_root, app_root, args.web_port):
+                terminate_process(pid, force=True)
+        pid_path.unlink(missing_ok=True)
+    startup_removed = unlink_if_exists(startup_entry)
+    launcher_removed = unlink_if_exists(launcher_path)
+    prune_empty_parents(launcher_path.parent, runtime_root)
+    return {
+        "manager": "windows-startup",
+        "startup_dir": str(DEFAULT_WINDOWS_STARTUP_DIR),
+        "startup_entry": str(startup_entry),
+        "startup_entry_removed": startup_removed,
+        "launcher_path": str(launcher_path),
+        "launcher_removed": launcher_removed,
+        "pid_path": str(pid_path),
+        "process_verified": process_verified,
+    }
+
+
+def install_manual_service(runtime_root: Path, app_root: Path) -> dict[str, Any]:
+    app_bundle = stage_app_bundle(app_root)
+    ensure_dir(runtime_root / "logs")
+    return {
+        "manager": "manual",
+        "app_bundle": app_bundle,
+        "supported": False,
+        "loaded": False,
+        "note": "This platform has no bundled host service manager yet. Start relay_web.py manually or attach your own supervisor.",
+    }
+
+
 def install_launchd(args: argparse.Namespace, runtime_root: Path, launchagents_dir: Path, app_root: Path) -> dict[str, Any]:
     app_bundle = stage_app_bundle(app_root)
     ensure_dir(launchagents_dir)
     logs_dir = runtime_root / "logs"
     ensure_dir(logs_dir)
-    web_plist = launchagents_dir / "com.relayhub.web.plist"
+    web_plist = launchagents_dir / f"{WEB_SERVICE_LABEL}.plist"
     web_plist.write_bytes(build_web_plist(app_root, runtime_root, logs_dir, args.web_host, args.web_port))
     removed_legacy_agent_plists = remove_legacy_agent_plists(launchagents_dir)
     if args.load_services:
-        launchctl_bootstrap(web_plist, "com.relayhub.web")
+        launchctl_bootstrap(web_plist, WEB_SERVICE_LABEL)
     return {
+        "manager": "launchd",
         "app_bundle": app_bundle,
         "launchagents_dir": str(launchagents_dir),
         "web_plist": str(web_plist),
@@ -1025,7 +1325,7 @@ def install_launchd(args: argparse.Namespace, runtime_root: Path, launchagents_d
 
 
 def uninstall_launchd(launchagents_dir: Path) -> dict[str, Any]:
-    web_plist = launchagents_dir / "com.relayhub.web.plist"
+    web_plist = launchagents_dir / f"{WEB_SERVICE_LABEL}.plist"
     unloaded_labels: list[str] = []
     if web_plist.exists():
         result = subprocess.run(  # noqa: S603
@@ -1034,14 +1334,35 @@ def uninstall_launchd(launchagents_dir: Path) -> dict[str, Any]:
             text=True,
         )
         if result.returncode == 0:
-            unloaded_labels.append("com.relayhub.web")
+            unloaded_labels.append(WEB_SERVICE_LABEL)
         web_plist.unlink(missing_ok=True)
     removed_legacy_agent_plists = remove_legacy_agent_plists(launchagents_dir)
     return {
+        "manager": "launchd",
         "launchagents_dir": str(launchagents_dir),
         "web_plist_removed": not web_plist.exists(),
         "unloaded_labels": unloaded_labels,
         "removed_legacy_agent_plists": removed_legacy_agent_plists,
+    }
+
+
+def install_service(args: argparse.Namespace, runtime_root: Path, launchagents_dir: Path, app_root: Path) -> dict[str, Any]:
+    if CURRENT_PLATFORM == MACOS:
+        return install_launchd(args, runtime_root, launchagents_dir, app_root)
+    if CURRENT_PLATFORM == WINDOWS:
+        return install_windows_service(args, runtime_root, app_root)
+    return install_manual_service(runtime_root, app_root)
+
+
+def uninstall_service(args: argparse.Namespace, runtime_root: Path, launchagents_dir: Path, app_root: Path) -> dict[str, Any]:
+    if CURRENT_PLATFORM == MACOS:
+        return uninstall_launchd(launchagents_dir)
+    if CURRENT_PLATFORM == WINDOWS:
+        return uninstall_windows_service(args, runtime_root, app_root)
+    return {
+        "manager": "manual",
+        "supported": False,
+        "note": "This platform has no bundled host service manager to uninstall.",
     }
 
 
@@ -1092,12 +1413,12 @@ def uninstall_openclaw(openclaw_workspace: Path) -> dict[str, Any]:
     }
 
 
-def uninstall_host(runtime_root: Path, app_root: Path, launchagents_dir: Path) -> dict[str, Any]:
-    launchd_payload = uninstall_launchd(launchagents_dir)
+def uninstall_host(args: argparse.Namespace, runtime_root: Path, app_root: Path, launchagents_dir: Path) -> dict[str, Any]:
+    service_payload = uninstall_service(args, runtime_root, launchagents_dir, app_root)
     app_removed = remove_tree_if_exists(app_root)
     runtime_removed = remove_tree_if_exists(runtime_root)
     return {
-        "launchd": launchd_payload,
+        "service": service_payload,
         "app_root": str(app_root),
         "app_removed": app_removed,
         "runtime_root": str(runtime_root),
@@ -1125,8 +1446,35 @@ def install_status(
             git_branch = branch_result.stdout.strip() or None
         if head_result.returncode == 0:
             git_head = head_result.stdout.strip() or None
+    service_payload: dict[str, Any] = {
+        "manager": DEFAULT_SERVICE_MANAGER,
+        "supported": DEFAULT_SERVICE_MANAGER != "manual",
+    }
+    if CURRENT_PLATFORM == MACOS:
+        service_payload.update(
+            {
+                "launchagents_dir": str(launchagents_dir),
+                "web_plist_installed": (launchagents_dir / f"{WEB_SERVICE_LABEL}.plist").exists(),
+                "legacy_agent_plists_installed": sorted(str(path) for path in launchagents_dir.glob("com.relayhub.worker.*.plist")),
+            }
+        )
+    elif CURRENT_PLATFORM == WINDOWS:
+        service_payload.update(
+            {
+                "startup_dir": str(DEFAULT_WINDOWS_STARTUP_DIR),
+                "startup_entry": str(windows_startup_entry_path(args)),
+                "startup_entry_installed": windows_startup_entry_path(args).exists(),
+                "launcher_path": str(windows_web_launcher_path(runtime_root)),
+                "launcher_installed": windows_web_launcher_path(runtime_root).exists(),
+                "pid_path": str(windows_web_pid_path(runtime_root)),
+                "running": windows_relay_web_running(runtime_root, app_root, args.web_port),
+            }
+        )
+    else:
+        service_payload["note"] = "No bundled host service manager on this platform."
     payload = {
         "version": VERSION,
+        "platform": CURRENT_PLATFORM,
         "repo_root": str(REPO_ROOT),
         "repo_is_git": repo_is_git,
         "git_branch": git_branch,
@@ -1142,11 +1490,13 @@ def install_status(
         "bridge_config_installed": bridge_config.exists(),
         "skill_installed": skill_path(openclaw_workspace).exists(),
         "heartbeat_installed": heartbeat_block_installed(openclaw_workspace),
-        "launchagents_dir": str(launchagents_dir),
-        "web_plist_installed": (launchagents_dir / "com.relayhub.web.plist").exists(),
-        "legacy_agent_plists_installed": sorted(str(path) for path in launchagents_dir.glob("com.relayhub.worker.*.plist")),
+        "service": service_payload,
         "status_scope_note": "status only reports shared installation artifacts; current-host bootstrap must be judged from the installing AI's own completed host setup steps",
     }
+    if CURRENT_PLATFORM == MACOS:
+        payload["launchagents_dir"] = str(launchagents_dir)
+        payload["web_plist_installed"] = service_payload["web_plist_installed"]
+        payload["legacy_agent_plists_installed"] = service_payload["legacy_agent_plists_installed"]
     if bridge_config.exists():
         payload["bridge_config"] = json.loads(bridge_config.read_text(encoding="utf-8"))
     return payload
@@ -1155,6 +1505,14 @@ def install_status(
 def launchd_loaded(label: str) -> bool:
     result = subprocess.run(["launchctl", "print", f"{launchctl_domain()}/{label}"], capture_output=True, text=True)  # noqa: S603
     return result.returncode == 0
+
+
+def service_loaded(args: argparse.Namespace, runtime_root: Path, app_root: Path) -> bool:
+    if CURRENT_PLATFORM == MACOS:
+        return launchd_loaded(WEB_SERVICE_LABEL)
+    if CURRENT_PLATFORM == WINDOWS:
+        return windows_relay_web_running(runtime_root, app_root, args.web_port)
+    return can_connect_local_web(args.web_port)
 
 
 def install_doctor(
@@ -1180,9 +1538,15 @@ def install_doctor(
         True,
         f"{openclaw_workspace} (will be created if missing)",
     )
-    add_check("launchagents_dir_parent", launchagents_dir.parent.exists(), str(launchagents_dir.parent))
-    add_check("app_root_parent", app_root.parent.exists(), str(app_root.parent))
-    add_check("repo_runtime_parent", runtime_root.parent.exists(), str(runtime_root.parent))
+    add_check("service_manager", DEFAULT_SERVICE_MANAGER != "manual", DEFAULT_SERVICE_MANAGER)
+    if CURRENT_PLATFORM == MACOS:
+        add_check("launchagents_dir_parent", launchagents_dir.parent.exists(), str(launchagents_dir.parent))
+    if CURRENT_PLATFORM == WINDOWS:
+        powershell_cli = shutil.which("powershell.exe") or shutil.which("powershell")
+        add_check("powershell_cli", bool(powershell_cli), powershell_cli or "powershell not found in PATH")
+        add_check("windows_startup_dir_parent", DEFAULT_WINDOWS_STARTUP_DIR.parent.exists(), str(DEFAULT_WINDOWS_STARTUP_DIR.parent))
+    add_check("app_root_parent", True, str(nearest_existing_parent(app_root)))
+    add_check("repo_runtime_parent", True, str(nearest_existing_parent(runtime_root)))
 
     status = install_status(args, runtime_root, openclaw_workspace, launchagents_dir, app_root, codex_home)
     add_check(
@@ -1207,10 +1571,9 @@ def install_doctor(
         ),
     )
 
-    web_label = "com.relayhub.web"
-    add_check("launchd_web_loaded", launchd_loaded(web_label), web_label)
+    add_check("host_web_loaded", service_loaded(args, runtime_root, app_root), f"127.0.0.1:{args.web_port}")
 
-    ok = all(check["ok"] for check in checks if check["name"] not in {"launchd_web_loaded"})
+    ok = all(check["ok"] for check in checks if check["name"] not in {"host_web_loaded"})
     return {
         "ok": ok,
         "version": VERSION,
@@ -1247,17 +1610,25 @@ def main() -> None:
     if args.command in {"install-host", "full"} and args.install_codex_host:
         payload["codex"] = install_codex(args, codex_home, app_root)
 
-    if args.command in {"install-host", "install-launchd", "full"}:
-        payload["launchd"] = install_launchd(args, runtime_root, launchagents_dir, app_root)
+    if args.command in {"install-host", "install-service", "install-launchd", "full"}:
+        service_payload = install_service(args, runtime_root, launchagents_dir, app_root)
+        payload["service"] = service_payload
+        if service_payload.get("manager") == "launchd":
+            payload["launchd"] = service_payload
 
     if args.command in {"uninstall-openclaw", "uninstall"}:
         payload["openclaw"] = uninstall_openclaw(openclaw_workspace)
 
     if args.command in {"uninstall-host", "uninstall"}:
-        payload["host"] = uninstall_host(runtime_root, app_root, launchagents_dir)
+        payload["host"] = uninstall_host(args, runtime_root, app_root, launchagents_dir)
+        if ((payload.get("host") or {}).get("service") or {}).get("manager") == "launchd":
+            payload["launchd"] = payload["host"]["service"]
 
-    if args.command == "uninstall-launchd":
-        payload["launchd"] = uninstall_launchd(launchagents_dir)
+    if args.command in {"uninstall-service", "uninstall-launchd"}:
+        service_payload = uninstall_service(args, runtime_root, launchagents_dir, app_root)
+        payload["service"] = service_payload
+        if service_payload.get("manager") == "launchd":
+            payload["launchd"] = service_payload
 
     if args.command in {"uninstall-host", "uninstall"} and args.uninstall_codex_host:
         payload["codex"] = uninstall_codex(codex_home)

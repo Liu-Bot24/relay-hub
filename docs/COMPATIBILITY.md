@@ -137,10 +137,13 @@ python3 install.py install-openclaw \
 
 - `macOS`
 - `launchd`
+- `Windows`
+- `Startup` 自启动
 
 所以：
 
 - 在 macOS 上，仓库可以直接进入“安装后可用”的状态
+- 在 Windows 上，仓库也已提供共享安装层与宿主 Web 后台托管
 - 在其他系统上，协议和脚本仍可复用，但后台服务托管需要重新适配
 
 ## 4. OpenClaw 通用性
@@ -179,7 +182,7 @@ Relay Hub 现在是：
 
 - 对 AI 协议层通用
 - 对 OpenClaw 渠道层通用
-- 对 macOS 安装与托管友好
+- 对 macOS / Windows 安装与托管友好
 
 Relay Hub 现在还不是：
 

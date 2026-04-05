@@ -71,7 +71,7 @@
 Relay Hub 接入有 3 类产物：
 
 1. 共享安装层
-   - `install.py` 安装出来的 runtime / app / launchd / OpenClaw bridge / web 等共享产物
+   - `install.py` 安装出来的 runtime / app / 宿主 Web 托管 / OpenClaw bridge / web 等共享产物
 2. 宿主侧产物
    - 当前 AI 宿主自己的长期规则 / skill / guide / adapter / automation
 3. OpenClaw 侧产物

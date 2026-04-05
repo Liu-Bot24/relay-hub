@@ -17,9 +17,18 @@ python3 install.py uninstall-host
 
 这会移除：
 
-- `~/Library/Application Support/RelayHub/runtime`
-- `~/Library/Application Support/RelayHub/app`
-- `~/Library/LaunchAgents/com.relayhub.web.plist`
+- 共享 runtime
+- 安装副本 app
+- 当前平台的宿主 Web 托管定义
+
+默认路径下通常包括：
+
+- macOS：`~/Library/Application Support/RelayHub/runtime`
+- macOS：`~/Library/Application Support/RelayHub/app`
+- macOS：`~/Library/LaunchAgents/com.relayhub.web.plist`
+- Windows：`%LOCALAPPDATA%\RelayHub\runtime`
+- Windows：`%LOCALAPPDATA%\RelayHub\app`
+- Windows：`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\RelayHub Web.cmd`
 
 这不会移除：
 
@@ -50,17 +59,18 @@ python3 install.py uninstall-openclaw
 
 这不会移除：
 
-- 共享 runtime / app / launchd
+- 共享 runtime / app / 宿主 Web 托管
 - OpenClaw 里的其他非 Relay Hub 内容
 
-## 3. 只卸载 launchd
+## 3. 只卸载宿主 Web 托管
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py uninstall-launchd
+python3 install.py uninstall-service
 ```
 
-适合只想停掉并删除 web plist 的场景。
+适合只想停掉并删除当前平台宿主 Web 托管定义的场景。
+macOS 仍兼容旧别名 `python3 install.py uninstall-launchd`。
 
 ## 4. 组合卸载
 
@@ -72,7 +82,7 @@ python3 install.py uninstall
 这是 operator-only 组合卸载，会：
 
 - 先清 OpenClaw 侧 bridge / config / heartbeat block
-- 再清宿主侧共享 runtime / app / launchd
+- 再清宿主侧共享 runtime / app / 宿主 Web 托管
 
 默认不会删除：
 

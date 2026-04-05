@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import signal
 import subprocess
 import sys
 import time
@@ -17,6 +16,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from relay_hub import RelayHub
+from relay_hub.host_support import (
+    background_popen_kwargs,
+    default_openclaw_workspace,
+    default_repo_runtime_root,
+    terminate_process,
+)
 from relay_hub.codex_host import (
     conversation_rounds as codex_conversation_rounds,
     fallback_rounds_summary,
@@ -38,8 +43,8 @@ from relay_hub.pickup import (
 )
 from relay_agent_daemon import enqueue_captured_main_output, run_codex_exec_backend
 
-DEFAULT_ROOT = (Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime") if (Path.home() / "Library" / "Application Support" / "RelayHub" / "runtime").exists() else (PROJECT_ROOT / "runtime")
-DEFAULT_OPENCLAW_CONFIG = Path.home() / ".openclaw" / "workspace" / "data" / "relay_hub_openclaw.json"
+DEFAULT_ROOT = default_repo_runtime_root(PROJECT_ROOT)
+DEFAULT_OPENCLAW_CONFIG = default_openclaw_workspace() / "data" / "relay_hub_openclaw.json"
 
 CHANNEL_TOKEN_ALIASES = {
     "feishu": "feishu",
@@ -775,7 +780,7 @@ def start_pickup_process(
             stdin=subprocess.DEVNULL,
             stdout=handle,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
+            **background_popen_kwargs(),
         )
     existing.update(
         {
@@ -808,12 +813,12 @@ def stop_pickup_process(root: Path, agent: str, main_session_ref: str) -> dict[s
     state = load_pickup_state(root, agent, main_session_ref)
     pid = state.get("pid")
     if process_alive(pid):
-        os.kill(pid, signal.SIGTERM)
+        terminate_process(pid, force=False)
         deadline = time.monotonic() + 3.0
         while process_alive(pid) and time.monotonic() < deadline:
             time.sleep(0.1)
         if process_alive(pid):
-            os.kill(pid, signal.SIGKILL)
+            terminate_process(pid, force=True)
             deadline = time.monotonic() + 1.0
             while process_alive(pid) and time.monotonic() < deadline:
                 time.sleep(0.05)
