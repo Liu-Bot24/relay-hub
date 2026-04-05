@@ -69,7 +69,7 @@ AI 自己应把这些话映射成下面的内部动作。
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo enable-relay \
+py -3 scripts/agent_relay.py --agent agent_demo enable-relay \
   --project-root /path/to/project \
   --snapshot-body "这里放当前主线的简洁快照。" \
   --backend command \
@@ -94,7 +94,7 @@ python3 scripts/agent_relay.py --agent agent_demo enable-relay \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo start-pickup \
+py -3 scripts/agent_relay.py --agent agent_demo start-pickup \
   --main-session-ref main_demo_001 \
   --backend command \
   --backend-command '["your-cli", "your-subcommand", "..."]'
@@ -111,7 +111,7 @@ python3 scripts/agent_relay.py --agent agent_demo start-pickup \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo enable-relay \
+py -3 scripts/agent_relay.py --agent agent_demo enable-relay \
   --project-root /path/to/project \
   --snapshot-body "这里放当前主线的简洁快照。"
 ```
@@ -143,14 +143,14 @@ python3 scripts/agent_relay.py --agent agent_demo enable-relay \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/relay_after_reply_hook.py --agent agent_demo
+py -3 scripts/relay_after_reply_hook.py --agent agent_demo
 ```
 
 3. 如果宿主拿不到原文、也没有可用 hook payload helper，再退回保底方案：先把同一份最终正文写进临时文件，再执行：
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo capture-main-output \
+py -3 scripts/agent_relay.py --agent agent_demo capture-main-output \
   --main-session-ref main_demo_001 \
   --body-file /path/to/exact_final_body.txt
 ```
@@ -178,15 +178,15 @@ python3 scripts/agent_relay.py --agent agent_demo capture-main-output \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo pickup-status --main-session-ref main_demo_001
-python3 scripts/agent_relay.py --agent agent_demo stop-pickup --main-session-ref main_demo_001
+py -3 scripts/agent_relay.py --agent agent_demo pickup-status --main-session-ref main_demo_001
+py -3 scripts/agent_relay.py --agent agent_demo stop-pickup --main-session-ref main_demo_001
 ```
 
 ## 2. 查询当前接入状态
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo agent-status
+py -3 scripts/agent_relay.py --agent agent_demo agent-status
 ```
 
 重点看：
@@ -204,7 +204,7 @@ python3 scripts/agent_relay.py --agent agent_demo agent-status
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo notification-status
+py -3 scripts/agent_relay.py --agent agent_demo notification-status
 ```
 
 这个命令只显示当前已经配置好的 OpenClaw 提醒渠道，以及它们现在是开启还是关闭。
@@ -213,7 +213,7 @@ python3 scripts/agent_relay.py --agent agent_demo notification-status
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo enable-notification-channel --channel "<channel>"
+py -3 scripts/agent_relay.py --agent agent_demo enable-notification-channel --channel "<channel>"
 ```
 
 例如：
@@ -228,7 +228,7 @@ python3 scripts/agent_relay.py --agent agent_demo enable-notification-channel --
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo disable-notification-channel --channel "<channel>"
+py -3 scripts/agent_relay.py --agent agent_demo disable-notification-channel --channel "<channel>"
 ```
 
 同样只对当前已经配置好的提醒渠道生效。
@@ -258,7 +258,7 @@ python3 scripts/agent_relay.py --agent agent_demo disable-notification-channel -
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo start-branch \
+py -3 scripts/agent_relay.py --agent agent_demo start-branch \
   --channel channel_a \
   --target target_demo \
   --main-session-ref main_demo_001 \
@@ -290,7 +290,7 @@ python3 scripts/agent_relay.py --agent agent_demo start-branch \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo claim-next \
+py -3 scripts/agent_relay.py --agent agent_demo claim-next \
   --main-session-ref main_demo_001 \
   --main-context-body "这里放当前主线摘要。"
 ```
@@ -321,7 +321,7 @@ python3 scripts/agent_relay.py --agent agent_demo claim-next \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo branch-context \
+py -3 scripts/agent_relay.py --agent agent_demo branch-context \
   --session channel_a__target_demo \
   --main-session-ref main_demo_001
 ```
@@ -344,7 +344,7 @@ python3 scripts/agent_relay.py --agent agent_demo branch-context \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo reply \
+py -3 scripts/agent_relay.py --agent agent_demo reply \
   --session channel_a__target_demo \
   --kind progress \
   --body "正在处理。"
@@ -354,7 +354,7 @@ python3 scripts/agent_relay.py --agent agent_demo reply \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo reply \
+py -3 scripts/agent_relay.py --agent agent_demo reply \
   --session channel_a__target_demo \
   --kind final \
   --body "这是最终回复。"
@@ -381,7 +381,7 @@ python3 scripts/agent_relay.py --agent agent_demo reply \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo resume-main \
+py -3 scripts/agent_relay.py --agent agent_demo resume-main \
   --main-session-ref main_demo_001
 ```
 
@@ -402,8 +402,8 @@ python3 scripts/agent_relay.py --agent agent_demo resume-main \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/agent_relay.py --agent agent_demo stop-pickup --main-session-ref main_demo_001
-python3 scripts/agent_relay.py --agent agent_demo disable-relay
+py -3 scripts/agent_relay.py --agent agent_demo stop-pickup --main-session-ref main_demo_001
+py -3 scripts/agent_relay.py --agent agent_demo disable-relay
 ```
 
 ## 边界
@@ -416,3 +416,4 @@ python3 scripts/agent_relay.py --agent agent_demo disable-relay
 - 如果项目里没有开发日志，启用 Relay Hub 时应立即创建，并把第一条写成主线快照
 - 不要直接读取原始消息渠道
 - 不要依赖私有壳脚本；优先用 `scripts/agent_relay.py`
+

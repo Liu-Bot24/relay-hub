@@ -7,8 +7,6 @@
 安装阶段“宿主自举是否完成”的唯一验收标准，以这份文档为准。
 其他文档如果提到安装完成，只能做摘要提醒，不应再另写一套独立标准。
 
-Windows 默认把下文命令里的 `python3` 替换成 `py -3`；如果当前 Windows 环境里已经有稳定可用的 `python3`，也可以继续用 `python3`。
-
 ## 1. 什么时候使用
 
 满足下面任一条件时，就走这份文档：
@@ -22,7 +20,7 @@ Windows 默认把下文命令里的 `python3` 替换成 `py -3`；如果当前 W
 当前 AI 宿主在跑完：
 
 ```bash
-python3 install.py install-host --load-services
+py -3 install.py install-host --load-services
 ```
 
 之后，必须自己立刻完成并验证下面 5 件事：
@@ -110,7 +108,7 @@ python3 install.py install-host --load-services
 - 主窗口正常回复后的精确镜像规则：
   - 必须在宿主环境里持久落下一条“每次主窗口正常回复后自动触发”的机制
   - 若宿主拿不到代码级原文，就把最终正文原样写入文件，再自动执行
-    `python3 scripts/agent_relay.py --agent <agent_id> capture-main-output --body-file <exact_body_file>`
+    `py -3 scripts/agent_relay.py --agent <agent_id> capture-main-output --body-file <exact_body_file>`
   - 只在出错补救时手动补跑一条，不算安装完成
 
 ## 3.1 自动镜像触发载体的选择顺序
@@ -138,7 +136,7 @@ python3 install.py install-host --load-services
 如果宿主能把原始 hook payload 管道给本地命令，优先复用仓库自带的通用 helper：
 
 ```bash
-python3 "<app_root>/scripts/relay_after_reply_hook.py" --agent <agent_id>
+py -3 "<app_root>/scripts/relay_after_reply_hook.py" --agent <agent_id>
 ```
 
 这个 helper 会：
@@ -157,7 +155,7 @@ python3 "<app_root>/scripts/relay_after_reply_hook.py" --agent <agent_id>
 2. 再执行：
 
 ```bash
-python3 "<app_root>/scripts/relay_after_reply_hook.py" --agent <agent_id> --body-file <exact_body_file>
+py -3 "<app_root>/scripts/relay_after_reply_hook.py" --agent <agent_id> --body-file <exact_body_file>
 ```
 
 3. 最后把同一份 `<exact_body_file>` 的内容作为真正的最终回复发给用户
@@ -175,7 +173,7 @@ python3 "<app_root>/scripts/relay_after_reply_hook.py" --agent <agent_id> --body
 如果宿主的“回复结束”hook 能把原始 payload 直接传给本地命令，最小接法就是：
 
 ```bash
-python3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py --agent <agent_id>
+py -3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py --agent <agent_id>
 ```
 
 常见的 JSON 风格 hook 配置，可以直接抄成下面这个骨架，再把事件名替换成当前宿主自己的“回复结束”事件：
@@ -184,7 +182,8 @@ python3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py --agent <a
 {
   "event": "<reply_finished_event>",
   "command": [
-    "python3",
+    "py",
+    "-3",
     "/absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py",
     "--agent",
     "<agent_id>"
@@ -198,7 +197,8 @@ python3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py --agent <a
 {
   "event": "<reply_finished_event>",
   "command": [
-    "python3",
+    "py",
+    "-3",
     "/absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py",
     "--agent",
     "<agent_id>",
@@ -214,7 +214,8 @@ python3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py --agent <a
 {
   "event": "<reply_finished_event>",
   "command": [
-    "python3",
+    "py",
+    "-3",
     "/absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py",
     "--agent",
     "<agent_id>",
@@ -227,7 +228,7 @@ python3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py --agent <a
 如果 payload 里的正文不在 helper 默认字段里，再额外补 `--field`：
 
 ```bash
-python3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py \
+py -3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py \
   --agent <agent_id> \
   --field finalText
 ```
@@ -262,7 +263,7 @@ python3 /absolute/path/to/relay-hub/scripts/relay_after_reply_hook.py \
 若当前宿主没有仓库内置 backend，就统一走：
 
 ```bash
-python3 scripts/agent_relay.py --agent <agent_id> start-pickup \
+py -3 scripts/agent_relay.py --agent <agent_id> start-pickup \
   --main-session-ref <main_session_ref> \
   --backend command \
   --backend-command '<json_string_array>'
@@ -282,7 +283,7 @@ python3 scripts/agent_relay.py --agent <agent_id> start-pickup \
 对通用宿主，推荐直接一次性执行：
 
 ```bash
-python3 scripts/agent_relay.py --agent <agent_id> enable-relay \
+py -3 scripts/agent_relay.py --agent <agent_id> enable-relay \
   --project-root <project_root> \
   --development-log-path <development_log_path> \
   --main-session-ref <main_session_ref> \

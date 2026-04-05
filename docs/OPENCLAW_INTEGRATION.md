@@ -7,13 +7,11 @@ OpenClaw 如果要接 Relay Hub，应该调用哪些桥接命令。
 它不讨论 OpenClaw 内部 prompt，也不讨论网页实现细节。  
 目标是把 OpenClaw 的职责压缩成“渠道网关 + 触发器”。
 
-Windows 默认把下文命令里的 `python3` 替换成 `py -3`；如果当前 Windows 环境里已经有稳定可用的 `python3`，也可以继续用 `python3`。
-
 推荐入口脚本：
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/openclaw_relay.py
+py -3 scripts/openclaw_relay.py
 ```
 
 这个脚本同时支持两种 session 定位方式：
@@ -52,7 +50,7 @@ OpenClaw 应调用：
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/openclaw_relay.py \
+py -3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   open-entry \
   --agent <agent_id> \
@@ -95,7 +93,7 @@ OpenClaw 应调用：
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/openclaw_relay.py \
+py -3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   dispatch-input \
   --channel <channel> \
@@ -106,7 +104,7 @@ python3 scripts/openclaw_relay.py \
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/openclaw_relay.py \
+py -3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   dispatch-input \
   --channel <channel> \
@@ -131,7 +129,7 @@ OpenClaw 应调用：
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/openclaw_relay.py \
+py -3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   session-status \
   --channel <channel> \
@@ -146,7 +144,7 @@ OpenClaw 应定期或在合适时机调用：
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/openclaw_relay.py \
+py -3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   pull-deliveries
 ```
@@ -167,7 +165,7 @@ OpenClaw 只需要按渠道发出去，不需要自己拼正文。
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/openclaw_relay.py \
+py -3 scripts/openclaw_relay.py \
   --root /path/to/relay-hub/runtime \
   ack-delivery \
   --channel <channel> \
@@ -189,3 +187,4 @@ OpenClaw 对 Relay Hub 的唯一职责就是：
 
 不要让 OpenClaw 自己去翻 `routes.json`、`state.json`、`messages/*.md`。  
 这些文件应该由 Relay Hub 统一抽象成 CLI。
+

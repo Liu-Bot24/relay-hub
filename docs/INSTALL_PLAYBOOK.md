@@ -29,11 +29,9 @@
 
 建议先执行一次自检：
 
-Windows 默认把下面示例里的 `python3` 替换成 `py -3`；如果当前 Windows 环境里已经有稳定可用的 `python3`，也可以继续用 `python3`。
-
 ```bash
 cd /path/to/relay-hub
-python3 install.py doctor
+py -3 install.py doctor
 ```
 
 说明：
@@ -45,7 +43,7 @@ python3 install.py doctor
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-host --load-services
+py -3 install.py install-host --load-services
 ```
 
 如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且启用它能让“当前主窗口”也一起接进 Relay Hub，就在这条命令后追加对应参数；否则保持通用宿主安装主路径，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 让当前宿主自己完成最后一步自举，不要自行发明宿主专属参数。
@@ -67,7 +65,7 @@ python3 install.py install-host --load-services
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-openclaw \
+py -3 install.py install-openclaw \
   --delivery-channel some-channel=target_id \
   --delivery-account some-channel=account_id
 ```
@@ -76,7 +74,7 @@ python3 install.py install-openclaw \
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-openclaw
+py -3 install.py install-openclaw
 ```
 
 ## 2. 应该跟 AI 编程工具说什么
@@ -155,10 +153,10 @@ python3 install.py install-openclaw
 
 当下面几件事都成立时，就可以认为仓库已经安装到“可用状态”：
 
-1. 宿主侧共享安装完成后，`python3 install.py status` 能看到当前已经安装到位的共享产物
+1. 宿主侧共享安装完成后，`py -3 install.py status` 能看到当前已经安装到位的共享产物
    - `status` 只用于确认共享安装产物
    - 当前宿主最后一步是否已经自举完成，要由安装它的 AI 按 `docs/GENERIC_HOST_BOOTSTRAP.md` 实际落下长期机制后再汇报
-2. 若当前机器同时具备 OpenClaw 侧前提，`python3 install.py doctor ...` 应返回 `"ok": true`
+2. 若当前机器同时具备 OpenClaw 侧前提，`py -3 install.py doctor ...` 应返回 `"ok": true`
 3. `OpenClaw` 能响应：
    - `打开 <agent> 入口`
    - `已录入`
@@ -177,3 +175,4 @@ python3 install.py install-openclaw
 - 仓库目标是尽量提供通用轮子，让外部 AI 低门槛自主接入；如果某个宿主当前还没把这些轮子真正接好，应视为该宿主接入未完成，而不是产品目标状态
 
 更详细的通用性边界，见 `docs/COMPATIBILITY.md`。
+

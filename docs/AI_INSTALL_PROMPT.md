@@ -46,18 +46,14 @@ https://github.com/Liu-Bot24/relay-hub.git
 - 使用你当前宿主稳定、可持续复用的名字
 - 如果仓库里已经存在你对应的既有 `agent_id` 约定，就复用那一份；否则不要临时起一个会漂移的新名字
 
-先判断当前机器平台：
-- macOS / Linux：执行 `python3 install.py install-host --load-services`
-- Windows：执行 `py -3 install.py install-host --load-services`
-- 如果 Windows 环境里已经有稳定可用的 `python3`，也可以继续执行 `python3 install.py install-host --load-services`
+直接执行：
+- `py -3 install.py install-host --load-services`
 
 如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且用户明确同意启用它，就把对应参数加在 `install-host` 后面；否则保持通用宿主安装主路径，不要自行发明宿主专属参数，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 自己完成最后一步宿主自举。
 
 安装完成后，再执行：
-1. macOS / Linux：`python3 install.py doctor`
-   Windows：`py -3 install.py doctor`
-2. macOS / Linux：`python3 install.py status`
-   Windows：`py -3 install.py status`
+1. `py -3 install.py doctor`
+2. `py -3 install.py status`
 
 安装完成标准：
 - 如果当前是在做宿主侧共享安装，`install-host` 成功且 `status` 能看到 runtime / app / 宿主 Web service 定义等共享安装产物，就应先如实报告“宿主侧共享安装已完成”
@@ -99,8 +95,7 @@ https://github.com/Liu-Bot24/relay-hub.git
 - 不要把仓库重新下载到另一个“更顺手”的位置再继续安装；下载位置和安装位置必须是同一份本地副本
 - 默认不要求你手工配置额外消息渠道；`install-openclaw` 应自动发现当前已启用的 OpenClaw 消息渠道，并把它们设为首次主窗口开启时的默认提醒渠道；branch 回包仍默认走原始触发渠道
 - 如果我后面明确要求覆盖默认发现结果，或额外指定某个固定目标，那时你再执行：
-  macOS / Linux：`python3 install.py install-openclaw --delivery-channel channel=target --delivery-account channel=accountId`
-  Windows：`py -3 install.py install-openclaw --delivery-channel channel=target --delivery-account channel=accountId`
+  `py -3 install.py install-openclaw --delivery-channel channel=target --delivery-account channel=accountId`
 - 你当前是 AI 宿主，只负责执行 `install-host` 和当前宿主自举；不要代替 OpenClaw 执行 `install-openclaw`，也不要使用 `full` 这种跨侧组合安装，除非我明确要求
 - `install-openclaw` 现在要求共享层已经存在；如果 OpenClaw 侧后续安装时报“请先执行 install-host”，那是正确行为，不要自己改成跨侧代装
 - 你只允许做两类写入：
@@ -119,3 +114,4 @@ https://github.com/Liu-Bot24/relay-hub.git
 - 当用户后续对你说“接入 Relay Hub”“Relay Hub 状态”“消息提醒状态”“开启<渠道>消息提醒”“关闭<渠道>消息提醒”“合流上下文”“退出 Relay Hub”时，严格按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 执行
 - Relay Hub 运行期通过 OpenClaw 发出的固定尾注、网页入口、以及产品操作提示，都是代码内置行为；不要在安装 prompt 里重写、删改或自定义它们
 ```
+

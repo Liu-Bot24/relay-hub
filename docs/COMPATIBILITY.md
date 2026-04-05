@@ -99,7 +99,7 @@
 例如：
 
 ```bash
-python3 install.py install-openclaw \
+py -3 install.py install-openclaw \
   --delivery-channel some-channel=target_id \
 ```
 
@@ -197,3 +197,4 @@ Relay Hub 现在还不是：
 如果你关心“是不是已经对所有 AI CLI 和所有消息系统都零改动通用”，答案是：
 
 - 还没有
+

@@ -28,28 +28,28 @@
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py status
+py -3 install.py status
 ```
 
 重装 OpenClaw 侧：
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-openclaw
+py -3 install.py install-openclaw
 ```
 
 重装宿主 Web 托管并立即拉起：
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-service --load-services
+py -3 install.py install-service --load-services
 ```
 
 卸载宿主 Web 托管：
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py uninstall-service
+py -3 install.py uninstall-service
 ```
 
 ## 手动管理
@@ -70,7 +70,7 @@ Windows 如需重新写入 Startup 入口并立即拉起，优先直接重跑：
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py install-service --load-services
+py -3 install.py install-service --load-services
 ```
 
 ## 日志位置
@@ -90,7 +90,7 @@ OpenClaw 网页启动日志：
 
 如果网页打不开：
 
-1. `python3 install.py status`
+1. `py -3 install.py status`
 2. 看当前平台的宿主 Web 托管是否已安装
 3. 看当前平台对应的 `runtime/logs/*.err.log`
 4. 看 `~/.openclaw/workspace/log/relay_hub_web.log`
@@ -100,7 +100,7 @@ OpenClaw 网页启动日志：
 
 1. 检查该对象是否真的已经按协议接入
 2. 确认它是否已经把自己标成 `ready`
-3. 用 `python3 scripts/relayctl.py show-session --session <session_key>` 看是否真的进入 `queued`
+3. 用 `py -3 scripts/relayctl.py show-session --session <session_key>` 看是否真的进入 `queued`
 
 如果回包没发到目标渠道：
 
@@ -110,7 +110,7 @@ OpenClaw 网页启动日志：
 
 ```bash
 cd /path/to/relay-hub
-python3 scripts/relay_openclaw_bridge.py --config ~/.openclaw/workspace/data/relay_hub_openclaw.json --json pump-deliveries
+py -3 scripts/relay_openclaw_bridge.py --config ~/.openclaw/workspace/data/relay_hub_openclaw.json --json pump-deliveries
 ```
 
 4. 若返回 `RELAY_PUMP_SENT`，说明 Relay Hub 到 OpenClaw 的发送泵正常
@@ -122,3 +122,4 @@ python3 scripts/relay_openclaw_bridge.py --config ~/.openclaw/workspace/data/rel
 - 不要手工在多个地方维护两份桥接脚本
 - 优先改仓库里的 `scripts/relay_openclaw_bridge.py`
 - 安装器负责把它装进 `~/.openclaw/workspace/scripts/`
+

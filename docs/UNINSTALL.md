@@ -12,7 +12,7 @@ Relay Hub 的卸载和安装一样，按侧分开执行。
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py uninstall-host
+py -3 install.py uninstall-host
 ```
 
 这会移除：
@@ -38,14 +38,14 @@ python3 install.py uninstall-host
 如果还想顺手移除 Codex 侧由 Relay Hub 安装过的 skill / AGENTS block，可额外加：
 
 ```bash
-python3 install.py uninstall-host --uninstall-codex-host
+py -3 install.py uninstall-host --uninstall-codex-host
 ```
 
 ## 2. 卸载 OpenClaw 侧
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py uninstall-openclaw
+py -3 install.py uninstall-openclaw
 ```
 
 这会移除 OpenClaw 工作区里由 Relay Hub 写入的这些产物：
@@ -66,17 +66,16 @@ python3 install.py uninstall-openclaw
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py uninstall-service
+py -3 install.py uninstall-service
 ```
 
 适合只想停掉并删除当前平台宿主 Web 托管定义的场景。
-macOS 仍兼容旧别名 `python3 install.py uninstall-launchd`。
 
 ## 4. 组合卸载
 
 ```bash
 cd /path/to/relay-hub
-python3 install.py uninstall
+py -3 install.py uninstall
 ```
 
 这是 operator-only 组合卸载，会：
@@ -95,3 +94,4 @@ python3 install.py uninstall
 - 卸载命令只清理 Relay Hub 自己管理的产物
 - 不会擅自删掉别的 AI 宿主私有配置
 - 如果某个宿主的长期规则不是 `install.py` 写入的，而是宿主自己在安装阶段落下的，那部分仍应由该宿主自己移除
+

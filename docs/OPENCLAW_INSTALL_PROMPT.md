@@ -15,10 +15,8 @@ https://github.com/Liu-Bot24/relay-hub.git
 4. docs/INTEGRATION_CONTRACT.md
 5. docs/COMPATIBILITY.md
 
-先判断当前机器平台：
-- macOS / Linux：执行 `python3 install.py install-openclaw`
-- Windows：执行 `py -3 install.py install-openclaw`
-- 如果 Windows 环境里已经有稳定可用的 `python3`，也可以继续执行 `python3 install.py install-openclaw`
+直接执行：
+- `py -3 install.py install-openclaw`
 
 你只负责这 4 件事：
 1. 当我说“打开 <agent> 入口”时，调用已安装的 relay bridge 打开或重发入口；如果已有 branch，则主动询问“复用入口 / 新建入口”
@@ -39,3 +37,4 @@ https://github.com/Liu-Bot24/relay-hub.git
 - 如果当前渠道对象已经有 branch，你必须主动问用户“复用入口”还是“新建入口”，不能自己替用户决定
 - 一旦你已经问出了“复用/新建”，就必须把这次待确认的 agent、channel、target 记为当前待确认入口；如果用户下一句只回答“复用”或“新建”，仍然按同一组参数重调，不要在第二轮丢上下文
 ```
+
