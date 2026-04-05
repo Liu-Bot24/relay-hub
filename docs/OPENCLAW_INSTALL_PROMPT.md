@@ -15,8 +15,10 @@ https://github.com/Liu-Bot24/relay-hub.git
 4. docs/INTEGRATION_CONTRACT.md
 5. docs/COMPATIBILITY.md
 
-先执行 OpenClaw 侧安装：
-python3 install.py install-openclaw
+先判断当前机器平台：
+- macOS / Linux：执行 `python3 install.py install-openclaw`
+- Windows：执行 `py -3 install.py install-openclaw`
+- 如果 Windows 环境里已经有稳定可用的 `python3`，也可以继续执行 `python3 install.py install-openclaw`
 
 你只负责这 4 件事：
 1. 当我说“打开 <agent> 入口”时，调用已安装的 relay bridge 打开或重发入口；如果已有 branch，则主动询问“复用入口 / 新建入口”
