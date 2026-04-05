@@ -10,16 +10,12 @@
 
 宿主侧默认路径：
 
-- macOS runtime：`~/Library/Application Support/RelayHub/runtime`
-- macOS 安装副本：`~/Library/Application Support/RelayHub/app`
-- macOS Web 托管：`~/Library/LaunchAgents/com.relayhub.web.plist`
 - Windows runtime：`%LOCALAPPDATA%\RelayHub\runtime`
 - Windows 安装副本：`%LOCALAPPDATA%\RelayHub\app`
 - Windows Web 托管：`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\RelayHub Web.cmd`
 
 ## 宿主 Web 托管
 
-- macOS：`launchd`，服务名 `com.relayhub.web`
 - Windows：用户级 `Startup` 自启动入口 `RelayHub Web.cmd`
 
 ## 常用命令
@@ -54,18 +50,6 @@ py -3 install.py uninstall-service
 
 ## 手动管理
 
-macOS 重启 Web：
-
-```bash
-launchctl kickstart -k gui/$(id -u)/com.relayhub.web
-```
-
-macOS 卸载 Web 托管：
-
-```bash
-launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.relayhub.web.plist
-```
-
 Windows 如需重新写入 Startup 入口并立即拉起，优先直接重跑：
 
 ```bash
@@ -77,8 +61,6 @@ py -3 install.py install-service --load-services
 
 宿主 Web：
 
-- macOS：`runtime/logs/launchd.web.out.log`
-- macOS：`runtime/logs/launchd.web.err.log`
 - Windows：`runtime/logs/windows.web.out.log`
 - Windows：`runtime/logs/windows.web.err.log`
 

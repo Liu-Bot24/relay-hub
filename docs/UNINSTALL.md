@@ -23,9 +23,6 @@ py -3 install.py uninstall-host
 
 默认路径下通常包括：
 
-- macOS：`~/Library/Application Support/RelayHub/runtime`
-- macOS：`~/Library/Application Support/RelayHub/app`
-- macOS：`~/Library/LaunchAgents/com.relayhub.web.plist`
 - Windows：`%LOCALAPPDATA%\RelayHub\runtime`
 - Windows：`%LOCALAPPDATA%\RelayHub\app`
 - Windows：`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\RelayHub Web.cmd`

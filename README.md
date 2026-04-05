@@ -82,7 +82,7 @@ py -3 install.py status
 
 - `status` 用来确认当前已经装到位的共享产物
 - `doctor` 的 `"ok": true` 代表整机侧前提基本齐全；如果当前机器还没有 `OpenClaw`，它仍可能因为 `openclaw_cli` 缺失而不是 `true`
-- 因此，在“先做 Windows / macOS 宿主侧支持、暂未接 OpenClaw”的阶段，不要把 `doctor` 还没全绿误报成宿主侧安装失败
+- 因此，在“先做 Windows 宿主侧支持、暂未接 OpenClaw”的阶段，不要把 `doctor` 还没全绿误报成宿主侧安装失败
 
 默认安装按侧分开执行：
 
@@ -200,7 +200,7 @@ relay-hub/
 
 宿主侧共享安装：
 
-- `macOS` 或 `Windows`
+- `Windows`
 - `py -3`
 - 至少一个可按协议接入的 AI 编程工具
 
@@ -262,7 +262,7 @@ py -3 install.py install-host --load-services
 
 - Relay Hub 本身是通用中转层，但不同 AI 宿主仍需要完成自己的接入。
 - 消息渠道统一通过 OpenClaw 接入；只要 OpenClaw 已支持该渠道，就可以接进 Relay Hub。
-- 当前分支重点补的是 Windows 宿主侧支持；原仓库已有的 macOS 托管逻辑仍保留在代码里。
+- 当前分支只验证 Windows 宿主侧支持；仓库里保留的 macOS 托管逻辑不属于这个分支的验证范围。
 - Relay Hub 通过 OpenClaw 对接消息渠道，不直接连接其他渠道网关。
 - 网页 branch 是主线对话的临时工作区，不是第二条主对话。
 - 你正在使用的 AI 主对话窗口始终是主线。
