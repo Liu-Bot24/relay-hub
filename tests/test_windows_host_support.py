@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import shutil
 import unittest
 import uuid
@@ -111,6 +112,90 @@ class WindowsHostSupportTests(unittest.TestCase):
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
+    def test_explicit_feishu_default_target_is_rejected(self) -> None:
+        temp_dir = self.make_temp_dir()
+        openclaw_workspace = temp_dir / "openclaw"
+        args = mock.Mock()
+        args.delivery_channel = ["feishu=default"]
+        args.delivery_account = ["feishu=test-account"]
+        try:
+            with self.assertRaisesRegex(SystemExit, "feishu delivery target cannot be `default`"):
+                install.resolved_delivery_channels(args, openclaw_workspace)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_existing_feishu_default_target_is_rejected(self) -> None:
+        temp_dir = self.make_temp_dir()
+        openclaw_workspace = temp_dir / "openclaw"
+        config_path = install.openclaw_config_path(openclaw_workspace)
+        install.write_json(
+            config_path,
+            {
+                "delivery": {
+                    "channels": {
+                        "feishu": {
+                            "target": "default",
+                            "accountId": "test-account",
+                        }
+                    }
+                }
+            },
+        )
+        args = mock.Mock()
+        args.delivery_channel = None
+        args.delivery_account = None
+        try:
+            with self.assertRaisesRegex(SystemExit, "feishu delivery target cannot be `default`"):
+                install.resolved_delivery_channels(args, openclaw_workspace)
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_explicit_valid_target_repairs_invalid_existing_feishu_config(self) -> None:
+        temp_dir = self.make_temp_dir()
+        openclaw_workspace = temp_dir / "openclaw"
+        config_path = install.openclaw_config_path(openclaw_workspace)
+        install.write_json(
+            config_path,
+            {
+                "delivery": {
+                    "channels": {
+                        "feishu": {
+                            "target": "default",
+                            "accountId": "bad-account",
+                        }
+                    }
+                }
+            },
+        )
+        args = mock.Mock()
+        args.delivery_channel = ["feishu=user:ou_real_open_id"]
+        args.delivery_account = ["feishu=real-account"]
+        try:
+            channels, meta = install.resolved_delivery_channels(args, openclaw_workspace)
+            self.assertEqual(
+                channels,
+                {"feishu": {"target": "user:ou_real_open_id", "accountId": "real-account"}},
+            )
+            self.assertEqual(meta["source"], "explicit_args")
+            self.assertIn("feishu delivery target cannot be `default`", meta["invalid_existing_channels_error"] or "")
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_install_run_json_command_uses_openclaw_wrapper(self) -> None:
+        result = subprocess.CompletedProcess(args=["openclaw"], returncode=0, stdout='{"ok": true}', stderr="")
+        with mock.patch.object(install, "run_openclaw_command", return_value=result) as run_openclaw_command:
+            payload = install.run_json_command(["openclaw", "channels", "status", "--json"])
+        run_openclaw_command.assert_called_once_with(["channels", "status", "--json"], capture_output=True, text=True)
+        self.assertEqual(payload, {"ok": True})
+
+    def test_discover_feishu_target_from_directory_prefixes_user_ids(self) -> None:
+        with mock.patch.object(
+            install,
+            "run_json_command",
+            return_value=[{"kind": "user", "id": "ou_example_open_id"}],
+        ):
+            self.assertEqual(install.discover_feishu_target_from_directory(), "user:ou_example_open_id")
+
     def test_doctor_reports_windows_python_launcher(self) -> None:
         temp_dir = self.make_temp_dir()
         runtime_root = temp_dir / "runtime"
@@ -136,6 +221,7 @@ class WindowsHostSupportTests(unittest.TestCase):
                 mock.patch.object(install, "service_loaded", return_value=False),
                 mock.patch.object(install, "windows_relay_web_running", return_value=False),
                 mock.patch.object(install, "REPO_ROOT", temp_dir),
+                mock.patch.object(install, "openclaw_cli_path", return_value=Path(r"C:\Tools\openclaw.cmd")),
                 mock.patch("install.shutil.which", side_effect=which_side_effect),
             ):
                 status_payload = install.install_status(args, runtime_root, openclaw_workspace, app_root, codex_home)

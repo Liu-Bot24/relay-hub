@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import secrets
 import socket
 import subprocess
@@ -15,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_CONFIG_PATH = Path.home() / ".openclaw" / "workspace" / "data" / "relay_hub_openclaw.json"
+DEFAULT_OPENCLAW_LOGS_DIR = Path.home() / ".openclaw" / "logs"
 RECENT_SEND_DEDUPE_SECONDS = 2.0
 RECENT_NOTIFY_DEDUPE_SECONDS = 60.0
 
@@ -46,6 +48,7 @@ bootstrap_import_paths()
 from relay_hub import RelayHub
 from relay_hub.host_support import background_popen_kwargs
 from relay_hub.message_text import delivery_footer, relay_help_text
+from relay_hub.openclaw_cli import run_openclaw_command
 
 AGENT_ALIASES = {
     "codex": "codex",
@@ -78,6 +81,14 @@ def atomic_write_json(path: Path, payload: Any) -> None:
     tmp.replace(path)
 
 
+def persist_config(config: dict[str, Any]) -> None:
+    config_path_raw = str(config.get("_relayHubConfigPath") or "").strip()
+    if not config_path_raw:
+        return
+    payload = {key: value for key, value in config.items() if key != "_relayHubConfigPath"}
+    atomic_write_json(Path(config_path_raw).expanduser().resolve(), payload)
+
+
 def resolve_config_path(raw: str | None) -> Path:
     value = raw or os.environ.get("RELAY_HUB_OPENCLAW_CONFIG")
     return Path(value).expanduser().resolve() if value else DEFAULT_CONFIG_PATH
@@ -87,6 +98,7 @@ def load_config(config_path: Path) -> dict[str, Any]:
     config = load_json(config_path)
     if not config:
         raise SystemExit(f"missing config: {config_path}")
+    config["_relayHubConfigPath"] = str(config_path)
     return config
 
 
@@ -324,6 +336,89 @@ def run_command(cmd: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
 
 
+def run_openclaw_json(args: list[str]) -> Any | None:
+    try:
+        result = run_openclaw_command(args, capture_output=True, text=True)
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    text = result.stdout.strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+
+def read_recent_log_text(path: Path, max_bytes: int = 512 * 1024) -> str:
+    if not path.exists():
+        return ""
+    with path.open("rb") as handle:
+        size = handle.seek(0, os.SEEK_END)
+        handle.seek(max(0, size - max_bytes))
+        return handle.read().decode("utf-8", errors="replace")
+
+
+def discover_feishu_target() -> str | None:
+    payload = run_openclaw_json(["directory", "peers", "list", "--channel", "feishu", "--json"])
+    if isinstance(payload, list):
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            identifier = str(item.get("id") or "").strip()
+            if not identifier:
+                continue
+            kind = str(item.get("kind") or "").strip().lower()
+            if kind == "user":
+                return identifier if identifier.startswith("user:") else f"user:{identifier}"
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            identifier = str(item.get("id") or "").strip()
+            if not identifier:
+                continue
+            kind = str(item.get("kind") or "").strip().lower()
+            if identifier.startswith(("user:", "chat:")):
+                return identifier
+            if kind == "chat":
+                return f"chat:{identifier}"
+            return identifier
+    text = read_recent_log_text(DEFAULT_OPENCLAW_LOGS_DIR / "gateway.log")
+    if not text:
+        return None
+    for pattern in (
+        re.compile(r"\[feishu\][^\n]*received message from ([^ ]+) in "),
+        re.compile(r'message params=\{[^\n]*"channel":"feishu"[^\n]*"target":"([^"]+)"'),
+    ):
+        matches = pattern.findall(text)
+        if matches:
+            identifier = str(matches[-1]).strip()
+            if identifier:
+                return identifier
+    return None
+
+
+def repair_delivery_channels(config: dict[str, Any]) -> dict[str, Any]:
+    channels = (config.get("delivery") or {}).get("channels") or {}
+    changed = False
+    for channel, raw_entry in channels.items():
+        entry = raw_entry or {}
+        target = str(entry.get("target") or "").strip()
+        if channel != "feishu" or target.lower() != "default":
+            continue
+        discovered = discover_feishu_target()
+        if not discovered:
+            continue
+        entry["target"] = discovered
+        channels[channel] = entry
+        changed = True
+    if changed:
+        persist_config(config)
+    return channels
+
+
 def summarize_error_text(text: str) -> str:
     stripped = text.strip()
     if stripped.startswith("{") and stripped.endswith("}"):
@@ -368,7 +463,6 @@ def extract_openclaw_error(result: subprocess.CompletedProcess[str]) -> str:
 
 def send_message(channel: str, target: str, message: str, account_id: str | None = None) -> None:
     cmd = [
-        "openclaw",
         "message",
         "send",
         "--channel",
@@ -380,7 +474,11 @@ def send_message(channel: str, target: str, message: str, account_id: str | None
     ]
     if account_id:
         cmd.extend(["--account", account_id])
-    result = run_command(cmd)
+    try:
+        result = run_openclaw_command(cmd, capture_output=True, text=True)
+    except OSError as exc:
+        detail = exc.strerror or str(exc)
+        raise SystemExit(f"failed to start OpenClaw CLI: {detail}") from exc
     if result.returncode != 0:
         raise SystemExit(extract_openclaw_error(result))
 
@@ -442,7 +540,7 @@ def configured_delivery_channels(
     exclude_origin_target: str | None = None,
 ) -> list[tuple[str, str, str | None]]:
     results: list[tuple[str, str, str | None]] = []
-    channels_config = (config.get("delivery") or {}).get("channels") or {}
+    channels_config = repair_delivery_channels(config)
     for channel, channel_config in channels_config.items():
         channel_key = str(channel or "").strip()
         target = str(channel_config.get("target") or "").strip()

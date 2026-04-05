@@ -38,6 +38,8 @@
 直接执行：
 - `py -3 install.py install-openclaw`
 
+如果自动发现不到默认提醒渠道，只能显式传 `--delivery-channel <channel>=<target>` / `--delivery-account <channel>=<accountId>`。这里的 `<target>` 必须是真实 OpenClaw 渠道对象；不要写 `default` 这类占位值。对飞书，目标应使用真实 peer id，例如 `user:<openId>` 或 `chat:<chatId>`。
+
 如果 `install-openclaw` 报“请先执行 install-host”，就直接告诉用户共享层还没装好；不要自己跨侧补装。
 
 安装完成后，你对 Relay Hub 的职责只有这些：

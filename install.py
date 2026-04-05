@@ -30,6 +30,7 @@ from relay_hub.host_support import (
     repo_root_forbidden_prefixes,
     terminate_process,
 )
+from relay_hub.openclaw_cli import openclaw_cli_path, run_openclaw_command
 
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -291,6 +292,11 @@ def clean_delivery_channels(payload: dict[str, Any] | None) -> dict[str, Any]:
         target = str(entry.get("target") or "").strip()
         if not target:
             continue
+        if channel == "feishu" and target.lower() == "default":
+            raise SystemExit(
+                "feishu delivery target cannot be `default`; pass a real OpenClaw peer id such as "
+                "`user:<openId>` or `chat:<chatId>`, or let install-openclaw auto-discover it."
+            )
         normalized: dict[str, Any] = {"target": target}
         account_id = str(entry.get("accountId") or "").strip()
         if account_id:
@@ -311,7 +317,13 @@ def merge_delivery_channel_maps(*payloads: dict[str, Any] | None) -> dict[str, A
 
 
 def run_json_command(cmd: list[str]) -> Any | None:
-    result = subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
+    try:
+        if cmd and cmd[0] == "openclaw":
+            result = run_openclaw_command(cmd[1:], capture_output=True, text=True)
+        else:
+            result = subprocess.run(cmd, capture_output=True, text=True)  # noqa: S603
+    except OSError:
+        return None
     if result.returncode != 0:
         return None
     stdout = result.stdout.strip()
@@ -340,12 +352,20 @@ def discover_feishu_target_from_directory() -> str | None:
         if not isinstance(item, dict):
             continue
         if item.get("kind") == "user" and item.get("id"):
-            return str(item["id"]).strip()
+            identifier = str(item["id"]).strip()
+            if identifier.startswith(("user:", "chat:")):
+                return identifier
+            return f"user:{identifier}"
     for item in payload:
         if not isinstance(item, dict):
             continue
         if item.get("id"):
-            return str(item["id"]).strip()
+            identifier = str(item["id"]).strip()
+            if identifier.startswith(("user:", "chat:")):
+                return identifier
+            if item.get("kind") == "chat":
+                return f"chat:{identifier}"
+            return identifier
     return None
 
 
@@ -432,12 +452,21 @@ def discover_openclaw_delivery_channels() -> tuple[dict[str, Any], list[str]]:
 
 def resolved_delivery_channels(args: argparse.Namespace, openclaw_workspace: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     explicit = clean_delivery_channels(delivery_channels(args))
-    existing = clean_delivery_channels(existing_delivery_channels(openclaw_workspace))
+    invalid_existing_error: str | None = None
+    try:
+        existing = clean_delivery_channels(existing_delivery_channels(openclaw_workspace))
+    except SystemExit as exc:
+        existing = {}
+        invalid_existing_error = str(exc)
     auto_discovered: dict[str, Any] = {}
     unresolved: list[str] = []
     if not explicit:
         auto_discovered, unresolved = discover_openclaw_delivery_channels()
     merged = merge_delivery_channel_maps(auto_discovered, existing, explicit)
+    if invalid_existing_error and not merged:
+        raise SystemExit(
+            f"{invalid_existing_error} Existing OpenClaw Relay Hub config is invalid; rerun install-openclaw with a real delivery target."
+        )
     sources: list[str] = []
     if auto_discovered:
         sources.append("auto_discovered")
@@ -451,6 +480,7 @@ def resolved_delivery_channels(args: argparse.Namespace, openclaw_workspace: Pat
         "existing_channels": existing,
         "explicit_channels": explicit,
         "unresolved_channels": unresolved,
+        "invalid_existing_channels_error": invalid_existing_error,
     }
 
 
@@ -468,7 +498,7 @@ def openclaw_config_path(openclaw_workspace: Path) -> Path:
 
 def existing_delivery_channels(openclaw_workspace: Path) -> dict[str, Any]:
     existing = load_json(openclaw_config_path(openclaw_workspace), {}) or {}
-    return clean_delivery_channels((existing.get("delivery") or {}).get("channels") or {})
+    return (existing.get("delivery") or {}).get("channels") or {}
 
 
 def alias_map_path(openclaw_workspace: Path) -> Path:
@@ -1461,8 +1491,8 @@ def install_doctor(
 
     add_check("python", True, doctor_python_check_detail())
 
-    openclaw_cli = shutil.which("openclaw")
-    add_check("openclaw_cli", bool(openclaw_cli), openclaw_cli or "openclaw not found in PATH")
+    openclaw_cli = openclaw_cli_path()
+    add_check("openclaw_cli", bool(openclaw_cli), str(openclaw_cli) if openclaw_cli else "openclaw not found in PATH")
 
     add_check(
         "openclaw_workspace",

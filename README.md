@@ -213,6 +213,8 @@ py -3 install.py install-service --load-services
 py -3 install.py install-openclaw --delivery-channel <channel>=<target> --delivery-account <channel>=<accountId>
 ```
 
+这里的 `<target>` 必须是真实 OpenClaw 渠道对象；不要写 `default` 这类占位值。对飞书，目标应使用真实 peer id，例如 `user:<openId>` 或 `chat:<chatId>`。
+
 ## 文档入口
 
 - 给 AI 编程工具的安装提示：[docs/AI_INSTALL_PROMPT.md](/D:/work/Claude%20Code/relay-hub/docs/AI_INSTALL_PROMPT.md)

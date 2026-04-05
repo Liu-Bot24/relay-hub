@@ -64,6 +64,7 @@ py -3 install.py install-openclaw --delivery-channel <channel>=<target> --delive
 
 硬规则：
 
+- `<target>` 必须是真实 OpenClaw 渠道对象；不要写 `default` 这类占位值。对飞书，目标应使用真实 peer id，例如 `user:<openId>` 或 `chat:<chatId>`。
 - 不要由 AI 宿主代跑 `install-openclaw`
 - 不要由 OpenClaw 代跑 `install-host`
 - 不要使用 `full` 作为默认委托路径
