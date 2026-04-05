@@ -101,6 +101,11 @@ def validate_command_backend(raw: str) -> None:
     joined = " ".join(command)
     if "<" in joined and ">" in joined:
         raise SystemExit("--backend-command still contains placeholder markers; replace them with the real host CLI command")
+    if os.name == "nt" and executable.casefold() in {"codex", "codex.exe"}:
+        raise SystemExit(
+            "On Windows, do not point --backend-command directly at `codex`. "
+            "Packaged Codex builds may reject external subprocess launch; use a verified host enhancement path instead."
+        )
 
 
 def load_seed_text(root: Path, agent: str, main_session_ref: str) -> str | None:
@@ -176,7 +181,9 @@ def summarize_backend_error(text: str) -> str:
 
 
 def run_codex_exec_backend(project_root: str | None, prompt: str) -> tuple[str | None, str | None]:
-    output_file = Path(tempfile.mkstemp(prefix="relayhub-codex-", suffix=".txt")[1])
+    fd, temp_path = tempfile.mkstemp(prefix="relayhub-codex-", suffix=".txt")
+    os.close(fd)
+    output_file = Path(temp_path)
     try:
         env = os.environ.copy()
         for key in (
@@ -200,13 +207,21 @@ def run_codex_exec_backend(project_root: str | None, prompt: str) -> tuple[str |
         if project_root:
             cmd.extend(["--cd", project_root])
         cmd.append("-")
-        result = subprocess.run(  # noqa: S603
-            cmd,
-            input=prompt,
-            capture_output=True,
-            text=True,
-            env=env,
-        )
+        try:
+            result = subprocess.run(  # noqa: S603
+                cmd,
+                input=prompt,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+        except OSError as exc:
+            if os.name == "nt":
+                return None, (
+                    "codex exec could not be started from this Windows environment. "
+                    f"Underlying error: {exc}"
+                )
+            return None, f"codex exec failed to start: {exc}"
         if result.returncode != 0:
             detail = summarize_backend_error(result.stderr or result.stdout or "codex exec failed")
             return None, detail
@@ -233,19 +248,24 @@ def run_command_backend(
         return None, f"invalid backend_command JSON: {exc}"
     if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
         return None, "backend_command must be a JSON string array"
-    output_file = Path(tempfile.mkstemp(prefix="relayhub-backend-", suffix=".txt")[1])
+    fd, temp_path = tempfile.mkstemp(prefix="relayhub-backend-", suffix=".txt")
+    os.close(fd)
+    output_file = Path(temp_path)
     env = os.environ.copy()
     env.update(env_updates)
     env["RELAY_OUTPUT_FILE"] = str(output_file)
     try:
-        result = subprocess.run(  # noqa: S603
-            command,
-            input=prompt,
-            capture_output=True,
-            text=True,
-            env=env,
-            cwd=cwd or None,
-        )
+        try:
+            result = subprocess.run(  # noqa: S603
+                command,
+                input=prompt,
+                capture_output=True,
+                text=True,
+                env=env,
+                cwd=cwd or None,
+            )
+        except OSError as exc:
+            return None, f"backend command failed to start: {exc}"
         if result.returncode != 0:
             detail = summarize_backend_error(result.stderr or result.stdout or "backend command failed")
             return None, detail

@@ -3,115 +3,77 @@
 把下面整段直接发给当前 AI 编程工具：
 
 ```text
-这是 Relay Hub 仓库。
+这是 Relay Hub 的 Windows 分支安装任务。
 
-仓库地址：
-https://github.com/Liu-Bot24/relay-hub.git
+你先只做两件事：
+1. 确认当前安装源是可验证的 `main-Windows` git 副本
+2. 只执行宿主侧共享安装和当前宿主自举
 
-如果本机还没有这个仓库，请先克隆；如果已经有本地副本，或用户已经下载/解压出一份本地目录，就直接定位到包含 README.md、install.py、RELAY_PROTOCOL.md 的仓库根目录。解压目录即使没有 `.git` 也算有效安装源，不要因为“不是 git clone”就再额外克隆一份。请在该仓库根目录工作，并严格按下面流程执行，不要自行简化步骤。
+安装源规则：
 
-先优先阅读这 4 个关键文件：
+- 如果本机还没有这个仓库的 git 副本，执行：
+  git clone -b main-Windows https://github.com/Liu-Bot24/relay-hub.git
+  cd relay-hub
+- 如果本机已经有这个仓库的 git 副本，先进入那份仓库根目录，再执行：
+  git fetch origin
+  git switch main-Windows
+- 如果当前目录不是 git 副本，或无法确认当前分支就是 `main-Windows`，就停止并告诉用户：
+  “当前安装源不可验证；不要在 zip、解压目录或来源不明的本地副本上继续安装。”
+
+然后阅读：
 1. README.md
 2. RELAY_PROTOCOL.md
 3. docs/INTEGRATION_CONTRACT.md
-4. docs/AGENT_ENTRY_RULE.md
+4. docs/GENERIC_HOST_BOOTSTRAP.md
+5. docs/AGENT_ENTRY_RULE.md
 
-如果读完上面 4 个文件后还需要具体安装细节，再补读：
-5. docs/INSTALL_PLAYBOOK.md
-6. docs/GENERIC_HOST_BOOTSTRAP.md
-7. docs/GENERIC_HOST_RULE_TEMPLATE.md
-8. docs/AGENT_WORKFLOW.md
-9. docs/COMPATIBILITY.md
+如果当前宿主刚好有对应示例文件，只把它当参考，不要把示例当产品定义：
+- Codex：docs/HOST_EXAMPLES/codex.AGENTS.example.md
+- Claude Code：docs/HOST_EXAMPLES/claude-code.CLAUDE.example.md
+- Gemini CLI：docs/HOST_EXAMPLES/gemini-cli.GEMINI.example.md
+- Cursor CLI：docs/HOST_EXAMPLES/cursor-cli.relay-hub.example.mdc
 
-如果你当前宿主正好是下面 4 个之一，还可以额外参考对应示例文件，但示例只用于帮助你更快落地，验收标准仍以 `docs/GENERIC_HOST_BOOTSTRAP.md` 为准：
-- Codex（可选宿主增强，不属于通用主路径）：`docs/HOST_EXAMPLES/codex.AGENTS.example.md`
-- Claude Code：`docs/HOST_EXAMPLES/claude-code.CLAUDE.example.md`
-- Gemini CLI：`docs/HOST_EXAMPLES/gemini-cli.GEMINI.example.md`
-- Cursor CLI：`docs/HOST_EXAMPLES/cursor-cli.relay-hub.example.mdc`
+重要边界：
 
-如果当前宿主正好命中上面 4 个之一，优先直接按对应示例文件落配置，不要自己重新发明一套“看起来差不多”的宿主规则。
-如果当前宿主是 Codex，先问清用户要不要安装 Codex 专属宿主增强；未得到明确同意前，保持通用主路径，不要默认把 Codex adapter 一起装上。
-如果当前宿主命中了某个已知示例，该示例里写明的“精确持久载体路径”和“精确验证方式”就是硬要求；不要用 memory、session cache、项目转录文件、临时 notes 或别的旁路文件冒充已经持久化完成。
-
-先自己确定下面两件事，不要先来问我：
-1. 仓库根目录
-- 如果用户已经明确给了当前工作目录、当前打开的仓库，或你已经在某个仓库副本里执行命令，这个当前仓库副本就是唯一有效根目录
-- 如果当前目录不是仓库根目录，但某个上级目录已经同时包含 README.md、install.py、RELAY_PROTOCOL.md，就回到那个上级目录继续
-- 用户本地下载/解压出来的目录，只要同时包含 README.md、install.py、RELAY_PROTOCOL.md，就已经是有效安装源；不要因为“不是 git clone”就再克隆一份
-- 只有当前没有任何已知本地副本时，才允许执行 `git clone`
-- 如果本机已经同时有多份有效本地副本，而用户没有明确指定哪一份，就停止并把候选路径告诉用户
-- 如果必须克隆，只允许克隆到可见的永久位置，例如 `./relay-hub` 或 `~/relay-hub`
-- 不要使用 `/tmp`、`/private/tmp`、`/var/folders` 这类临时或缓存目录作为安装源
-2. 你的 agent_id
-- 使用你当前宿主稳定、可持续复用的名字
-- 如果仓库里已经存在你对应的既有 `agent_id` 约定，就复用那一份；否则不要临时起一个会漂移的新名字
+- 你当前是 AI 宿主；只执行 `py -3 install.py install-host ...`
+- 不要执行 `install-openclaw`
+- 不要使用 `full`
+- 不要删除、reset、重装或清空 OpenClaw 侧已有 relay-hub 产物
+- 不要动别的 AI 宿主产物，除非用户明确要求
+- 不要把 zip、解压目录或无法验证分支的本地副本当成安装源
 
 直接执行：
 - `py -3 install.py install-host --load-services`
 
-如果仓库里已经提供了与你当前宿主匹配的可选 adapter，并且用户明确同意启用它，就把对应参数加在 `install-host` 后面；否则保持通用宿主安装主路径，不要自行发明宿主专属参数，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 自己完成最后一步宿主自举。
+如果仓库里已经提供了与你当前宿主匹配的可选 adapter，且用户明确同意启用它，再追加对应参数；否则保持通用宿主路径，并按 `docs/GENERIC_HOST_BOOTSTRAP.md` 自己补齐最后一步宿主自举。
 
-安装完成后，再执行：
-1. `py -3 install.py doctor`
-2. `py -3 install.py status`
+安装后再执行：
+1. `py -3 install.py status`
+2. `py -3 install.py doctor`
 
-安装完成标准：
-- 如果当前是在做宿主侧共享安装，`install-host` 成功且 `status` 能看到 runtime / app / 宿主 Web service 定义等共享安装产物，就应先如实报告“宿主侧共享安装已完成”
-- 如果当前机器同时也已经具备 OpenClaw 侧前提，doctor 应进一步返回 ok=true
-- 如果当前机器还没有 OpenClaw，doctor 仍可能因为 `openclaw_cli` 缺失而不是 true；这时应明确报告“当前只完成了宿主侧共享安装，OpenClaw 侧尚未具备”，不要把它误报成宿主侧安装失败
-- 阅读 status 时，只把它当成共享安装结果；不要把运行期规则提前套到安装汇报里
+汇报时必须分成 3 段：
+1. 共享安装状态
+2. 当前宿主自举状态
+3. 当前主对话 Relay 开启状态
 
-安装阶段的宿主自举完成标准：
-- 宿主自举完成的唯一验收标准，以 `docs/GENERIC_HOST_BOOTSTRAP.md` 为准；若其他文件与它理解不一致，统一以这份文档为准
-- 这里不再重复展开全部细则，只保留最低提醒：
-  - 最小长期规则必须真实写入宿主持久载体，并回读验证
-  - `main_session_ref` 规则、`enable-relay` 完整启动链路、`command` backend 都必须明确且可工作；像“之后再根据实际情况确定 backend”这种说法，仍然算未完成
-  - 自动精确镜像必须是真正持久的自动机制；人工补跑 `capture-main-output` 不算完成
-  - 只要宿主有“回复结束时触发、且 payload 带最终正文”的 hook / watcher，就必须把它当成可用载体，并优先接仓库的 `relay_after_reply_hook.py`
-  - 如果宿主没有原生 after-reply hook，但支持持久规则 / skill / guide，并且能在正常回复流程里自动执行本地命令，那么“宿主内回复收尾流程”也算有效自动镜像：先把最终正文写入文件，再自动执行 `relay_after_reply_hook.py --body-file <exact_body_file>`，最后发送同一份正文
-  - branch 合流默认属于通用产品命令能力，不默认要求自动完成；如果当前宿主没有可靠的“主窗口用户发言前”触发机制，就必须明确告诉用户：回到主窗口后先说 `合流上下文`，再继续主线
-  - 只有当当前宿主确实支持可靠的前置 hook / pre-prompt / watcher，并且你已经真实落下该机制时，才允许把“回主窗口自动先合流”报告为已完成
-  - 安装阶段不要通过真实开启当前主对话 Relay、留下后台 pickup、或偷跑业务对话来“验证 backend”；除非用户此刻明确要求接入 Relay Hub，否则安装汇报里当前主对话应仍是“尚未开启”
-  - 如果你新增了宿主侧 wrapper / extractor / transcript 解析脚本，不能只测“脚本能跑通”；必须用一个“前一条 assistant 文本”和“最后一条 assistant 文本”不同的最小夹具验证它确实抓到最后一条回复，验证通过后才能报告完成
+判断标准：
 
-安装完成后的汇报格式：
-- 必须分成 3 段分别汇报：
-  1. 共享安装状态
-  2. 当前宿主自举状态
-  3. 当前主对话 Relay 开启状态
-- 第 1 段只汇报 `doctor / status` 对共享安装产物的结论
-- 第 2 段只汇报当前宿主是否已经把长期规则、`agent_id`、`main_session_ref` 规则、`command` backend 启动链路，以及主窗口自动精确镜像机制落下并验证
-- 第 3 段如果用户还没说 `接入 Relay Hub`，就明确写“当前主对话尚未开启 Relay Hub”
-- 不要把第 3 段的“尚未开启”写成第 2 段的“宿主未完整接入”
+- 共享安装完成：
+  - `install-host` 成功
+  - `status` 能看到 runtime / app / 宿主 Web 托管等共享产物
+- 当前宿主自举完成：
+  - 当前宿主已经把长期规则、`agent_id`、`main_session_ref` 规则、pickup 启动链路、自动精确镜像机制真正落下并验证
+- 当前主对话 Relay 开启状态：
+  - 只有用户在这条主对话明确说了 `接入 Relay Hub`，才算“已开启”
+  - 如果用户还没说，就明确写“当前主对话尚未开启 Relay Hub”
 
-额外判断规则：
-- 安装汇报时只关注当前宿主；默认不要提本机上其他 AI 工具已有的 adapter、home 目录或宿主产物，除非我明确追问
-- 如果当前主对话还没说 `接入 Relay Hub`，不要把“pickup 现在还没运行”误报成缺项；这表示 relay 还没开启，不表示宿主自举失败
-- 如果用户当前这条主对话还没说 `接入 Relay Hub`，这表示“当前 relay 尚未开启”，不是“宿主未完整接入”
+额外规则：
 
-安装要求：
-- install.py 会自动探测本机局域网地址；只有探测失败时，才回头问我
-- 你在安装过程中创建的项目级 guide、wrapper、临时脚本、验证文件，都必须落在这次实际使用的同一份仓库根目录下；不要把规则写到另一份本地 clone 里
-- 不要把仓库重新下载到另一个“更顺手”的位置再继续安装；下载位置和安装位置必须是同一份本地副本
-- 默认不要求你手工配置额外消息渠道；`install-openclaw` 应自动发现当前已启用的 OpenClaw 消息渠道，并把它们设为首次主窗口开启时的默认提醒渠道；branch 回包仍默认走原始触发渠道
-- 如果我后面明确要求覆盖默认发现结果，或额外指定某个固定目标，那时你再执行：
-  `py -3 install.py install-openclaw --delivery-channel channel=target --delivery-account channel=accountId`
-- 你当前是 AI 宿主，只负责执行 `install-host` 和当前宿主自举；不要代替 OpenClaw 执行 `install-openclaw`，也不要使用 `full` 这种跨侧组合安装，除非我明确要求
-- `install-openclaw` 现在要求共享层已经存在；如果 OpenClaw 侧后续安装时报“请先执行 install-host”，那是正确行为，不要自己改成跨侧代装
-- 你只允许做两类写入：
-  1. 通过 `install.py` 原地更新共享安装产物
-  2. 落当前宿主自己的长期规则 / skill / guide / adapter（包括宿主自己的 hooks / watcher / settings 配置）
-- 不要删除、重置、重装或清空 OpenClaw 侧已有 relay-hub 产物；不要删除、重置、重装或清空别的 AI 宿主产物，除非我明确要求
-- 如果你判断某个跨侧删除、reset、重建工作区、清空目录、卸载旧版本动作“也许有帮助”，先停下并告诉我风险，不要自己执行
-- 不要直接读取原始消息渠道或 OpenClaw 插件内部实现
-- 不要自行做业务对话测试，除非我明确要求
-- 如果安装失败，就原样贴出失败点并停止，不要自创旁路方案
-- 安装完成后，必须先把当前宿主自己的长期机制真正落下，再做安装汇报
-- 不要把“我知道后续可以手动执行 `capture-main-output`”当成自动镜像已完成；只有宿主环境里已经存在可持续复用的自动触发机制，才算安装阶段自举完成
-- 如果宿主支持把原始 hook payload 传给本地命令，优先使用安装后的 `relay_after_reply_hook.py` helper 作为通用镜像入口
-- 不要把无关宿主信息塞进安装结论里
-- 当用户后续说 `接入 Relay Hub` 时，不要先裸跑 `enable-relay` 探路；对通用宿主，第一次调用就必须带上 `--project-root` 和 `--snapshot-body` 或 `--snapshot-file`
-- 当用户后续对你说“接入 Relay Hub”“Relay Hub 状态”“消息提醒状态”“开启<渠道>消息提醒”“关闭<渠道>消息提醒”“合流上下文”“退出 Relay Hub”时，严格按 `docs/AGENT_ENTRY_RULE.md` 和 `docs/AGENT_WORKFLOW.md` 执行
-- Relay Hub 运行期通过 OpenClaw 发出的固定尾注、网页入口、以及产品操作提示，都是代码内置行为；不要在安装 prompt 里重写、删改或自定义它们
+- 如果当前机器还没有 OpenClaw，`doctor` 可能因为 `openclaw_cli` 缺失而不是 `ok=true`；这时应明确报告“当前只完成了宿主侧共享安装”，不要把它误报成宿主侧安装失败
+- 安装阶段不要偷跑真实业务对话，不要为了“验证 backend”而擅自开启当前主对话的 Relay
+- 自动精确镜像必须是真正持久的自动机制；人工补跑 `capture-main-output` 不算完成
+- 通用默认的 merge-back 方式是：用户显式说 `合流上下文`
+- 只有当前宿主确实已经落下可靠的前置 hook / pre-user 机制时，才允许把“回主窗口自动先合流”报告为已完成
+- 如果你新增了 transcript / payload extractor，必须用“前一条 assistant 文本”和“最后一条 assistant 文本”不同的最小夹具验证它真的抓到最后一条，再报告完成
+- 当用户后续说 `接入 Relay Hub` 时，不要先裸跑 `enable-relay`；第一次调用就带完整参数，并统一使用 `enable-relay --start-pickup`
 ```
-

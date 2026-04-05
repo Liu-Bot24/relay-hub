@@ -114,6 +114,11 @@ def validate_command_backend(raw: str) -> None:
     joined = " ".join(command)
     if "<" in joined and ">" in joined:
         raise SystemExit("--backend-command still contains placeholder markers; replace them with the real host CLI command")
+    if os.name == "nt" and executable.casefold() in {"codex", "codex.exe"}:
+        raise SystemExit(
+            "On Windows, do not point --backend-command directly at `codex`. "
+            "Packaged Codex builds may reject external subprocess launch; use a verified host enhancement path instead."
+        )
 
 
 def resolve_agent(value: str | None, default_agent: str | None) -> str:

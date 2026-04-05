@@ -1,6 +1,6 @@
 ---
 description: Relay Hub main-window workflow for Cursor CLI
-alwaysApply: true
+alwaysApply: false
 ---
 
 你支持 Relay Hub。
@@ -19,35 +19,26 @@ alwaysApply: true
    - `关闭<渠道>消息提醒`
    - `合流上下文`
    - `退出 Relay Hub`
-4. 建议的 `command` backend：
 
-```json
-["bash","-lc","tmp=$(mktemp); cat > \"$tmp\"; cursor-agent --print --output-format text --trust \"$(cat \"$tmp\")\"; rc=$?; rm -f \"$tmp\"; exit $rc"]
+backend 规则：
+
+- 当前仓库没有提供 Cursor 的现成 backend 模板
+- 只有在你已经本地验证某个 Cursor CLI 命令可工作时，才允许把它写进 `--backend-command`
+- 不要把未验证命令或占位 JSON 数组写成已完成路径
+
+主窗口自动精确镜像：
+
+- 如果当前 Cursor 版本提供已验证可工作的 reply-end hook / post-response action，优先接到 `relay_after_reply_hook.py`
+- 如果没有，也不要因此直接判定安装失败；只有在 Cursor 的持久规则确实能在正常回复流程里自动执行本地命令时，才允许退回回复收尾流程：
+
+```powershell
+py -3 "%LOCALAPPDATA%\RelayHub\app\scripts\relay_after_reply_hook.py" --agent cursor-cli --body-file "<exact_body_file>"
 ```
 
-5. 主窗口自动精确镜像：
-   - 如果当前 Cursor 版本提供可用的回复结束 hook / post-response action，优先接到 `relay_after_reply_hook.py`
-   - 如果没有，也不要因此判定安装失败；直接在这条规则里启用“回复收尾流程”：
-     1. 先把最终正文原样写入 `<exact_body_file>`
-     2. 自动执行：
+`enable-relay` 主模板：
 
-```bash
-python3 "<app_root>/scripts/relay_after_reply_hook.py" --agent cursor-cli --body-file <exact_body_file>
+```powershell
+py -3 "%LOCALAPPDATA%\RelayHub\app\scripts\agent_relay.py" --agent cursor-cli enable-relay --project-root "<project_root>" --snapshot-body "<snapshot_body>" --backend command --backend-command "<verified_backend_command_json>" --start-pickup
 ```
 
-     3. 再把同一份 `<exact_body_file>` 的内容作为最终回复发给用户
-
-6. `enable-relay` 默认模板：
-
-```bash
-python3 "<app_root>/scripts/agent_relay.py" --agent cursor-cli enable-relay \
-  --project-root <project_root> \
-  --development-log-path <development_log_path> \
-  --main-session-ref <main_session_ref> \
-  --snapshot-body "<snapshot_body>" \
-  --backend command \
-  --backend-command '<json_string_array>' \
-  --start-pickup
-```
-
-7. 只有“用户每轮都要提醒你再跑一次命令”才算手动补跑；这条规则在每次正常主窗口回复时自动执行，不算手动。
+只有“用户每轮都要提醒你再跑一次命令”才算手动补跑；真正自动发生时才算宿主自举完成。

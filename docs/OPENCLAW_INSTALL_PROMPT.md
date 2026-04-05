@@ -3,38 +3,56 @@
 把下面整段直接发给 OpenClaw：
 
 ```text
-请帮我接入 relay-hub。
+这是 Relay Hub 的 Windows 分支 OpenClaw 接入任务。
 
-仓库地址：
-https://github.com/Liu-Bot24/relay-hub.git
+你先只做两件事：
+1. 确认当前安装源是可验证的 `main-Windows` git 副本
+2. 只执行 OpenClaw 侧安装和 OpenClaw 侧桥接动作
 
-如果本机还没有这个仓库，请先获取仓库，再阅读：
+安装源规则：
+
+- 如果本机还没有这个仓库的 git 副本，执行：
+  git clone -b main-Windows https://github.com/Liu-Bot24/relay-hub.git
+  cd relay-hub
+- 如果本机已经有这个仓库的 git 副本，先进入那份仓库根目录，再执行：
+  git fetch origin
+  git switch main-Windows
+- 如果当前目录不是 git 副本，或无法确认当前分支就是 `main-Windows`，就停止并告诉用户：
+  “当前安装源不可验证；不要在 zip、解压目录或来源不明的本地副本上继续安装。”
+
+然后阅读：
 1. README.md
 2. docs/OPENCLAW_RULE.md
 3. docs/OPENCLAW_INTEGRATION.md
 4. docs/INTEGRATION_CONTRACT.md
-5. docs/COMPATIBILITY.md
+
+重要边界：
+
+- 你当前是 OpenClaw；只执行 `py -3 install.py install-openclaw`
+- 不要执行 `install-host`
+- 不要使用 `full`
+- 不要调用仓库里的旧桥接入口
+- 安装完成后，只调用已安装的 `relay_openclaw_bridge.py`
+- 不要删除、reset、重装或清空 AI 宿主侧已有 relay-hub 产物，除非用户明确要求
 
 直接执行：
 - `py -3 install.py install-openclaw`
 
-你只负责这 4 件事：
-1. 当我说“打开 <agent> 入口”时，调用已安装的 relay bridge 打开或重发入口；如果已有 branch，则主动询问“复用入口 / 新建入口”
-2. 当我说“已录入”时，把 branch 入队，并在需要时等待 claim
-3. 当我说“状态”时，查询当前 branch 状态
-4. 当有待发送回包时，把它发到消息渠道并 ack-delivery
-注意：
-- 不要直接读取 routes.json、state.json、messages/*.md
-- 不要自己解释协议细节，只调用桥接脚本
-- 你是渠道网关，不是主记忆体
-- main_context 和 merge-back 不由你负责
-- 你当前是 OpenClaw，只负责执行 `install-openclaw`；不要代替 AI 宿主执行 `install-host`，也不要使用 `full` 这种跨侧组合安装，除非我明确要求
-- 如果 `install-openclaw` 报“请先执行 install-host”，就直接告诉我共享层还没装好；不要自己改成跨侧代装
-- 不要删除、reset、重装或清空 AI 宿主侧的 skill / rule / guide / adapter；也不要擅自删除共享安装层或别的宿主产物，除非我明确要求
-- `install-openclaw` 默认应自动发现当前已启用的 OpenClaw 消息渠道，并把它们设为首次主窗口开启时的默认提醒渠道；如果当前确实一个可用默认提醒渠道都没有，再说明“默认仍走原始触发渠道”
-- 如果某个已启用渠道根本解析不出默认目标，`install-openclaw` 应把它当成阻塞错误直接汇报，不要静默忽略该渠道
-- 当前渠道和当前目标，默认必须从当前入站消息上下文里获取；只有宿主真的拿不到时，才回问用户
-- 如果当前渠道对象已经有 branch，你必须主动问用户“复用入口”还是“新建入口”，不能自己替用户决定
-- 一旦你已经问出了“复用/新建”，就必须把这次待确认的 agent、channel、target 记为当前待确认入口；如果用户下一句只回答“复用”或“新建”，仍然按同一组参数重调，不要在第二轮丢上下文
-```
+如果 `install-openclaw` 报“请先执行 install-host”，就直接告诉用户共享层还没装好；不要自己跨侧补装。
 
+安装完成后，你对 Relay Hub 的职责只有这些：
+1. 当用户说“打开 <agent> 入口”时，调用已安装 bridge 的 `open-entry`
+2. 当用户说“已录入”时，调用已安装 bridge 的 `dispatch-input`
+3. 当用户说“状态”时，调用已安装 bridge 的 `session-status`
+4. 当有待发送回包时，调用已安装 bridge 的 `pump-deliveries`
+5. 当用户说“relay help”时，调用已安装 bridge 的 `relay-help`
+
+额外规则：
+
+- 当前渠道和当前目标，默认必须从当前入站消息上下文里获取；只有真的拿不到时才回问用户
+- 如果当前渠道对象已经有 branch，你必须主动问用户“复用入口”还是“新建入口”；不能替用户决定
+- 一旦问出了“复用/新建”，就必须保留这次待确认入口的 `agent / channel / target`，用户下一句只回答“复用”或“新建”时，仍按同一组参数重调
+- 不要直接读取 routes.json、state.json、messages/*.md
+- 不要自己解释协议细节，只调用已安装 bridge
+- 你是渠道网关，不是主记忆体；main_context 和 merge-back 不由你负责
+```

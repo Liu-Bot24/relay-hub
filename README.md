@@ -1,279 +1,236 @@
 # Relay Hub
 
-Relay Hub 是一个通用中转层，用来把这三样东西接起来：
+Relay Hub 把 3 个角色接到同一条主线上：
 
 - AI 编程工具的主对话窗口
 - `OpenClaw` 负责的消息渠道
-- 一个临时网页工作区
-
-它解决的问题很简单：
-
-- 你平时在 AI 编程工具主窗口里继续主线开发
-- 你离开电脑、切到手机或消息软件时，可以把要补充的内容先写进网页
-- AI 再接手这次“离机处理”的任务，并把结果通过 `OpenClaw` 发回消息渠道
-- 等你回到主窗口时，再把这次离机处理的增量合回原来的主线对话
-
-可以把它理解成：
-
-- AI 主对话窗口 = 主线
-- 网页 = 临时工作区
-- `OpenClaw` = 消息网关
-
-## 项目描述
-
-Relay Hub 不是某个单一宿主的“专用版插件”，而是一个面向多种 AI 编程工具的通用产品层。它提供的是：
-
-- 一套通用 relay 协议
-- 一套共享安装层和通用 CLI 轮子
 - 一个只承担 branch 工作区的网页入口
-- 一个只通过 `OpenClaw` 出入消息渠道的统一网关模型
 
-产品主线始终在 AI 宿主的主对话里。网页只承担 branch 录入与浏览，`OpenClaw` 只承担消息网关，不承担主记忆体。
+产品主线始终在 AI 宿主的主对话里。网页只是 branch 工作区，`OpenClaw` 只是消息网关，不承担主记忆体。
 
-网页链接发出去时，只表示入口已经打开；用户第一次在网页里保存消息后，这次远程处理才真正开始。
+## `main-Windows` 分支定位
 
-大致运行逻辑是：
-
-1. 先在 AI 主窗口里说 `接入 Relay Hub`
-2. Relay Hub 通过 `OpenClaw` 发出一条带网页入口的提醒
-3. 用户如果要离机补充内容，就打开网页录入
-4. 外部 AI 接手处理这次临时会话
-5. 处理结果通过 `OpenClaw` 发回消息渠道
-6. 用户回到 AI 主窗口时，再把这次会话增量合回主线
+- 这个分支只提供 Windows 安装与运行主路径。
+- 安装源只接受**可验证的 `main-Windows` git 副本**；不要在 zip、解压目录或来源不明的本地副本上继续安装。
+- 宿主侧共享安装和 OpenClaw 侧接入必须分开执行。
+- 当前分支不宣称“Windows + OpenClaw + 真实消息渠道”已经端到端实机完成。
 
 ## 安装
 
-### 命令安装
+### 1. 准备仓库
 
-宿主侧共享安装：
+新 clone：
 
-```bash
-git clone https://github.com/Liu-Bot24/relay-hub.git
+```powershell
+git clone -b main-Windows https://github.com/Liu-Bot24/relay-hub.git
 cd relay-hub
+```
+
+如果本机已经有这个仓库的 git 副本：
+
+```powershell
+git fetch origin
+git switch main-Windows
+```
+
+只允许在这样一个**可验证分支**上继续安装。  
+如果当前目录不是 git 副本，或无法确认当前分支就是 `main-Windows`，不要继续安装。
+
+### 2. 宿主侧共享安装
+
+```powershell
 py -3 install.py install-host --load-services
 ```
 
-如果后续已经有 `OpenClaw`，再单独执行 OpenClaw 侧接入：
+如果你只想先安装共享层、不立刻加载宿主 Web：
 
-```bash
+```powershell
+py -3 install.py install-host
+```
+
+安装后检查：
+
+```powershell
+py -3 install.py status
+py -3 install.py doctor
+```
+
+解释：
+
+- `status` 只用来确认共享安装产物是否到位。
+- 如果当前机器还没有 `OpenClaw`，`doctor` 可能因为 `openclaw_cli` 缺失而不是 `ok=true`；这不等于宿主侧共享安装失败。
+- 当前宿主最后一步是否已经自举完成，要按 [docs/GENERIC_HOST_BOOTSTRAP.md](/D:/work/Claude%20Code/relay-hub/docs/GENERIC_HOST_BOOTSTRAP.md) 判断。
+
+### 3. OpenClaw 侧接入
+
+这一步只应由 `OpenClaw` 执行，不是宿主侧默认步骤。
+
+```powershell
 py -3 install.py install-openclaw
 ```
 
 如果 OpenClaw 工作区不在默认位置：
 
-```bash
-py -3 install.py install-openclaw --openclaw-workspace "$env:USERPROFILE\\.openclaw\\workspace"
+```powershell
+py -3 install.py install-openclaw --openclaw-workspace "%USERPROFILE%\.openclaw\workspace"
 ```
 
-如果你只想先安装 AI 宿主侧共享层、不立刻加载服务：
+### 发给 AI 编程工具
 
-```bash
-py -3 install.py install-host
-```
-
-建议安装后再执行两条检查：
-
-```bash
-py -3 install.py doctor
-py -3 install.py status
-```
-
-检查口径：
-
-- `status` 用来确认当前已经装到位的共享产物
-- `doctor` 的 `"ok": true` 代表整机侧前提基本齐全；如果当前机器还没有 `OpenClaw`，它仍可能因为 `openclaw_cli` 缺失而不是 `true`
-- 因此，在“先做 Windows 宿主侧支持、暂未接 OpenClaw”的阶段，不要把 `doctor` 还没全绿误报成宿主侧安装失败
-
-默认安装按侧分开执行：
-
-1. 当前 AI 宿主执行 `install-host`
-2. OpenClaw 执行 `install-openclaw`
-
-如果当前宿主没有仓库内置 adapter，就按 `docs/GENERIC_HOST_BOOTSTRAP.md` 用通用轮子完成最后一步自举。
-卸载说明见 `docs/UNINSTALL.md`。
-
-### 交给 AI 编程工具安装
-
-把下面这段话发给当前 AI 编程工具：
+把下面整段发给当前 AI 编程工具：
 
 ```text
 请帮我安装 relay-hub。
 
-仓库地址：
-https://github.com/Liu-Bot24/relay-hub.git
+先确认当前安装源是可验证的 `main-Windows` git 副本：
 
-请先阅读 README.md 和 docs/AI_INSTALL_PROMPT.md。
-请完成安装；如果失败，告诉我失败原因。
-如果成功，请分开告诉我这 3 件事：
+1. 如果本机还没有这个仓库的 git 副本，执行：
+   git clone -b main-Windows https://github.com/Liu-Bot24/relay-hub.git
+   cd relay-hub
+2. 如果本机已经有这个仓库的 git 副本，先执行：
+   git fetch origin
+   git switch main-Windows
+3. 如果当前目录不是 git 副本，或无法确认当前分支是 main-Windows，就停止并告诉我“当前安装源不可验证，不要在 zip/解压目录上继续安装”。
+
+然后阅读 README.md 和 docs/AI_INSTALL_PROMPT.md。
+
+你当前只负责宿主侧共享安装和当前宿主自举：
+- 只执行 `py -3 install.py install-host ...`
+- 不要执行 `install-openclaw`
+- 不要删除、重置或重装 OpenClaw 侧现有 relay-hub 产物
+- 不要动别的 AI 宿主产物，除非我明确要求
+
+安装完成后，请分开告诉我这 3 件事：
 1. 共享安装是否已经完成
-2. 当前宿主的安装阶段自举是否已经完成；如果没有，明确告诉我还差什么
-3. 当前主对话是否已经开启 Relay Hub；如果还没开启，只需要说明“尚未开启”，不要把它算成安装失败
-另外，你只负责执行 `py -3 install.py install-host ...` 和当前宿主自己的自举；不要代替 OpenClaw 执行 `install-openclaw`，不要删除、重置或重装 OpenClaw 侧现有 relay-hub 产物，也不要动别的 AI 宿主产物，除非我明确要求你这么做。
+2. 当前宿主自举是否已经完成；如果没有，明确告诉我还差什么
+3. 当前主对话是否已经开启 Relay Hub；如果还没开启，只写“尚未开启”，不要把它算成安装失败
 ```
 
-### 交给 OpenClaw 接入
+### 发给 OpenClaw
 
-把下面这段话发给 OpenClaw：
+把下面整段发给 OpenClaw：
 
 ```text
 请帮我接入 relay-hub。
 
-仓库地址：
-https://github.com/Liu-Bot24/relay-hub.git
+先确认当前安装源是可验证的 `main-Windows` git 副本：
 
-请先阅读：
+1. 如果本机还没有这个仓库的 git 副本，执行：
+   git clone -b main-Windows https://github.com/Liu-Bot24/relay-hub.git
+   cd relay-hub
+2. 如果本机已经有这个仓库的 git 副本，先执行：
+   git fetch origin
+   git switch main-Windows
+3. 如果当前目录不是 git 副本，或无法确认当前分支是 main-Windows，就停止并告诉我“当前安装源不可验证，不要在 zip/解压目录上继续安装”。
+
+然后阅读：
 1. README.md
-2. docs/OPENCLAW_RULE.md
-3. docs/OPENCLAW_INTEGRATION.md
-4. docs/INTEGRATION_CONTRACT.md
-5. docs/COMPATIBILITY.md
+2. docs/OPENCLAW_INSTALL_PROMPT.md
+3. docs/OPENCLAW_RULE.md
+4. docs/OPENCLAW_INTEGRATION.md
 
-请完成 OpenClaw 侧接入；如果失败，告诉我失败原因；如果成功，告诉我当前可以使用哪些 relay 命令。
-首次从 AI 宿主侧开启 Relay Hub 时，默认提醒应发到当前已启用的所有 OpenClaw 消息渠道；用户后续可以再关闭不想要的渠道。
+你当前只负责 OpenClaw 侧：
+- 只执行 `py -3 install.py install-openclaw`
+- 不要执行 `install-host`
+- 不要调用仓库里的旧桥接入口
+- 安装完成后只调用已安装的 `relay_openclaw_bridge.py`
+- 不要删除、reset、重装或清空 AI 宿主侧 relay-hub 产物，除非我明确要求
 ```
 
-## 常用命令
+## 完成态
 
-### 命令大全
+当前分支统一按这 4 层判断：
 
-| 使用位置 | 命令 | 作用 | 备注 |
-| --- | --- | --- | --- |
-| AI 编程工具主窗口 | `接入 Relay Hub` | 把当前主会话接入 Relay Hub，并启动当前会话的持续接单/镜像 | 这是主窗口侧的开启命令 |
-| AI 编程工具主窗口 | `Relay Hub 状态` | 查看当前主会话是否 ready、是否有待处理 branch、是否有待合回主线的历史分支 | 只查当前主会话 |
-| AI 编程工具主窗口 | `消息提醒状态` | 查看当前所有默认 OpenClaw 提醒渠道的开关状态 | 默认显示当前已发现并已配置的提醒渠道 |
-| AI 编程工具主窗口 | `开启<渠道>消息提醒` | 开启某一个 OpenClaw 提醒渠道 | 例如：`开启飞书消息提醒` / `开启telegram消息提醒` |
-| AI 编程工具主窗口 | `关闭<渠道>消息提醒` | 关闭某一个 OpenClaw 提醒渠道 | 例如：`关闭微信消息提醒` / `关闭telegram消息提醒` |
-| AI 编程工具主窗口 | `合流上下文` | 把当前主会话下尚未合回主线的分支内容接回主窗口 | 如果有多个待合流分支，会先提示选择 |
-| AI 编程工具主窗口 | `退出 Relay Hub` | 关闭当前主会话的 Relay Hub | 只关闭当前主会话 |
-| OpenClaw | `打开 <agent> 入口` | 打开网页入口，或在已有 branch 时让用户选择“复用入口 / 新建入口” | 如果当前入口下已有 branch，会继续追问你是复用还是新建 |
-| OpenClaw | `已录入` | 把网页里刚保存的输入正式入队 | 只有网页已经保存过输入时才有效 |
-| OpenClaw | `状态` | 查看当前入口 / branch 状态 | 面向当前渠道对象 |
-| OpenClaw | `relay help` | 查看这份命令大全 | 用于快速回看命令说明 |
-| OpenClaw | `复用入口` / `新建入口` | 在 OpenClaw 追问时，明确选择继续旧 branch 还是创建新 branch | 用于回答上一条“复用还是新建”的追问 |
+1. **宿主侧共享安装完成**
+   - `install-host` 成功
+   - `status` 能看到 runtime / app / 宿主 Web 托管等共享产物
+2. **当前宿主自举完成**
+   - 当前宿主已经把长期规则、`agent_id`、`main_session_ref` 规则、pickup 启动链路、自动精确镜像机制真正落下并验证
+3. **OpenClaw 侧接入完成**
+   - `install-openclaw` 成功
+   - OpenClaw 已安装自己的 bridge / skill / heartbeat block
+4. **当前主对话已开启 Relay Hub**
+   - 只有用户在当前主对话明确说了 `接入 Relay Hub`，这一步才成立
 
-## 标准使用流程
+这 4 层互相独立。  
+“当前主对话尚未开启 Relay Hub”不等于“宿主未完整接入”。  
+“当前机器还没有 OpenClaw”也不等于“宿主侧共享安装失败”。
 
-装完以后，正常流程是：
+## 运行期口令
 
-1. 用户在当前 AI 主对话里说一次：`接入 Relay Hub`
-2. 这会开启 Relay Hub，并给当前活跃主对话建立接单能力
-3. 用户收到 OpenClaw 同步消息，消息里自带网页入口和产品指令
-4. 只要 Relay Hub 还没退出，用户切回旧主对话就继续旧主对话，切到新主对话就切到新主对话；不需要再重复说“接入 Relay Hub”
-5. 用户如果只是继续在当前主窗口对话，不需要额外动作；当前主窗口回复应自动继续同步到 OpenClaw。若还需要每条回复手动补命令，说明宿主接入还没完成
-6. 用户如果要调整哪些 OpenClaw 渠道继续收到提醒，直接在主窗口说：`消息提醒状态`、`开启<渠道>消息提醒`、`关闭<渠道>消息提醒`；这些命令默认作用于安装时自动发现并已配置的提醒渠道
-7. 用户如果要离机接管，直接点网页入口并保存第一条消息；这一刻 branch 才正式开始
-8. 用户回到 OpenClaw 说：`已录入`
-9. 外部 AI 按协议接手 branch
-10. 处理结果通过 OpenClaw 发回原消息渠道
-11. 用户如需显式重发入口，或在已有 branch 上选择“复用/新建”，再说：`打开 <agent> 入口`
-12. 用户回到当前 AI 主窗口后，如需把 branch 增量接回主线，先说 `合流上下文`，再继续主线对话
+| 使用位置 | 命令 | 作用 |
+| --- | --- | --- |
+| AI 编程工具主窗口 | `接入 Relay Hub` | 把当前主会话接入 Relay Hub，并进入持续接单状态 |
+| AI 编程工具主窗口 | `Relay Hub 状态` | 查看当前主会话是否 ready、是否有待处理 branch、是否有待合回主线的历史 branch |
+| AI 编程工具主窗口 | `消息提醒状态` | 查看当前默认 OpenClaw 提醒渠道的开关状态 |
+| AI 编程工具主窗口 | `开启<渠道>消息提醒` | 开启某一个已配置提醒渠道 |
+| AI 编程工具主窗口 | `关闭<渠道>消息提醒` | 关闭某一个已配置提醒渠道 |
+| AI 编程工具主窗口 | `合流上下文` | 把当前主会话下尚未合回主线的 branch 增量接回主窗口 |
+| AI 编程工具主窗口 | `退出 Relay Hub` | 关闭当前主会话的 Relay Hub |
+| OpenClaw | `打开 <agent> 入口` | 打开网页入口，或在已有 branch 时追问“复用入口 / 新建入口” |
+| OpenClaw | `已录入` | 把网页里刚保存的输入正式入队 |
+| OpenClaw | `状态` | 查看当前入口 / branch 状态 |
+| OpenClaw | `relay help` | 返回 Relay Hub 固定命令大全 |
+| OpenClaw | `复用入口` / `新建入口` | 回答上一条“复用还是新建”的追问 |
 
-## 仓库结构
+## 运行期行为
 
-```text
-relay-hub/
-  README.md
-  install.py
-  RELAY_PROTOCOL.md
-  docs/
-    INSTALL_PLAYBOOK.md
-    INTEGRATION_CONTRACT.md
-    COMPATIBILITY.md
-    RUNBOOK.md
-    AGENT_ENTRY_RULE.md
-    AGENT_WORKFLOW.md
-    OPENCLAW_INTEGRATION.md
-    OPENCLAW_RULE.md
-  scripts/
-    relay_openclaw_bridge.py
-    agent_relay.py
-    openclaw_relay.py
-    relayctl.py
-    relay_web.py
-  relay_hub/
-    __init__.py
-    store.py
-    web.py
-```
+### 宿主侧完成后的可用行为
 
-## 安装前提
+- 用户后续在当前主对话说 `接入 Relay Hub`，当前主会话才真正开启 Relay Hub。
+- 开启后，当前主窗口的正常回复应自动镜像到 OpenClaw；如果仍需要每条回复手工补命令，说明宿主自举还没完成。
+- branch 回主线的通用默认是：用户显式说 `合流上下文`。只有当前宿主已经真实落下可靠的前置 hook / pre-user 机制时，才允许自动先执行同样动作。
 
-宿主侧共享安装：
+### 端到端目标流程
 
-- `Windows`
-- `py -3`
-- 至少一个可按协议接入的 AI 编程工具
+下面这条链路只有在真实 OpenClaw 实例、真实消息渠道、以及外部 AI 接单链路都联通后才成立；不要把它当成当前分支已经实机背书的结论：
 
-完整接入（含消息网关）：
-
-- 一个可用的 `OpenClaw`
-- 当前宿主已按协议完成自己的接入
+1. 用户在 AI 主对话里说 `接入 Relay Hub`
+2. OpenClaw 收到启动提醒，消息里带网页入口
+3. 用户打开网页并保存第一条消息
+4. 用户回到 OpenClaw 说 `已录入`
+5. 外部 AI claim 这个 branch 并处理
+6. OpenClaw 的发送泵把结果发回原消息渠道
+7. 用户回到主窗口说 `合流上下文`，再继续主线对话
 
 ## 常用维护命令
 
-查看当前安装状态：
+查看共享安装状态：
 
-```bash
-cd relay-hub
+```powershell
 py -3 install.py status
 ```
 
-只重装 OpenClaw 侧桥接：
+只安装或更新宿主 Web 托管：
 
-```bash
-cd relay-hub
-py -3 install.py install-openclaw \
-  --delivery-channel <channel_a>=<target_a> \
-  --delivery-channel <channel_b>=<target_b> \
-  --delivery-account <channel_b>=<account_b>
-```
-
-只安装或更新宿主 Web 后台托管：
-
-```bash
-cd relay-hub
+```powershell
 py -3 install.py install-service --load-services
 ```
 
-宿主侧主路径：
+只安装或更新 OpenClaw 侧 bridge：
 
-```bash
-cd relay-hub
-py -3 install.py install-host --load-services
+```powershell
+py -3 install.py install-openclaw --delivery-channel <channel>=<target> --delivery-account <channel>=<accountId>
 ```
 
 ## 文档入口
 
-- 通用协议：`RELAY_PROTOCOL.md`
-- 给 AI 编程工具的安装提示：`docs/AI_INSTALL_PROMPT.md`
-- 安装章程：`docs/INSTALL_PLAYBOOK.md`
-- 通用宿主自举：`docs/GENERIC_HOST_BOOTSTRAP.md`
-- 接入硬章程：`docs/INTEGRATION_CONTRACT.md`
-- 通用性审计：`docs/COMPATIBILITY.md`
-- 卸载说明：`docs/UNINSTALL.md`
-- 给 OpenClaw 的安装提示：`docs/OPENCLAW_INSTALL_PROMPT.md`
-- OpenClaw 接入映射：`docs/OPENCLAW_INTEGRATION.md`
-- OpenClaw 最小规则：`docs/OPENCLAW_RULE.md`
-- 外部对象最小入口：`docs/AGENT_ENTRY_RULE.md`
-- 外部对象工作流：`docs/AGENT_WORKFLOW.md`
-- 日常运维：`docs/RUNBOOK.md`
+- 给 AI 编程工具的安装提示：[docs/AI_INSTALL_PROMPT.md](/D:/work/Claude%20Code/relay-hub/docs/AI_INSTALL_PROMPT.md)
+- 给 OpenClaw 的安装提示：[docs/OPENCLAW_INSTALL_PROMPT.md](/D:/work/Claude%20Code/relay-hub/docs/OPENCLAW_INSTALL_PROMPT.md)
+- 安装章程：[docs/INSTALL_PLAYBOOK.md](/D:/work/Claude%20Code/relay-hub/docs/INSTALL_PLAYBOOK.md)
+- 接入硬章程：[docs/INTEGRATION_CONTRACT.md](/D:/work/Claude%20Code/relay-hub/docs/INTEGRATION_CONTRACT.md)
+- 通用宿主自举：[docs/GENERIC_HOST_BOOTSTRAP.md](/D:/work/Claude%20Code/relay-hub/docs/GENERIC_HOST_BOOTSTRAP.md)
+- OpenClaw 接入映射：[docs/OPENCLAW_INTEGRATION.md](/D:/work/Claude%20Code/relay-hub/docs/OPENCLAW_INTEGRATION.md)
+- OpenClaw 最小规则：[docs/OPENCLAW_RULE.md](/D:/work/Claude%20Code/relay-hub/docs/OPENCLAW_RULE.md)
+- 外部 AI 最小入口：[docs/AGENT_ENTRY_RULE.md](/D:/work/Claude%20Code/relay-hub/docs/AGENT_ENTRY_RULE.md)
+- 外部 AI 工作流：[docs/AGENT_WORKFLOW.md](/D:/work/Claude%20Code/relay-hub/docs/AGENT_WORKFLOW.md)
+- 日常运维：[docs/RUNBOOK.md](/D:/work/Claude%20Code/relay-hub/docs/RUNBOOK.md)
+- 卸载说明：[docs/UNINSTALL.md](/D:/work/Claude%20Code/relay-hub/docs/UNINSTALL.md)
 
-## 边界说明
+## 边界
 
-- Relay Hub 本身是通用中转层，但不同 AI 宿主仍需要完成自己的接入。
-- 消息渠道统一通过 OpenClaw 接入；只要 OpenClaw 已支持该渠道，就可以接进 Relay Hub。
-- 当前分支只验证 Windows 宿主侧支持；仓库里保留的 macOS 托管逻辑不属于这个分支的验证范围。
-- Relay Hub 通过 OpenClaw 对接消息渠道，不直接连接其他渠道网关。
+- Relay Hub 本身是通用产品层，但这个分支只交付 Windows 安装主路径。
+- 消息渠道统一通过 OpenClaw 接入；Relay Hub 不直接读写原始消息渠道。
 - 网页 branch 是主线对话的临时工作区，不是第二条主对话。
-- 你正在使用的 AI 主对话窗口始终是主线。
-- 项目开发日志会参与 branch 上下文和回主线时的内容整理。
-- 代码目录和开发日志只用于定位项目内容；主会话切换仍然跟随当前 AI 主对话。
-- 如果项目里还没有 `DEVELOPMENT_LOG.md`，启用 Relay Hub 时会自动补建。
-- OpenClaw 负责消息入口和回包，不负责主线快照与回主线合流。
-- 外部 AI 不直接读取原始消息渠道。
-- OpenClaw 也不需要直接翻 Relay Hub 的底层数据文件。
-- 共享安装层允许原地更新，但不允许任何一侧擅自删除、重置或重装另一侧的现有 relay-hub 产物。
-- AI 宿主只负责共享安装层和自己宿主侧的长期机制；OpenClaw 只负责自己的渠道网关动作。
-- 任何跨侧清理、删除、卸载、reset、重建工作区，都必须先得到用户明确授权。
-
-所有消息渠道读写都通过固定桥接 CLI 完成。
+- `project_root` 只用于定位代码目录、开发日志和工作区；不用于控制主会话边界。
+- 共享安装层允许原地更新；任何跨侧删除、reset、卸载或重建工作区，都必须先得到用户明确授权。

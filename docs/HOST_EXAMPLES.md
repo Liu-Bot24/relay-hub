@@ -1,22 +1,28 @@
 # 宿主示例文件
 
-这些文件不是产品主路径，只是给常见宿主一个“最小可抄”的落地参考。
+这些文件不是产品主路径，也不是验收标准来源。
 
-真正的安装完成标准，仍然只看：
+它们只在下面这种场景使用：
 
-- `docs/GENERIC_HOST_BOOTSTRAP.md`
+- 当前宿主刚好命中一个现有示例
+- 你需要参考这个宿主的文件路径、配置格式或 hook 载体写法
 
-当当前宿主正好是下面 4 个时，可优先参考对应示例：
+真正的产品语义、完成标准和验收口径，始终以：
 
-- Codex（可选宿主增强）: `docs/HOST_EXAMPLES/codex.AGENTS.example.md`
-- Claude Code: `docs/HOST_EXAMPLES/claude-code.CLAUDE.example.md`
-- Gemini CLI: `docs/HOST_EXAMPLES/gemini-cli.GEMINI.example.md`
-- Cursor CLI: `docs/HOST_EXAMPLES/cursor-cli.relay-hub.example.mdc`
+- [docs/GENERIC_HOST_BOOTSTRAP.md](/D:/work/Claude%20Code/relay-hub/docs/GENERIC_HOST_BOOTSTRAP.md)
 
-这几份示例都遵守同一个原则：
+为准。
 
-1. 优先使用宿主原生 hook / watcher
-2. 如果没有现成 after-reply hook，但宿主持久规则能在回复收尾阶段自动执行本地命令，也允许把“写 exact body 文件 -> 调 `relay_after_reply_hook.py` -> 发送同一份正文”作为自动镜像机制
-3. 只有用户每轮都要提醒你补跑命令，才算手动补跑
-4. branch 合流默认仍然走产品命令 `合流上下文`；只有宿主确实支持可靠的前置 hook / pre-prompt 机制时，才把自动合流当成可选增强
-5. 如果某份示例写明了精确持久载体路径和验证方式，就必须按那份示例真实落下；memory、session cache、history、临时 transcript 不能代替
+当前这 4 份示例都已经收成 Windows 安全版：
+
+- Codex（可选宿主增强）：`docs/HOST_EXAMPLES/codex.AGENTS.example.md`
+- Claude Code：`docs/HOST_EXAMPLES/claude-code.CLAUDE.example.md`
+- Gemini CLI：`docs/HOST_EXAMPLES/gemini-cli.GEMINI.example.md`
+- Cursor CLI：`docs/HOST_EXAMPLES/cursor-cli.relay-hub.example.mdc`
+
+使用时仍然要遵守这 4 条：
+
+1. 示例不是产品定义
+2. 示例里的 backend / hook / transcript 规则，只有在当前宿主版本已经真实验证过时，才允许写成已完成
+3. 通用默认的 merge-back 方式仍然是用户显式说 `合流上下文`
+4. 所有最终发给用户的正文与被镜像出去的正文必须是同一份文本

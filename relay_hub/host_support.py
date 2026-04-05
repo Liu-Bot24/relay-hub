@@ -10,20 +10,14 @@ from typing import Any
 
 
 WINDOWS = "windows"
-MACOS = "macos"
+DARWIN = "darwin"
 LINUX = "linux"
 DEFAULT_WINDOWS_TASK_NAME = "RelayHub Web"
-MACOS_TEMP_PREFIXES = (
-    Path("/private/tmp"),
-    Path("/tmp"),
-    Path("/var/folders"),
-    Path("/private/var/folders"),
-)
 
 
 def current_platform() -> str:
     if sys.platform == "darwin":
-        return MACOS
+        return DARWIN
     if os.name == "nt":
         return WINDOWS
     return LINUX
@@ -36,8 +30,6 @@ def default_install_root() -> Path:
         if local_app_data:
             return (Path(local_app_data) / "RelayHub").resolve()
         return (Path.home() / "AppData" / "Local" / "RelayHub").resolve()
-    if platform_name == MACOS:
-        return (Path.home() / "Library" / "Application Support" / "RelayHub").resolve()
     xdg_data_home = os.environ.get("XDG_DATA_HOME")
     if xdg_data_home:
         return (Path(xdg_data_home) / "RelayHub").expanduser().resolve()
@@ -82,10 +74,7 @@ def default_windows_startup_dir() -> Path:
 
 
 def default_service_manager() -> str:
-    platform_name = current_platform()
-    if platform_name == MACOS:
-        return "launchd"
-    if platform_name == WINDOWS:
+    if current_platform() == WINDOWS:
         return "windows-startup"
     return "manual"
 
@@ -94,8 +83,6 @@ def repo_root_forbidden_prefixes() -> tuple[Path, ...]:
     prefixes: list[Path] = []
     temp_root = Path(tempfile.gettempdir()).resolve()
     prefixes.append(temp_root)
-    if current_platform() == MACOS:
-        prefixes.extend(MACOS_TEMP_PREFIXES)
     deduped: list[Path] = []
     seen: set[str] = set()
     for item in prefixes:

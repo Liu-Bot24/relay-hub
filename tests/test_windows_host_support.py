@@ -21,6 +21,9 @@ class WindowsHostSupportTests(unittest.TestCase):
         temp_dir.mkdir()
         return temp_dir
 
+    def read_repo_text(self, relative_path: str) -> str:
+        return (Path(__file__).resolve().parents[1] / relative_path).read_text(encoding="utf-8")
+
     def test_default_install_root_prefers_localappdata(self) -> None:
         with mock.patch.dict(os.environ, {"LOCALAPPDATA": r"C:\RelayHubLocal"}, clear=False):
             self.assertEqual(default_install_root(), Path(r"C:\RelayHubLocal\RelayHub"))
@@ -60,6 +63,35 @@ class WindowsHostSupportTests(unittest.TestCase):
         self.assertIn('`py -3 "D:\\path with space\\relay-hub\\app\\scripts\\agent_relay.py" ...`', text)
         self.assertIn('py -3 "D:\\path with space\\relay-hub\\app\\scripts\\agent_relay.py" --agent codex enable-relay --project-root "<project_root>" --start-pickup', text)
 
+    def test_cli_help_hides_launchd_surface(self) -> None:
+        parser = install.build_parser()
+        root_help = parser.format_help()
+        subparsers = next(action for action in parser._actions if action.dest == "command")
+        install_host_help = subparsers.choices["install-host"].format_help()
+        uninstall_service_help = subparsers.choices["uninstall-service"].format_help()
+
+        for text in (root_help, install_host_help, uninstall_service_help):
+            self.assertNotIn("install-launchd", text)
+            self.assertNotIn("uninstall-launchd", text)
+            self.assertNotIn("--launchagents-dir", text)
+            self.assertNotIn("launchd", text)
+
+    def test_windows_only_install_surface_docs_hide_posix_and_direct_codex_backend(self) -> None:
+        banned_tokens = {
+            "README.md": ["macOS", "launchd", "LaunchAgents", "python3"],
+            "docs/AI_INSTALL_PROMPT.md": ["~/relay-hub", "/tmp", "/private/tmp", "/var/folders", "python3"],
+            "docs/INSTALL_PLAYBOOK.md": ["~/relay-hub", "/path/to/relay-hub", "python3"],
+            "docs/COMPATIBILITY.md": ["macOS", "launchd", "LaunchAgents", "python3"],
+            "docs/HOST_EXAMPLES/codex.AGENTS.example.md": ['["codex","exec"', "python3", "launchd", "macOS"],
+            "docs/HOST_EXAMPLES/claude-code.CLAUDE.example.md": ["python3", "launchd", "macOS"],
+            "docs/HOST_EXAMPLES/gemini-cli.GEMINI.example.md": ["python3", '["bash","-lc"', "mktemp", "launchd", "macOS"],
+            "docs/HOST_EXAMPLES/cursor-cli.relay-hub.example.mdc": ["python3", '["bash","-lc"', "mktemp", "launchd", "macOS"],
+        }
+        for relative_path, tokens in banned_tokens.items():
+            text = self.read_repo_text(relative_path)
+            for token in tokens:
+                self.assertNotIn(token, text, msg=f"{relative_path} still contains {token!r}")
+
     def test_explicit_openclaw_delivery_channels_skip_auto_discovery(self) -> None:
         temp_dir = self.make_temp_dir()
         openclaw_workspace = temp_dir / "openclaw"
@@ -83,7 +115,6 @@ class WindowsHostSupportTests(unittest.TestCase):
         temp_dir = self.make_temp_dir()
         runtime_root = temp_dir / "runtime"
         openclaw_workspace = temp_dir / "openclaw"
-        launchagents_dir = temp_dir / "LaunchAgents"
         app_root = temp_dir / "app"
         codex_home = temp_dir / ".codex"
         args = mock.Mock()
@@ -102,13 +133,109 @@ class WindowsHostSupportTests(unittest.TestCase):
                 return mapping.get(name)
 
             with (
-                mock.patch.object(install, "install_status", return_value={"repo_is_git": False}),
                 mock.patch.object(install, "service_loaded", return_value=False),
+                mock.patch.object(install, "windows_relay_web_running", return_value=False),
+                mock.patch.object(install, "REPO_ROOT", temp_dir),
                 mock.patch("install.shutil.which", side_effect=which_side_effect),
             ):
-                payload = install.install_doctor(args, runtime_root, openclaw_workspace, launchagents_dir, app_root, codex_home)
+                status_payload = install.install_status(args, runtime_root, openclaw_workspace, app_root, codex_home)
+                self.assertNotIn("launchagents_dir", status_payload)
+                self.assertNotIn("web_plist_installed", status_payload)
+                self.assertNotIn("legacy_agent_plists_installed", status_payload)
+                self.assertNotIn("launchagents_dir", status_payload["service"])
+                payload = install.install_doctor(args, runtime_root, openclaw_workspace, app_root, codex_home)
             python_check = next(check for check in payload["checks"] if check["name"] == "python")
             self.assertEqual(python_check["detail"], f"py -3 (C:\\Windows\\py.exe) -> {install.sys.executable}")
+            self.assertFalse(any(check["name"] == "launchagents_dir_parent" for check in payload["checks"]))
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_install_windows_service_succeeds_and_reports_loaded(self) -> None:
+        temp_dir = self.make_temp_dir()
+        runtime_root = temp_dir / "runtime"
+        app_root = temp_dir / "app"
+        args = mock.Mock()
+        args.web_host = "127.0.0.1"
+        args.web_port = 4518
+        args.load_services = True
+        args.windows_startup_name = "Relay Hub Test"
+        startup_entry = temp_dir / "startup.cmd"
+        try:
+            with (
+                mock.patch.object(install, "stage_app_bundle", return_value={"installed": True}),
+                mock.patch.object(install, "windows_startup_entry_path", return_value=startup_entry),
+                mock.patch.object(install, "can_connect_local_web", side_effect=[False, False]),
+                mock.patch.object(install, "start_windows_web_now", return_value=123),
+                mock.patch.object(install, "wait_for_local_web", return_value=True),
+                mock.patch.object(install, "windows_relay_web_running", return_value=True),
+            ):
+                payload = install.install_windows_service(args, runtime_root, app_root)
+            self.assertTrue(payload["running"])
+            self.assertTrue(payload["loaded"])
+            self.assertTrue(startup_entry.exists())
+            self.assertTrue(install.windows_web_launcher_path(runtime_root).exists())
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_install_windows_service_rolls_back_on_foreign_listener(self) -> None:
+        temp_dir = self.make_temp_dir()
+        runtime_root = temp_dir / "runtime"
+        app_root = temp_dir / "app"
+        args = mock.Mock()
+        args.web_host = "127.0.0.1"
+        args.web_port = 4517
+        args.load_services = True
+        args.windows_startup_name = "Relay Hub Test"
+        startup_entry = temp_dir / "startup.cmd"
+        launcher_path = install.windows_web_launcher_path(runtime_root)
+        try:
+            with (
+                mock.patch.object(install, "stage_app_bundle", return_value={"installed": True}),
+                mock.patch.object(install, "windows_startup_entry_path", return_value=startup_entry),
+                mock.patch.object(install, "can_connect_local_web", return_value=True),
+                mock.patch.object(install, "windows_relay_web_running", return_value=False),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "port 4517 is already in use"):
+                    install.install_windows_service(args, runtime_root, app_root)
+            self.assertFalse(startup_entry.exists())
+            self.assertFalse(launcher_path.exists())
+            self.assertFalse(install.windows_web_pid_path(runtime_root).exists())
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_install_windows_service_rolls_back_started_process_after_failed_verification(self) -> None:
+        temp_dir = self.make_temp_dir()
+        runtime_root = temp_dir / "runtime"
+        app_root = temp_dir / "app"
+        args = mock.Mock()
+        args.web_host = "127.0.0.1"
+        args.web_port = 4519
+        args.load_services = True
+        args.windows_startup_name = "Relay Hub Test"
+        startup_entry = temp_dir / "startup.cmd"
+        launcher_path = install.windows_web_launcher_path(runtime_root)
+        pid_path = install.windows_web_pid_path(runtime_root)
+
+        def fake_start(*_args: object, **_kwargs: object) -> int:
+            install.write_windows_web_pid_info(runtime_root, {"pid": 222, "port": 4519})
+            return 222
+
+        try:
+            with (
+                mock.patch.object(install, "stage_app_bundle", return_value={"installed": True}),
+                mock.patch.object(install, "windows_startup_entry_path", return_value=startup_entry),
+                mock.patch.object(install, "can_connect_local_web", side_effect=[False, False, False]),
+                mock.patch.object(install, "start_windows_web_now", side_effect=fake_start),
+                mock.patch.object(install, "wait_for_local_web", return_value=True),
+                mock.patch.object(install, "windows_relay_web_running", return_value=False),
+                mock.patch.object(install, "terminate_process") as terminate_process,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "relay web did not start"):
+                    install.install_windows_service(args, runtime_root, app_root)
+            terminate_process.assert_called_once_with(222, force=False)
+            self.assertFalse(startup_entry.exists())
+            self.assertFalse(launcher_path.exists())
+            self.assertFalse(pid_path.exists())
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -122,29 +249,6 @@ class WindowsHostSupportTests(unittest.TestCase):
         ):
             self.assertFalse(install.windows_relay_web_running(runtime_root, app_root, 4517))
             matches.assert_called_once_with(321, runtime_root, app_root, 4517)
-
-    def test_install_windows_service_rejects_foreign_listener(self) -> None:
-        temp_dir = self.make_temp_dir()
-        runtime_root = temp_dir / "runtime"
-        app_root = temp_dir / "app"
-        args = mock.Mock()
-        args.web_host = "127.0.0.1"
-        args.web_port = 4517
-        args.load_services = True
-        args.windows_startup_name = "Relay Hub Test"
-        startup_entry = temp_dir / "startup.cmd"
-        try:
-            with (
-                mock.patch.object(install, "stage_app_bundle", return_value={"installed": True}),
-                mock.patch.object(install, "write_text"),
-                mock.patch.object(install, "windows_startup_entry_path", return_value=startup_entry),
-                mock.patch.object(install, "can_connect_local_web", return_value=True),
-                mock.patch.object(install, "windows_relay_web_running", return_value=False),
-            ):
-                with self.assertRaisesRegex(RuntimeError, "port 4517 is already in use"):
-                    install.install_windows_service(args, runtime_root, app_root)
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
 
     def test_uninstall_windows_service_skips_unverified_pid(self) -> None:
         temp_dir = self.make_temp_dir()
@@ -169,6 +273,36 @@ class WindowsHostSupportTests(unittest.TestCase):
                 payload = install.uninstall_windows_service(args, runtime_root, app_root)
             terminate_process.assert_not_called()
             self.assertFalse(payload["process_verified"])
+            self.assertFalse(install.windows_web_pid_path(runtime_root).exists())
+            self.assertFalse(startup_entry.exists())
+            self.assertFalse(launcher_path.exists())
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_uninstall_windows_service_terminates_verified_pid(self) -> None:
+        temp_dir = self.make_temp_dir()
+        runtime_root = temp_dir / "runtime"
+        app_root = temp_dir / "app"
+        runtime_root.mkdir()
+        startup_entry = temp_dir / "startup.cmd"
+        launcher_path = install.windows_web_launcher_path(runtime_root)
+        launcher_path.parent.mkdir(parents=True, exist_ok=True)
+        launcher_path.write_text("echo off\n", encoding="utf-8")
+        startup_entry.write_text("echo off\n", encoding="utf-8")
+        install.write_windows_web_pid_info(runtime_root, {"pid": 654, "port": 4517})
+        args = mock.Mock()
+        args.web_port = 4517
+        args.windows_startup_name = "Relay Hub Test"
+        try:
+            with (
+                mock.patch.object(install, "windows_startup_entry_path", return_value=startup_entry),
+                mock.patch.object(install, "windows_process_matches_relay_web", return_value=True),
+                mock.patch.object(install, "can_connect_local_web", return_value=False),
+                mock.patch.object(install, "terminate_process") as terminate_process,
+            ):
+                payload = install.uninstall_windows_service(args, runtime_root, app_root)
+            terminate_process.assert_called_once_with(654, force=False)
+            self.assertTrue(payload["process_verified"])
             self.assertFalse(install.windows_web_pid_path(runtime_root).exists())
             self.assertFalse(startup_entry.exists())
             self.assertFalse(launcher_path.exists())

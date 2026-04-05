@@ -92,32 +92,34 @@
 
 ## 3. 推荐目录
 
-推荐默认根目录：
+在 `main-Windows` 分支里，推荐直接以安装器写出的 runtime 根目录作为 `relay_root`。
+
+默认情况下：
 
 ```text
-$HOME/AgentRelayHub
+%LOCALAPPDATA%\RelayHub\runtime
 ```
 
 推荐结构：
 
 ```text
-AgentRelayHub/
+runtime\
   config.json
   routes.json
-  agents/
+  agents\
     codex.json
     claude-code.json
-  sessions/
-    channel_a__target_demo/
+  sessions\
+    channel_a__target_demo\
       meta.json
       state.json
       main_context.md
-      messages/
+      messages\
         000001.user.md
         000002.progress.codex.md
         000003.final.codex.md
-      attachments/
-  logs/
+      attachments\
+  logs\
     relay.jsonl
 ```
 
@@ -126,7 +128,7 @@ AgentRelayHub/
 ```json
 {
   "version": 1,
-  "relay_root": "/path/to/AgentRelayHub",
+  "relay_root": "<relay_root>",
   "web_base_url": "http://127.0.0.1:4317",
   "default_delivery": {
     "mode": "all",
@@ -317,7 +319,8 @@ append_web_url: true
 
 - OpenClaw 只调用桥接 CLI，不自己翻 `routes.json`、`state.json`、`messages/*.md`
 - 外部 agent 只调用 `scripts/agent_relay.py` / `scripts/relayctl.py`，不直接碰原始消息渠道
-- 用户回到主对话窗口并发送第一句话时，主窗口应先做一次 resume-main，把 branch 增量接回主线，再继续回答当前新消息
+- 通用默认是：用户显式说 `合流上下文` 时，主窗口再执行一次 `resume-main`，把 branch 增量接回主线
+- 只有当前宿主已经真实落下可靠的前置 hook / pre-user 机制时，才允许把同样动作写成自动触发
 
 ## 10. 仓库入口
 
