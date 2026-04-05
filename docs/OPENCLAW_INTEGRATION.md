@@ -7,6 +7,8 @@ OpenClaw 如果要接 Relay Hub，应该调用哪些桥接命令。
 它不讨论 OpenClaw 内部 prompt，也不讨论网页实现细节。  
 目标是把 OpenClaw 的职责压缩成“渠道网关 + 触发器”。
 
+Windows 默认把下文命令里的 `python3` 替换成 `py -3`；如果当前 Windows 环境里已经有稳定可用的 `python3`，也可以继续用 `python3`。
+
 推荐入口脚本：
 
 ```bash

@@ -87,6 +87,30 @@ def resolve_path(raw: str | None, default: Path) -> Path:
     return Path(raw).expanduser().resolve() if raw else default
 
 
+def preferred_python_command() -> str:
+    return "py -3" if CURRENT_PLATFORM == WINDOWS else "python3"
+
+
+def quoted_cli_path(path: Path) -> str:
+    return f'"{path}"'
+
+
+def python_script_command(script_path: Path) -> str:
+    return f"{preferred_python_command()} {quoted_cli_path(script_path)}"
+
+
+def install_cli_command(arguments: str) -> str:
+    return f"{preferred_python_command()} install.py {arguments}".strip()
+
+
+def doctor_python_check_detail() -> str:
+    if CURRENT_PLATFORM == WINDOWS:
+        launcher = shutil.which("py.exe") or shutil.which("py")
+        if launcher:
+            return f"py -3 ({launcher}) -> {sys.executable}"
+    return f"{preferred_python_command()} -> {sys.executable}"
+
+
 def nearest_existing_parent(path: Path) -> Path:
     current = path.expanduser().resolve()
     while not current.exists() and current.parent != current:
@@ -415,7 +439,10 @@ def discover_openclaw_delivery_channels() -> tuple[dict[str, Any], list[str]]:
 def resolved_delivery_channels(args: argparse.Namespace, openclaw_workspace: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     explicit = clean_delivery_channels(delivery_channels(args))
     existing = clean_delivery_channels(existing_delivery_channels(openclaw_workspace))
-    auto_discovered, unresolved = discover_openclaw_delivery_channels()
+    auto_discovered: dict[str, Any] = {}
+    unresolved: list[str] = []
+    if not explicit:
+        auto_discovered, unresolved = discover_openclaw_delivery_channels()
     merged = merge_delivery_channel_maps(auto_discovered, existing, explicit)
     sources: list[str] = []
     if auto_discovered:
@@ -545,6 +572,7 @@ def build_openclaw_config(
 
 
 def build_skill_text(script_path: Path) -> str:
+    script_cmd = python_script_command(script_path)
     return f"""---
 name: relay-hub-openclaw
 description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 <agent> 入口”“已录入”“状态”“退出 relay”“relay help”这类请求，并把外部 agent 的回包优先发回当前会话来源渠道；首次从宿主侧开启时，默认提醒会发到当前已启用的 OpenClaw 渠道。
@@ -555,7 +583,7 @@ description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 <agent>
 这个 skill 只负责 OpenClaw 侧的渠道网关动作，不负责外部 agent 的主上下文，也不要自己翻 Relay Hub 的底层文件。
 
 必须遵守
-- 只调用固定脚本：`python3 {script_path} ...`
+- 只调用固定脚本：`{script_cmd} ...`
 - 不要自己读取 `routes.json`、`config.json`、`messages/*.md`。
 - 对桥接脚本的返回内容，优先原样发给用户，不要总结，不要改写，不要脑补成功。
 - 当前主对话窗口不在 OpenClaw 里。OpenClaw 只负责“开入口、收已录入、查状态、退出、relay help、发回包”。
@@ -577,43 +605,43 @@ description: OpenClaw 的 Relay Hub 渠道路由技能。用于“打开 <agent>
 ## 1. 打开入口
 
 ```bash
-python3 {script_path} open-entry --agent "<agent>" --channel "<当前渠道>" --target "<当前目标>"
+{script_cmd} open-entry --agent "<agent>" --channel "<当前渠道>" --target "<当前目标>"
 ```
 
 如果脚本返回“请明确选择：回复‘复用入口’继续使用旧 branch，或回复‘新建入口’创建全新 branch”，必须先把这个问题发给用户，主动询问，不要替用户决定。并把这次的 `agent / channel / target` 视作当前待确认入口；等用户明确回答后再重试。用户只要明确表达“复用”或“新建”即可，不要求一字不差：
 
 ```bash
-python3 {script_path} open-entry --agent "<agent>" --channel "<当前渠道>" --target "<当前目标>" --branch-mode reuse
+{script_cmd} open-entry --agent "<agent>" --channel "<当前渠道>" --target "<当前目标>" --branch-mode reuse
 ```
 
 或：
 
 ```bash
-python3 {script_path} open-entry --agent "<agent>" --channel "<当前渠道>" --target "<当前目标>" --branch-mode new
+{script_cmd} open-entry --agent "<agent>" --channel "<当前渠道>" --target "<当前目标>" --branch-mode new
 ```
 
 ## 2. 已录入
 
 ```bash
-python3 {script_path} dispatch-input --channel "<当前渠道>" --target "<当前目标>" --wait-claim
+{script_cmd} dispatch-input --channel "<当前渠道>" --target "<当前目标>" --wait-claim
 ```
 
 ## 3. 状态
 
 ```bash
-python3 {script_path} session-status --channel "<当前渠道>" --target "<当前目标>"
+{script_cmd} session-status --channel "<当前渠道>" --target "<当前目标>"
 ```
 
 ## 4. 退出
 
 ```bash
-python3 {script_path} exit-relay --channel "<当前渠道>" --target "<当前目标>"
+{script_cmd} exit-relay --channel "<当前渠道>" --target "<当前目标>"
 ```
 
 ## 5. relay help
 
 ```bash
-python3 {script_path} relay-help --agent "<agent>"
+{script_cmd} relay-help --agent "<agent>"
 ```
 
 ## 6. 外部回包发送
@@ -621,13 +649,14 @@ python3 {script_path} relay-help --agent "<agent>"
 外部 agent 的回包由 heartbeat 里的发送泵统一处理：
 
 ```bash
-python3 {script_path} pump-deliveries
+{script_cmd} pump-deliveries
 ```
 """
 
 
 def build_codex_skill_text(app_root: Path) -> str:
     script_path = app_root / "scripts" / "agent_relay.py"
+    script_cmd = python_script_command(script_path)
     return f"""---
 name: relay-hub
 description: Use when the user says “接入 Relay Hub”, “Relay Hub 状态”, “合流上下文”, or “退出 Relay Hub”, or when a Relay Hub-enabled Codex conversation should mirror its replies to OpenClaw channels.
@@ -639,7 +668,7 @@ This skill gives Codex a Relay Hub control surface for the current Codex convers
 
 Use the installed script:
 
-- `python3 {script_path} ...`
+- `{script_cmd} ...`
 
 Treat these as product commands, not ordinary chat:
 
@@ -678,9 +707,7 @@ When the user says `接入 Relay Hub`:
 5. Run:
 
 ```bash
-python3 {script_path} --agent codex enable-relay \\
-  --project-root "<project_root>" \\
-  --start-pickup
+{script_cmd} --agent codex enable-relay --project-root "<project_root>" --start-pickup
 ```
 
 Notes:
@@ -692,7 +719,7 @@ Notes:
 Before a normal non-product reply while Relay Hub is already enabled, prepare the current Codex conversation for reply:
 
 ```bash
-python3 {script_path} --agent codex prepare-main-reply
+{script_cmd} --agent codex prepare-main-reply
 ```
 
 Notes:
@@ -706,19 +733,19 @@ When the user says `Relay Hub 状态`:
 First align Relay Hub to the current Codex conversation:
 
 ```bash
-python3 {script_path} --agent codex sync-current-main
+{script_cmd} --agent codex sync-current-main
 ```
 
 Then inspect agent status:
 
 ```bash
-python3 {script_path} --agent codex agent-status
+{script_cmd} --agent codex agent-status
 ```
 
 If you already know the current `main_session_ref`, also inspect that pickup:
 
 ```bash
-python3 {script_path} --agent codex pickup-status --main-session-ref "<main_session_ref>"
+{script_cmd} --agent codex pickup-status --main-session-ref "<main_session_ref>"
 ```
 
 If the status output shows `resume_candidates`, tell the user plainly that old branch context has not yet been merged back into the main conversation.
@@ -726,19 +753,19 @@ If the status output shows `resume_candidates`, tell the user plainly that old b
 When the user says `消息提醒状态`:
 
 ```bash
-python3 {script_path} --agent codex notification-status
+{script_cmd} --agent codex notification-status
 ```
 
 When the user says `开启<渠道>消息提醒`:
 
 ```bash
-python3 {script_path} --agent codex enable-notification-channel --channel "<channel>"
+{script_cmd} --agent codex enable-notification-channel --channel "<channel>"
 ```
 
 When the user says `关闭<渠道>消息提醒`:
 
 ```bash
-python3 {script_path} --agent codex disable-notification-channel --channel "<channel>"
+{script_cmd} --agent codex disable-notification-channel --channel "<channel>"
 ```
 
 Accepted channel tokens include exact configured channel ids plus common aliases such as the examples below; if the configured channel id is different, pass that exact id through directly:
@@ -751,14 +778,14 @@ When the user says `合流上下文`:
 1. First align Relay Hub to the current Codex conversation:
 
 ```bash
-python3 {script_path} --agent codex sync-current-main
+{script_cmd} --agent codex sync-current-main
 ```
 
 2. Reuse the current attached `main_session_ref`.
 3. Run:
 
 ```bash
-python3 {script_path} --agent codex resume-main --main-session-ref "<main_session_ref>"
+{script_cmd} --agent codex resume-main --main-session-ref "<main_session_ref>"
 ```
 
 4. If the script returns multiple `resume_candidates`, do not guess. Tell the user there are multiple old branches still waiting to be merged, and ask which one to merge.
@@ -767,7 +794,7 @@ python3 {script_path} --agent codex resume-main --main-session-ref "<main_sessio
 When the user says `退出 Relay Hub`:
 
 ```bash
-python3 {script_path} --agent codex disable-relay
+{script_cmd} --agent codex disable-relay
 ```
 
 Rules:
@@ -780,6 +807,7 @@ Rules:
 def build_codex_agents_block(codex_home: Path, app_root: Path) -> str:
     skill = codex_skill_path(codex_home)
     script_path = app_root / "scripts" / "agent_relay.py"
+    script_cmd = python_script_command(script_path)
     return f"""{CODEX_AGENTS_BEGIN}
 When the user says `接入 Relay Hub`, `Relay Hub 状态`, `消息提醒状态`, `开启<渠道>消息提醒`, `关闭<渠道>消息提醒`, `合流上下文`, or `退出 Relay Hub`, treat those as Relay Hub product commands, not ordinary chat. Follow the installed Codex skill at:
 
@@ -787,7 +815,7 @@ When the user says `接入 Relay Hub`, `Relay Hub 状态`, `消息提醒状态`,
 
 If Relay Hub is already enabled for Codex, the active main conversation should follow the current Codex conversation / thread, not `project_root`. Before a normal main-window reply in this conversation, run:
 
-- `python3 {script_path} --agent codex prepare-main-reply`
+- `{script_cmd} --agent codex prepare-main-reply`
 
 If this Codex conversation is attached to Relay Hub, normal main-window replies should by default be mirrored to OpenClaw channels unless the user explicitly says不要同步 or has already exited Relay Hub.
 For Codex host conversations, this mirror must come from the exact final output captured by code, not from a second prompt-generated paraphrase or another model pass.
@@ -808,10 +836,11 @@ def merge_codex_agents(existing: str, block: str) -> str:
 
 
 def build_heartbeat_block(script_path: Path) -> str:
+    script_cmd = python_script_command(script_path)
     return f"""{HEARTBEAT_BEGIN}
 先运行：
 
-- `python3 {script_path} pump-deliveries`
+- `{script_cmd} pump-deliveries`
 
 规则：
 
@@ -909,7 +938,7 @@ def ensure_shared_install_ready(runtime_root: Path, app_root: Path) -> None:
     if missing:
         raise SystemExit(
             "OpenClaw-side install requires shared Relay Hub files to already exist. "
-            "Please run `python3 install.py install-host --load-services` first. "
+            f"Please run `{install_cli_command('install-host --load-services')}` first. "
             f"Missing: {', '.join(missing)}"
         )
 
@@ -1528,7 +1557,7 @@ def install_doctor(
     def add_check(name: str, ok: bool, detail: str) -> None:
         checks.append({"name": name, "ok": ok, "detail": detail})
 
-    add_check("python3", True, sys.executable)
+    add_check("python", True, doctor_python_check_detail())
 
     openclaw_cli = shutil.which("openclaw")
     add_check("openclaw_cli", bool(openclaw_cli), openclaw_cli or "openclaw not found in PATH")

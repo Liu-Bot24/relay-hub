@@ -48,6 +48,70 @@ class WindowsHostSupportTests(unittest.TestCase):
         self.assertIn('--root "D:\\path with space\\relay-hub\\runtime"', script)
         self.assertIn("Start-Process", script)
 
+    def test_generated_openclaw_skill_uses_windows_python_command_and_quotes_path(self) -> None:
+        script_path = Path(r"D:\path with space\relay-hub\app\scripts\relay_openclaw_bridge.py")
+        text = install.build_skill_text(script_path)
+        self.assertIn('`py -3 "D:\\path with space\\relay-hub\\app\\scripts\\relay_openclaw_bridge.py" ...`', text)
+        self.assertIn('py -3 "D:\\path with space\\relay-hub\\app\\scripts\\relay_openclaw_bridge.py" pump-deliveries', text)
+
+    def test_generated_codex_skill_uses_windows_python_command_and_quotes_path(self) -> None:
+        app_root = Path(r"D:\path with space\relay-hub\app")
+        text = install.build_codex_skill_text(app_root)
+        self.assertIn('`py -3 "D:\\path with space\\relay-hub\\app\\scripts\\agent_relay.py" ...`', text)
+        self.assertIn('py -3 "D:\\path with space\\relay-hub\\app\\scripts\\agent_relay.py" --agent codex enable-relay --project-root "<project_root>" --start-pickup', text)
+
+    def test_explicit_openclaw_delivery_channels_skip_auto_discovery(self) -> None:
+        temp_dir = self.make_temp_dir()
+        openclaw_workspace = temp_dir / "openclaw"
+        args = mock.Mock()
+        args.delivery_channel = ["openclaw-weixin=test-user"]
+        args.delivery_account = ["openclaw-weixin=test-account"]
+        try:
+            with mock.patch.object(install, "discover_openclaw_delivery_channels", side_effect=AssertionError("auto-discovery should not run")):
+                channels, meta = install.resolved_delivery_channels(args, openclaw_workspace)
+            self.assertEqual(
+                channels,
+                {"openclaw-weixin": {"target": "test-user", "accountId": "test-account"}},
+            )
+            self.assertEqual(meta["source"], "explicit_args")
+            self.assertEqual(meta["auto_discovered_channels"], {})
+            self.assertEqual(meta["unresolved_channels"], [])
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_doctor_reports_windows_python_launcher(self) -> None:
+        temp_dir = self.make_temp_dir()
+        runtime_root = temp_dir / "runtime"
+        openclaw_workspace = temp_dir / "openclaw"
+        launchagents_dir = temp_dir / "LaunchAgents"
+        app_root = temp_dir / "app"
+        codex_home = temp_dir / ".codex"
+        args = mock.Mock()
+        args.web_port = 4517
+        args.web_base_url = "http://127.0.0.1:4517"
+        args.delivery_channel = None
+        args.delivery_account = None
+        try:
+            def which_side_effect(name: str) -> str | None:
+                mapping = {
+                    "py.exe": r"C:\Windows\py.exe",
+                    "py": r"C:\Windows\py.exe",
+                    "powershell.exe": r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+                    "powershell": r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe",
+                }
+                return mapping.get(name)
+
+            with (
+                mock.patch.object(install, "install_status", return_value={"repo_is_git": False}),
+                mock.patch.object(install, "service_loaded", return_value=False),
+                mock.patch("install.shutil.which", side_effect=which_side_effect),
+            ):
+                payload = install.install_doctor(args, runtime_root, openclaw_workspace, launchagents_dir, app_root, codex_home)
+            python_check = next(check for check in payload["checks"] if check["name"] == "python")
+            self.assertEqual(python_check["detail"], f"py -3 (C:\\Windows\\py.exe) -> {install.sys.executable}")
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
     def test_windows_relay_web_running_requires_verified_process(self) -> None:
         runtime_root = Path(r"D:\relay-hub\runtime")
         app_root = Path(r"D:\relay-hub\app")
