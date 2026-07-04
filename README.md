@@ -1,5 +1,7 @@
 # Relay Hub
 
+![Stars](https://img.shields.io/github/stars/Liu-Bot24/relay-hub?style=flat&label=Stars&cache=20260704) ![Forks](https://img.shields.io/github/forks/Liu-Bot24/relay-hub?style=flat&label=Forks&cache=20260704) ![Views 14d](https://github-stats.liu-qi.cn/api/badge/Liu-Bot24/relay-hub/views14d.svg?v=4) ![Clones 14d](https://github-stats.liu-qi.cn/api/badge/Liu-Bot24/relay-hub/clones14d.svg?v=4)
+
 Relay Hub 是一个中转层，用来把这三样东西接起来：
 
 - AI 编程工具的主对话窗口
